@@ -1,0 +1,67 @@
+# Unreal Engine generated files
+Binaries/
+DerivedDataCache/
+Intermediate/
+Saved/
+
+# Plugin generated files
+Plugins/*/Binaries/
+Plugins/*/Intermediate/
+Plugins/*/Saved/
+
+# Build and packaging output
+Builds/
+Packages/
+Releases/
+StagedBuilds/
+
+# Visual Studio / Rider / VS Code local files
+.vs/
+.idea/
+*.sln
+*.suo
+*.user
+*.userosscache
+*.sdf
+*.opensdf
+*.VC.db
+*.VC.opendb
+*.code-workspace
+
+# VS Code settings (keep shared configuration if you add it later)
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+
+# C++ build artifacts
+*.obj
+*.o
+*.pdb
+*.ilk
+*.exp
+*.lib
+*.dll
+*.exe
+
+# .NET / UnrealBuildTool artifacts
+[Bb]in/
+[Oo]bj/
+artifacts/
+
+# Logs and crash dumps
+*.log
+*.dmp
+*.mdmp
+
+# OS files
+Thumbs.db
+[Dd]esktop.ini
+$RECYCLE.BIN/
+.DS_Store
+
+# Local history / editor caches
+.history/
+*.vsix
+GDD/
