@@ -15,7 +15,7 @@ Packages/
 Releases/
 StagedBuilds/
 
-# Visual Studio / Rider / VS Code local files
+# Visual Studio / Rider local files
 .vs/
 .idea/
 *.sln
@@ -26,14 +26,6 @@ StagedBuilds/
 *.opensdf
 *.VC.db
 *.VC.opendb
-*.code-workspace
-
-# VS Code settings (keep shared configuration if you add it later)
-.vscode/*
-!.vscode/settings.json
-!.vscode/tasks.json
-!.vscode/launch.json
-!.vscode/extensions.json
 
 # C++ build artifacts
 *.obj
@@ -64,4 +56,3 @@ $RECYCLE.BIN/
 # Local history / editor caches
 .history/
 *.vsix
-GDD/
