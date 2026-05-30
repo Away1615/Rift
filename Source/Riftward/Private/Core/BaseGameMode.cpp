@@ -16,6 +16,11 @@ ABaseGameMode::ABaseGameMode()
     PlayerControllerClass = ABasePlayerController::StaticClass();
     GameStateClass = ABaseGameState::StaticClass();
     PlayerStateClass = ABasePlayerState::StaticClass();
-    
+
 }
 
+void ABaseGameMode::BeginPlay() {
+    Super::BeginPlay();
+    UE_LOG(LogTemp, Warning, TEXT("GameMode: %s"), *GetName());
+
+}

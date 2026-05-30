@@ -6,12 +6,27 @@
 #include "GameFramework/PlayerController.h"
 #include "BasePlayerController.generated.h"
 
+struct FInputActionValue;
+class UMoveInputConfig;
 /**
- * 
+ *
  */
 UCLASS()
 class RIFTWARD_API ABasePlayerController : public APlayerController
 {
 	GENERATED_BODY()
-	
+
+public:
+	virtual void BeginPlay() override;
+	virtual void SetupInputComponent() override;
+
+protected:
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Input")
+	TObjectPtr<UMoveInputConfig> DefaultMoveInputConfig;
+
+private:
+	void HandleMoveInput(const FInputActionValue& InputActionValue);
+	void HandleLookInput(const FInputActionValue& InputActionValue);
+	void HandleJumpStarted();
+	void HandleJumpCompleted();
 };

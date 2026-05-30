@@ -7,11 +7,24 @@
 #include "EnemyCharacter.generated.h"
 
 /**
- * 
+ *
  */
 UCLASS()
 class RIFTWARD_API AEnemyCharacter : public ABaseCharacter
 {
 	GENERATED_BODY()
-	
+
+public:
+	AEnemyCharacter();
+
+	virtual UAbilitySystemComponent* GetAbilitySystemComponent() const override;
+
+protected:
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Abilities")
+	TObjectPtr<UBaseAbilitySystemComponent> AbilitySystemComponent;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Abilities")
+	TObjectPtr<UBaseAttributeSet> AttributeSet;
+
+	virtual void BeginPlay() override;
 };

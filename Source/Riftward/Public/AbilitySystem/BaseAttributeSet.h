@@ -14,4 +14,6 @@ class RIFTWARD_API UBaseAttributeSet : public UAttributeSet
 {
 	GENERATED_BODY()
 	
+	// Clear current progress
+	
 };

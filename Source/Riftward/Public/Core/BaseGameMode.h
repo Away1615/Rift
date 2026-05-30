@@ -7,7 +7,7 @@
 #include "BaseGameMode.generated.h"
 
 /**
- * 
+ *
  */
 UCLASS()
 class RIFTWARD_API ABaseGameMode : public AGameModeBase
@@ -16,4 +16,7 @@ class RIFTWARD_API ABaseGameMode : public AGameModeBase
 
 public:
 	ABaseGameMode();
+
+protected:
+	virtual void BeginPlay() override;
 };
