@@ -6,7 +6,7 @@
 AEnemyCharacter::AEnemyCharacter()
 {
 	bReplicates = true;
-	SetReplicateMovement(true);
+	ACharacter::SetReplicateMovement(true);
 
 	AbilitySystemComponent = CreateDefaultSubobject<UBaseAbilitySystemComponent>("AbilitySystemComponent");
 	AbilitySystemComponent->SetIsReplicated(true);

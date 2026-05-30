@@ -16,11 +16,10 @@ class RIFTWARD_API ABasePlayerController : public APlayerController
 {
 	GENERATED_BODY()
 
-public:
+protected:
 	virtual void BeginPlay() override;
 	virtual void SetupInputComponent() override;
 
-protected:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Input")
 	TObjectPtr<UMoveInputConfig> DefaultMoveInputConfig;
 

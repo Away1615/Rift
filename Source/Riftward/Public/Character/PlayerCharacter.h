@@ -19,6 +19,14 @@ class RIFTWARD_API APlayerCharacter : public ABaseCharacter
 public:
 	APlayerCharacter();
 
+	void HandleMove(const FVector2D& InputValue);
+	void HandleJumpStarted();
+	void HandleJumpCompleted();
+	bool CanAcceptGroundedActions() const;
+
+	virtual void Tick(float DeltaTime) override;
+	virtual void PostInitializeComponents() override;
+
 	// Getter
 	virtual UAbilitySystemComponent* GetAbilitySystemComponent() const override;
 
@@ -28,9 +36,9 @@ public:
 	// On the client, called when PlayerState is copied to this Pawn
 	virtual void OnRep_PlayerState() override;
 
-	void HandleMove(const FVector2D& InputValue);
-	void HandleJumpStarted();
-	void HandleJumpCompleted();
+	virtual void Landed(const FHitResult& Hit) override;
+
+	virtual void OnMovementModeChanged(EMovementMode PrevMovementMode, uint8 PreviousCustomMode = 0) override;
 
 protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Camera")
@@ -48,10 +56,24 @@ protected:
 	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category="Locomotion")
 	bool bHasMovementInput = false;
 
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Locomotion")
+	FRotator MovementRotationRate = FRotator(0.0f, 1200.0f, 0.0f);
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Locomotion|Jump")
+	float JumpZVelocity = 650.0f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Locomotion|Jump")
+	float GravityScale = 2.0f;
+
+
 private:
-	void InitProperties();
-	void InitGASActorInfo();
-	void InitCameraComponent();
-	void InitCharacterMovementComponent();
+	void InitPlayerProperties();
+	void InitGasActorInfo();
+	void InitCameraComponents();
+	void InitMovementSettings() const;
+	void ApplyMovementTuningSettings() const;
+	void ApplyCameraRelativeMovementInput();
+	void ClearMovementInput();
+	void SetAirborneState(bool bIsAirborne) const;
 
 };

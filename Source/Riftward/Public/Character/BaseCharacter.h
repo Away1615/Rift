@@ -30,6 +30,4 @@ public:
 	// Called to get AbilitySystemComponent
 	virtual UAbilitySystemComponent* GetAbilitySystemComponent() const override;
 
-protected:
-
 };

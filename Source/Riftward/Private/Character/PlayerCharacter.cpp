@@ -3,14 +3,28 @@
 
 #include "Character/PlayerCharacter.h"
 
+#include "AbilitySystemComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
+#include "GameplayTags/RiftwardGameplayTags.h"
 #include "Player/BasePlayerState.h"
 
 APlayerCharacter::APlayerCharacter()
 {
-    InitProperties();
-    InitCharacterMovementComponent();
-    InitCameraComponent();
+    InitPlayerProperties();
+    InitMovementSettings();
+    InitCameraComponents();
+}
+
+void APlayerCharacter::Tick(float DeltaTime)
+{
+    Super::Tick(DeltaTime);
+    ApplyCameraRelativeMovementInput();
+}
+
+void APlayerCharacter::PostInitializeComponents()
+{
+    Super::PostInitializeComponents();
+    ApplyMovementTuningSettings();
 }
 
 UAbilitySystemComponent* APlayerCharacter::GetAbilitySystemComponent() const
@@ -24,40 +38,41 @@ UAbilitySystemComponent* APlayerCharacter::GetAbilitySystemComponent() const
 void APlayerCharacter::PossessedBy(AController* NewController)
 {
     Super::PossessedBy(NewController);
-    InitGASActorInfo();
+    InitGasActorInfo();
 }
 
 void APlayerCharacter::OnRep_PlayerState()
 {
     Super::OnRep_PlayerState();
-    InitGASActorInfo();
+    InitGasActorInfo();
 }
 
 void APlayerCharacter::HandleMove(const FVector2D& InputValue)
 {
-    MovementInputVector = InputValue;
-    bHasMovementInput = !InputValue.IsNearlyZero();
-
-    if (!Controller || !bHasMovementInput)
+    if (!CanAcceptGroundedActions())
     {
-        WorldMoveDirection = FVector::ZeroVector;
+        ClearMovementInput();
         return;
     }
 
-    const FRotator ControlRotation = Controller->GetControlRotation();
-    const FRotator YawRotation(0.0f, ControlRotation.Yaw, 0.0f);
+    MovementInputVector = InputValue;
+    bHasMovementInput = !InputValue.IsNearlyZero();
 
-    const FVector ForwardDirection = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::X);
-    const FVector RightDirection = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::Y);
-
-    WorldMoveDirection = (ForwardDirection * InputValue.Y + RightDirection * InputValue.X).GetSafeNormal();
-
-    AddMovementInput(ForwardDirection, InputValue.Y);
-    AddMovementInput(RightDirection, InputValue.X);
+    if (!bHasMovementInput)
+    {
+        ClearMovementInput();
+    }
 }
 
 void APlayerCharacter::HandleJumpStarted()
 {
+    if (!CanJump())
+    {
+        return;
+    }
+
+    SetAirborneState(true);
+    ClearMovementInput();
     Jump();
 }
 
@@ -66,9 +81,32 @@ void APlayerCharacter::HandleJumpCompleted()
     StopJumping();
 }
 
-void APlayerCharacter::InitProperties()
+bool APlayerCharacter::CanAcceptGroundedActions() const
 {
-    // Third-Person Rotation
+    const UCharacterMovementComponent* MovementComponent = GetCharacterMovement();
+    const UAbilitySystemComponent* AbilitySystemComponent = GetAbilitySystemComponent();
+
+    return MovementComponent
+        && MovementComponent->IsMovingOnGround()
+        && (!AbilitySystemComponent || !AbilitySystemComponent->HasMatchingGameplayTag(RiftwardGameplayTags::State_Movement_Airborne));
+}
+
+void APlayerCharacter::Landed(const FHitResult& Hit)
+{
+    Super::Landed(Hit);
+    SetAirborneState(false);
+}
+
+void APlayerCharacter::OnMovementModeChanged(EMovementMode PrevMovementMode, uint8 PreviousCustomMode)
+{
+    Super::OnMovementModeChanged(PrevMovementMode, PreviousCustomMode);
+
+    const UCharacterMovementComponent* MovementComponent = GetCharacterMovement();
+    SetAirborneState(MovementComponent && MovementComponent->IsFalling());
+}
+
+void APlayerCharacter::InitPlayerProperties()
+{
     bUseControllerRotationPitch = false;
     bUseControllerRotationYaw = false;
     bUseControllerRotationRoll = false;
@@ -78,7 +116,7 @@ void APlayerCharacter::InitProperties()
     SetReplicateMovement(true);
 }
 
-void APlayerCharacter::InitGASActorInfo()
+void APlayerCharacter::InitGasActorInfo()
 {
     ABasePlayerState* BasePlayerState = GetPlayerState<ABasePlayerState>();
     if (BasePlayerState && BasePlayerState->GetAbilitySystemComponent())
@@ -88,7 +126,7 @@ void APlayerCharacter::InitGASActorInfo()
     }
 }
 
-void APlayerCharacter::InitCameraComponent()
+void APlayerCharacter::InitCameraComponents()
 {
     SpringArmComponent = CreateDefaultSubobject<USpringArmComponent>(TEXT("SpringArmComponent"));
     SpringArmComponent->SetupAttachment(RootComponent);
@@ -99,12 +137,56 @@ void APlayerCharacter::InitCameraComponent()
     CameraComponent->bUsePawnControlRotation = false;
 }
 
-void APlayerCharacter::InitCharacterMovementComponent()
+void APlayerCharacter::InitMovementSettings() const
 {
     UCharacterMovementComponent* MovementComponent = GetCharacterMovement();
     if (!MovementComponent) return;
 
     MovementComponent->bOrientRotationToMovement = true;
     MovementComponent->bUseControllerDesiredRotation = false;
-    MovementComponent->RotationRate = FRotator(0.0f, 540.0f, 0.0f);
+    MovementComponent->AirControl = 0.0f;
+}
+
+void APlayerCharacter::ApplyMovementTuningSettings() const
+{
+    UCharacterMovementComponent* MovementComponent = GetCharacterMovement();
+    if (!MovementComponent) return;
+
+    MovementComponent->RotationRate = MovementRotationRate;
+    MovementComponent->JumpZVelocity = JumpZVelocity;
+    MovementComponent->GravityScale = GravityScale;
+}
+
+void APlayerCharacter::ApplyCameraRelativeMovementInput()
+{
+    if (!Controller || !bHasMovementInput || !CanAcceptGroundedActions())
+    {
+        return;
+    }
+
+    const FVector2D InputVector = MovementInputVector.GetClampedToMaxSize(1.0f);
+    const FRotator ControlRotation = Controller->GetControlRotation();
+    const FRotator YawRotation(0.0f, ControlRotation.Yaw, 0.0f);
+
+    const FVector ForwardDirection = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::X);
+    const FVector RightDirection = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::Y);
+    const FVector MoveVector = ForwardDirection * InputVector.Y + RightDirection * InputVector.X;
+
+    WorldMoveDirection = MoveVector.GetSafeNormal();
+    AddMovementInput(WorldMoveDirection, MoveVector.Size());
+}
+
+void APlayerCharacter::ClearMovementInput()
+{
+    MovementInputVector = FVector2D::ZeroVector;
+    bHasMovementInput = false;
+    WorldMoveDirection = FVector::ZeroVector;
+}
+
+void APlayerCharacter::SetAirborneState(bool bIsAirborne) const
+{
+    UAbilitySystemComponent* AbilitySystemComponent = GetAbilitySystemComponent();
+    if (!AbilitySystemComponent) return;
+
+    AbilitySystemComponent->SetLooseGameplayTagCount(RiftwardGameplayTags::State_Movement_Airborne, bIsAirborne ? 1 : 0);
 }

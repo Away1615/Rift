@@ -17,6 +17,8 @@ class RIFTWARD_API AEnemyCharacter : public ABaseCharacter
 public:
 	AEnemyCharacter();
 
+	virtual void BeginPlay() override;
+
 	virtual UAbilitySystemComponent* GetAbilitySystemComponent() const override;
 
 protected:
@@ -25,6 +27,4 @@ protected:
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Abilities")
 	TObjectPtr<UBaseAttributeSet> AttributeSet;
-
-	virtual void BeginPlay() override;
 };

@@ -6,8 +6,6 @@
 #include "EnhancedInputSubsystems.h"
 #include "Character/PlayerCharacter.h"
 #include "Input/MoveInputConfig.h"
-#include "Player/BasePlayerState.h"
-
 
 void ABasePlayerController::BeginPlay()
 {
@@ -36,7 +34,7 @@ void ABasePlayerController::SetupInputComponent()
 	Player Input: Move
 	-> Input Mapping Context MoveInput to MoveAction
 	-> Enhanced Input notify MoveAction is Triggered
-	-> Enhanced Input call function Binded by BindAction
+	-> Enhanced Input call function Bind by BindAction
 	-> HandleMoveInput exec game logic
 	*/
 
