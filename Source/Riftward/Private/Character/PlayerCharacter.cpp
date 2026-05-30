@@ -9,6 +9,7 @@
 APlayerCharacter::APlayerCharacter()
 {
     InitProperties();
+    InitCharacterMovementComponent();
     InitCameraComponent();
 }
 
@@ -100,9 +101,10 @@ void APlayerCharacter::InitCameraComponent()
 
 void APlayerCharacter::InitCharacterMovementComponent()
 {
-    UCharacterMovementComponent* movementComponent = GetCharacterMovement();
-    if (!movementComponent) return;
+    UCharacterMovementComponent* MovementComponent = GetCharacterMovement();
+    if (!MovementComponent) return;
 
-    movementComponent->bOrientRotationToMovement = true;
-    movementComponent->RotationRate = FRotator(0.0f, 540.0f, 0.0f);
+    MovementComponent->bOrientRotationToMovement = true;
+    MovementComponent->bUseControllerDesiredRotation = false;
+    MovementComponent->RotationRate = FRotator(0.0f, 540.0f, 0.0f);
 }

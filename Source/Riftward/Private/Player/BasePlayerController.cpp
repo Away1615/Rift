@@ -1,11 +1,12 @@
 // Fill out your copyright notice in the Description page of Project Settings.
 
-#include "InputActionValue.h"
 #include "Player/BasePlayerController.h"
+#include "InputActionValue.h"
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
 #include "Character/PlayerCharacter.h"
 #include "Input/MoveInputConfig.h"
+#include "Player/BasePlayerState.h"
 
 
 void ABasePlayerController::BeginPlay()
@@ -44,10 +45,21 @@ void ABasePlayerController::SetupInputComponent()
 	{
 		EnhancedInputComponent->BindAction(
 			DefaultMoveInputConfig->MoveAction,
-			ETriggerEvent::Triggered,
-			this,
+			ETriggerEvent::Triggered, this,
 			&ABasePlayerController::HandleMoveInput
 			);
+
+		EnhancedInputComponent->BindAction(
+			DefaultMoveInputConfig->MoveAction,
+			ETriggerEvent::Completed, this,
+			&ABasePlayerController::HandleMoveCompleted
+);
+
+		EnhancedInputComponent->BindAction(
+			DefaultMoveInputConfig->MoveAction,
+			ETriggerEvent::Canceled, this,
+			&ABasePlayerController::HandleMoveCompleted
+		);
 	}
 
 	// Bind Look
@@ -55,8 +67,7 @@ void ABasePlayerController::SetupInputComponent()
 	{
 		EnhancedInputComponent->BindAction(
 			DefaultMoveInputConfig->LookAction,
-			ETriggerEvent::Triggered,
-			this,
+			ETriggerEvent::Triggered, this,
 			&ABasePlayerController::HandleLookInput
 		);
 	}
@@ -66,15 +77,13 @@ void ABasePlayerController::SetupInputComponent()
 	{
 		EnhancedInputComponent->BindAction(
 			DefaultMoveInputConfig->JumpAction,
-			ETriggerEvent::Started,
-			this,
+			ETriggerEvent::Started, this,
 			&ABasePlayerController::HandleJumpStarted
 		);
 
 		EnhancedInputComponent->BindAction(
 			DefaultMoveInputConfig->JumpAction,
-			ETriggerEvent::Completed,
-			this,
+			ETriggerEvent::Completed, this,
 			&ABasePlayerController::HandleJumpCompleted
 		);
 	}
@@ -88,6 +97,14 @@ void ABasePlayerController::HandleMoveInput(const FInputActionValue& InputAction
 	if (!PlayerCharacter) return;
 
 	PlayerCharacter->HandleMove(InputActionValue.Get<FVector2D>());
+}
+
+void ABasePlayerController::HandleMoveCompleted()
+{
+	APlayerCharacter* PlayerCharacter = GetPawn<APlayerCharacter>();
+	if (!PlayerCharacter) return;
+
+	PlayerCharacter->HandleMove(FVector2D::ZeroVector);
 }
 
 void ABasePlayerController::HandleLookInput(const FInputActionValue& InputActionValue)
