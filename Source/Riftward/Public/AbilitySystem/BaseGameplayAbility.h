@@ -13,7 +13,4 @@ UCLASS()
 class RIFTWARD_API UBaseGameplayAbility : public UGameplayAbility
 {
 	GENERATED_BODY()
-
-public:
-	UBaseGameplayAbility();
 };

@@ -20,9 +20,6 @@ public:
 	APlayerCharacter();
 
 	void HandleMove(const FVector2D& InputValue);
-	void HandleJumpStarted();
-	void HandleJumpCompleted();
-	bool CanAcceptGroundedActions() const;
 
 	virtual void Tick(float DeltaTime) override;
 	virtual void PostInitializeComponents() override;
@@ -35,10 +32,6 @@ public:
 
 	// On the client, called when PlayerState is copied to this Pawn
 	virtual void OnRep_PlayerState() override;
-
-	virtual void Landed(const FHitResult& Hit) override;
-
-	virtual void OnMovementModeChanged(EMovementMode PrevMovementMode, uint8 PreviousCustomMode = 0) override;
 
 protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Camera")
@@ -59,13 +52,6 @@ protected:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Locomotion")
 	FRotator MovementRotationRate = FRotator(0.0f, 1200.0f, 0.0f);
 
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Locomotion|Jump")
-	float JumpZVelocity = 650.0f;
-
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Locomotion|Jump")
-	float GravityScale = 2.0f;
-
-
 private:
 	void InitPlayerProperties();
 	void InitGasActorInfo();
@@ -74,6 +60,5 @@ private:
 	void ApplyMovementTuningSettings() const;
 	void ApplyCameraRelativeMovementInput();
 	void ClearMovementInput();
-	void SetAirborneState(bool bIsAirborne) const;
 
 };

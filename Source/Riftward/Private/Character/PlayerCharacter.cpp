@@ -3,9 +3,7 @@
 
 #include "Character/PlayerCharacter.h"
 
-#include "AbilitySystemComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
-#include "GameplayTags/RiftwardGameplayTags.h"
 #include "Player/BasePlayerState.h"
 
 APlayerCharacter::APlayerCharacter()
@@ -49,12 +47,6 @@ void APlayerCharacter::OnRep_PlayerState()
 
 void APlayerCharacter::HandleMove(const FVector2D& InputValue)
 {
-    if (!CanAcceptGroundedActions())
-    {
-        ClearMovementInput();
-        return;
-    }
-
     MovementInputVector = InputValue;
     bHasMovementInput = !InputValue.IsNearlyZero();
 
@@ -62,47 +54,6 @@ void APlayerCharacter::HandleMove(const FVector2D& InputValue)
     {
         ClearMovementInput();
     }
-}
-
-void APlayerCharacter::HandleJumpStarted()
-{
-    if (!CanJump())
-    {
-        return;
-    }
-
-    SetAirborneState(true);
-    ClearMovementInput();
-    Jump();
-}
-
-void APlayerCharacter::HandleJumpCompleted()
-{
-    StopJumping();
-}
-
-bool APlayerCharacter::CanAcceptGroundedActions() const
-{
-    const UCharacterMovementComponent* MovementComponent = GetCharacterMovement();
-    const UAbilitySystemComponent* AbilitySystemComponent = GetAbilitySystemComponent();
-
-    return MovementComponent
-        && MovementComponent->IsMovingOnGround()
-        && (!AbilitySystemComponent || !AbilitySystemComponent->HasMatchingGameplayTag(RiftwardGameplayTags::State_Movement_Airborne));
-}
-
-void APlayerCharacter::Landed(const FHitResult& Hit)
-{
-    Super::Landed(Hit);
-    SetAirborneState(false);
-}
-
-void APlayerCharacter::OnMovementModeChanged(EMovementMode PrevMovementMode, uint8 PreviousCustomMode)
-{
-    Super::OnMovementModeChanged(PrevMovementMode, PreviousCustomMode);
-
-    const UCharacterMovementComponent* MovementComponent = GetCharacterMovement();
-    SetAirborneState(MovementComponent && MovementComponent->IsFalling());
 }
 
 void APlayerCharacter::InitPlayerProperties()
@@ -144,7 +95,6 @@ void APlayerCharacter::InitMovementSettings() const
 
     MovementComponent->bOrientRotationToMovement = true;
     MovementComponent->bUseControllerDesiredRotation = false;
-    MovementComponent->AirControl = 0.0f;
 }
 
 void APlayerCharacter::ApplyMovementTuningSettings() const
@@ -153,13 +103,11 @@ void APlayerCharacter::ApplyMovementTuningSettings() const
     if (!MovementComponent) return;
 
     MovementComponent->RotationRate = MovementRotationRate;
-    MovementComponent->JumpZVelocity = JumpZVelocity;
-    MovementComponent->GravityScale = GravityScale;
 }
 
 void APlayerCharacter::ApplyCameraRelativeMovementInput()
 {
-    if (!Controller || !bHasMovementInput || !CanAcceptGroundedActions())
+    if (!Controller || !bHasMovementInput)
     {
         return;
     }
@@ -181,12 +129,4 @@ void APlayerCharacter::ClearMovementInput()
     MovementInputVector = FVector2D::ZeroVector;
     bHasMovementInput = false;
     WorldMoveDirection = FVector::ZeroVector;
-}
-
-void APlayerCharacter::SetAirborneState(bool bIsAirborne) const
-{
-    UAbilitySystemComponent* AbilitySystemComponent = GetAbilitySystemComponent();
-    if (!AbilitySystemComponent) return;
-
-    AbilitySystemComponent->SetLooseGameplayTagCount(RiftwardGameplayTags::State_Movement_Airborne, bIsAirborne ? 1 : 0);
 }

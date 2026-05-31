@@ -27,6 +27,4 @@ private:
 	void HandleMoveInput(const FInputActionValue& InputActionValue);
 	void HandleMoveCompleted();
 	void HandleLookInput(const FInputActionValue& InputActionValue);
-	void HandleJumpStarted();
-	void HandleJumpCompleted();
 };

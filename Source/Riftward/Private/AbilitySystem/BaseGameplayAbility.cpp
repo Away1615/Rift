@@ -2,10 +2,3 @@
 
 
 #include "AbilitySystem/BaseGameplayAbility.h"
-
-#include "GameplayTags/RiftwardGameplayTags.h"
-
-UBaseGameplayAbility::UBaseGameplayAbility()
-{
-	ActivationBlockedTags.AddTag(RiftwardGameplayTags::State_Movement_Airborne);
-}

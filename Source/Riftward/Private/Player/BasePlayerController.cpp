@@ -70,22 +70,6 @@ void ABasePlayerController::SetupInputComponent()
 		);
 	}
 
-	// Bind Jump
-	if (DefaultMoveInputConfig->JumpAction)
-	{
-		EnhancedInputComponent->BindAction(
-			DefaultMoveInputConfig->JumpAction,
-			ETriggerEvent::Started, this,
-			&ABasePlayerController::HandleJumpStarted
-		);
-
-		EnhancedInputComponent->BindAction(
-			DefaultMoveInputConfig->JumpAction,
-			ETriggerEvent::Completed, this,
-			&ABasePlayerController::HandleJumpCompleted
-		);
-	}
-
 }
 
 void ABasePlayerController::HandleMoveInput(const FInputActionValue& InputActionValue)
@@ -110,18 +94,4 @@ void ABasePlayerController::HandleLookInput(const FInputActionValue& InputAction
 	const FVector2D LookValue = InputActionValue.Get<FVector2D>();
 	AddYawInput(LookValue.X);
 	AddPitchInput(LookValue.Y);
-}
-
-void ABasePlayerController::HandleJumpStarted()
-{
-	APlayerCharacter* PlayerCharacter = GetPawn<APlayerCharacter>();
-	if (!PlayerCharacter) return;
-	PlayerCharacter->HandleJumpStarted();
-}
-
-void ABasePlayerController::HandleJumpCompleted()
-{
-	APlayerCharacter* PlayerCharacter = GetPawn<APlayerCharacter>();
-	if (!PlayerCharacter) return;
-	PlayerCharacter->HandleJumpCompleted();
 }
