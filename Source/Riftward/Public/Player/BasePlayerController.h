@@ -4,10 +4,12 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/PlayerController.h"
+#include "Input/PlayerInputConfig.h"
 #include "BasePlayerController.generated.h"
 
+class UBaseAbilitySystemComponent;
 struct FInputActionValue;
-class UMoveInputConfig;
+class UPlayerInputConfig;
 /**
  *
  */
@@ -20,8 +22,13 @@ protected:
 	virtual void BeginPlay() override;
 	virtual void SetupInputComponent() override;
 
+	UBaseAbilitySystemComponent* GetBaseAbilitySystemComponent() const;
+
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Input")
-	TObjectPtr<UMoveInputConfig> DefaultMoveInputConfig;
+	TObjectPtr<UPlayerInputConfig> DefaultInputConfig;
+
+	void HandleAbilityInputPressed(EAbilityInputID AbilityInputID);
+	void HandleAbilityInputReleased(EAbilityInputID AbilityInputID);
 
 private:
 	void HandleMoveInput(const FInputActionValue& InputActionValue);

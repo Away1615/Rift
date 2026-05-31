@@ -8,6 +8,9 @@
 #include "GameFramework/SpringArmComponent.h"
 #include "PlayerCharacter.generated.h"
 
+class UPlayerAnimationConfig;
+class UBaseGameplayAbility;
+
 /**
  *
  */
@@ -33,6 +36,15 @@ public:
 	// On the client, called when PlayerState is copied to this Pawn
 	virtual void OnRep_PlayerState() override;
 
+	UFUNCTION(BlueprintPure, Category="Animation")
+	UPlayerAnimationConfig* GetAnimationConfig() const { return AnimationConfig; }
+
+	UFUNCTION(BlueprintCallable, Category="Locomotion")
+	void SetSprinting(bool bNewSprinting);
+
+	UFUNCTION(BlueprintPure, Category="Locomotion")
+	bool IsSprinting() const { return bIsSprinting; }
+
 protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Camera")
 	TObjectPtr<USpringArmComponent> SpringArmComponent;
@@ -50,7 +62,22 @@ protected:
 	bool bHasMovementInput = false;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Locomotion")
-	FRotator MovementRotationRate = FRotator(0.0f, 1200.0f, 0.0f);
+	FRotator MovementRotationRate = FRotator(0.0f, 360.0f, 0.0f);
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Locomotion")
+	float WalkSpeed = 300.0f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Locomotion")
+	float SprintSpeed = 600.0f;
+
+	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category="Locomotion")
+	bool bIsSprinting = false;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Abilities")
+	TArray<TSubclassOf<UBaseGameplayAbility>> StartupAbilityClasses;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Animation")
+	TObjectPtr<UPlayerAnimationConfig> AnimationConfig;
 
 private:
 	void InitPlayerProperties();
@@ -60,5 +87,6 @@ private:
 	void ApplyMovementTuningSettings() const;
 	void ApplyCameraRelativeMovementInput();
 	void ClearMovementInput();
-
+	void RefreshMovementStateTags();
+	void GrantStartupAbilities();
 };

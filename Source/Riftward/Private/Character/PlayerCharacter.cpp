@@ -3,11 +3,16 @@
 
 #include "Character/PlayerCharacter.h"
 
+#include "AbilitySystem/Abilities/GA_Player_Sprint.h"
+#include "AbilitySystem/BaseGameplayAbility.h"
 #include "GameFramework/CharacterMovementComponent.h"
+#include "GameplayTags/RiftGameplayTags.h"
 #include "Player/BasePlayerState.h"
 
 APlayerCharacter::APlayerCharacter()
 {
+    StartupAbilityClasses.Add(UGA_Player_Sprint::StaticClass());
+
     InitPlayerProperties();
     InitMovementSettings();
     InitCameraComponents();
@@ -17,6 +22,7 @@ void APlayerCharacter::Tick(float DeltaTime)
 {
     Super::Tick(DeltaTime);
     ApplyCameraRelativeMovementInput();
+    RefreshMovementStateTags();
 }
 
 void APlayerCharacter::PostInitializeComponents()
@@ -37,6 +43,7 @@ void APlayerCharacter::PossessedBy(AController* NewController)
 {
     Super::PossessedBy(NewController);
     InitGasActorInfo();
+    GrantStartupAbilities();
 }
 
 void APlayerCharacter::OnRep_PlayerState()
@@ -54,6 +61,16 @@ void APlayerCharacter::HandleMove(const FVector2D& InputValue)
     {
         ClearMovementInput();
     }
+}
+
+void APlayerCharacter::SetSprinting(bool bNewSprinting)
+{
+    bIsSprinting = bNewSprinting;
+
+    UCharacterMovementComponent* MovementComponent = GetCharacterMovement();
+    if (!MovementComponent) return;
+
+    MovementComponent->MaxWalkSpeed = bIsSprinting ? SprintSpeed : WalkSpeed;
 }
 
 void APlayerCharacter::InitPlayerProperties()
@@ -93,8 +110,8 @@ void APlayerCharacter::InitMovementSettings() const
     UCharacterMovementComponent* MovementComponent = GetCharacterMovement();
     if (!MovementComponent) return;
 
-    MovementComponent->bOrientRotationToMovement = true;
-    MovementComponent->bUseControllerDesiredRotation = false;
+    MovementComponent->bOrientRotationToMovement = false;
+    MovementComponent->bUseControllerDesiredRotation = true;
 }
 
 void APlayerCharacter::ApplyMovementTuningSettings() const
@@ -103,6 +120,7 @@ void APlayerCharacter::ApplyMovementTuningSettings() const
     if (!MovementComponent) return;
 
     MovementComponent->RotationRate = MovementRotationRate;
+    MovementComponent->MaxWalkSpeed = bIsSprinting ? SprintSpeed : WalkSpeed;
 }
 
 void APlayerCharacter::ApplyCameraRelativeMovementInput()
@@ -129,4 +147,49 @@ void APlayerCharacter::ClearMovementInput()
     MovementInputVector = FVector2D::ZeroVector;
     bHasMovementInput = false;
     WorldMoveDirection = FVector::ZeroVector;
+}
+
+void APlayerCharacter::RefreshMovementStateTags()
+{
+    UAbilitySystemComponent* ASC = GetAbilitySystemComponent();
+    if (!ASC) return;
+
+    UCharacterMovementComponent* MoveComp = GetCharacterMovement();
+    if (!MoveComp) return;
+
+    const FRiftGameplayTags& RiftTags = FRiftGameplayTags::Get();
+
+    const bool bAirborne = MoveComp->IsFalling();
+
+    ASC->SetLooseGameplayTagCount(RiftTags.State_Movement_Airborne, bAirborne ? 1 : 0);
+    ASC->SetLooseGameplayTagCount(RiftTags.State_Movement_Grounded, bAirborne ? 0 : 1);
+}
+
+void APlayerCharacter::GrantStartupAbilities()
+{
+    if (!HasAuthority()) return;
+
+    UAbilitySystemComponent* ASC = GetAbilitySystemComponent();
+    if (!ASC) return;
+
+    for (const TSubclassOf<UBaseGameplayAbility> AbilityClass : StartupAbilityClasses)
+    {
+        if (!AbilityClass || ASC->FindAbilitySpecFromClass(AbilityClass))
+        {
+            continue;
+        }
+
+        const UBaseGameplayAbility* AbilityCDO = AbilityClass->GetDefaultObject<UBaseGameplayAbility>();
+        if (!AbilityCDO)
+        {
+            continue;
+        }
+
+        ASC->GiveAbility(FGameplayAbilitySpec(
+            AbilityClass,
+            1,
+            static_cast<int32>(AbilityCDO->AbilityInputID),
+            this
+            ));
+    }
 }
