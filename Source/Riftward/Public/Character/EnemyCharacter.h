@@ -6,6 +6,7 @@
 #include "Character/BaseCharacter.h"
 #include "EnemyCharacter.generated.h"
 
+class UHealthAttributeSet;
 /**
  *
  */
@@ -26,5 +27,5 @@ protected:
 	TObjectPtr<UBaseAbilitySystemComponent> AbilitySystemComponent;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Abilities")
-	TObjectPtr<UBaseAttributeSet> AttributeSet;
+	TObjectPtr<UHealthAttributeSet> HealthAttributeSet;
 };

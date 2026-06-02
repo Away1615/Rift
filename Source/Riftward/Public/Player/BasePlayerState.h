@@ -5,10 +5,10 @@
 #include "CoreMinimal.h"
 #include "AbilitySystemInterface.h"
 #include "AbilitySystem/BaseAbilitySystemComponent.h"
-#include "AbilitySystem/BaseAttributeSet.h"
 #include "GameFramework/PlayerState.h"
 #include "BasePlayerState.generated.h"
 
+class UHealthAttributeSet;
 /**
  *
  */
@@ -21,11 +21,12 @@ public:
 	ABasePlayerState();
 	virtual UAbilitySystemComponent* GetAbilitySystemComponent() const override;
 
+	UHealthAttributeSet* GetHealthAttributeSet() const { return HealthAttributeSet; }
+
 protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Abilities")
 	TObjectPtr<UBaseAbilitySystemComponent> AbilitySystemComponent;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Abilities")
-	TObjectPtr<UBaseAttributeSet> AttributeSet;
-
+	TObjectPtr<UHealthAttributeSet> HealthAttributeSet;
 };

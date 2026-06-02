@@ -2,6 +2,7 @@
 
 
 #include "Character/EnemyCharacter.h"
+#include "AbilitySystem/Attributes/HealthAttributeSet.h"
 
 AEnemyCharacter::AEnemyCharacter()
 {
@@ -12,7 +13,7 @@ AEnemyCharacter::AEnemyCharacter()
 	AbilitySystemComponent->SetIsReplicated(true);
 	AbilitySystemComponent->SetReplicationMode(EGameplayEffectReplicationMode::Minimal);
 
-	AttributeSet = CreateDefaultSubobject<UBaseAttributeSet>("AttributeSet");
+	HealthAttributeSet = CreateDefaultSubobject<UHealthAttributeSet>("HealthAttributeSet");
 }
 
 UAbilitySystemComponent* AEnemyCharacter::GetAbilitySystemComponent() const

@@ -19,17 +19,21 @@ class RIFTWARD_API Logger
 {
 public:
 	static void Log(
+		const UObject* WorldContextObject,
 		const FString& Message,
-		const ELogOutputType Output = ELogOutputType::LogOnly,
+		const ELogOutputType Output = ELogOutputType::Screen,
 		const float ScreenDuration = 3.0f
 	);
 
 	static void Error(
+		const UObject* WorldContextObject,
 		const FString& Message,
-		const ELogOutputType Output = ELogOutputType::LogOnly,
+		const ELogOutputType Output = ELogOutputType::Screen,
 		const float ScreenDuration = 5.0f
 	);
 
 private:
 	static void AddScreenMessage(const FString& Message, const FColor& Color, const float Duration);
+
+	static FString GetNetLabel(const UObject* WorldContextObject);
 };

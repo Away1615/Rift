@@ -6,10 +6,10 @@
 #include "AbilitySystemInterface.h"
 #include "GameFramework/Character.h"
 #include "AbilitySystem/BaseAbilitySystemComponent.h"
-#include "AbilitySystem/BaseAttributeSet.h"
+#include "AbilitySystem/Attributes/BaseAttributeSet.h"
 #include "BaseCharacter.generated.h"
 
-UCLASS()
+UCLASS(Abstract)
 class RIFTWARD_API ABaseCharacter : public ACharacter, public IAbilitySystemInterface
 {
 	GENERATED_BODY()

@@ -7,7 +7,7 @@
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
 #include "Character/PlayerCharacter.h"
-#include "Input/PlayerInputConfig.h"
+#include "Data/PlayerInputConfig.h"
 
 void ABasePlayerController::BeginPlay()
 {
@@ -62,15 +62,16 @@ void ABasePlayerController::SetupInputComponent()
 		);
 	}
 
-	// Bind Look
 	if (DefaultInputConfig->LookAction)
 	{
 		EnhancedInputComponent->BindAction(
 			DefaultInputConfig->LookAction,
-			ETriggerEvent::Triggered, this,
+			ETriggerEvent::Triggered,
+			this,
 			&ABasePlayerController::HandleLookInput
 		);
 	}
+
 
 	// Bind Ability Inputs
 	for (const FAbilityInputAction& Action : DefaultInputConfig->AbilityInputActions)
@@ -146,17 +147,20 @@ void ABasePlayerController::HandleMoveInput(const FInputActionValue& InputAction
 	PlayerCharacter->HandleMove(InputActionValue.Get<FVector2D>());
 }
 
+void ABasePlayerController::HandleLookInput(const FInputActionValue& InputActionValue)
+{
+	const FVector2D LookValue = InputActionValue.Get<FVector2D>();
+
+	// Rotate around Z axis
+	AddYawInput(LookValue.X);
+	// Rotate around Y axis
+	AddPitchInput(LookValue.Y);
+}
+
 void ABasePlayerController::HandleMoveCompleted()
 {
 	APlayerCharacter* PlayerCharacter = GetPawn<APlayerCharacter>();
 	if (!PlayerCharacter) return;
 
 	PlayerCharacter->HandleMove(FVector2D::ZeroVector);
-}
-
-void ABasePlayerController::HandleLookInput(const FInputActionValue& InputActionValue)
-{
-	const FVector2D LookValue = InputActionValue.Get<FVector2D>();
-	AddYawInput(LookValue.X);
-	AddPitchInput(LookValue.Y);
 }

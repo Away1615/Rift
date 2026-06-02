@@ -2,7 +2,7 @@
 
 
 #include "Player/BasePlayerState.h"
-#include "AbilitySystem/BaseAttributeSet.h"
+#include "AbilitySystem/Attributes/HealthAttributeSet.h"
 
 ABasePlayerState::ABasePlayerState()
 {
@@ -10,7 +10,8 @@ ABasePlayerState::ABasePlayerState()
 	AbilitySystemComponent->SetIsReplicated(true);
 	AbilitySystemComponent->SetReplicationMode(EGameplayEffectReplicationMode::Mixed);
 
-	AttributeSet = CreateDefaultSubobject<UBaseAttributeSet>("AttributeSet");
+	HealthAttributeSet = CreateDefaultSubobject<UHealthAttributeSet>("HealthAttributeSet");
+
 
 	SetNetUpdateFrequency(100.0f);
 }

@@ -8,8 +8,12 @@
 #include "GameFramework/SpringArmComponent.h"
 #include "PlayerCharacter.generated.h"
 
+class APlayerWeapon;
+class UBaseAbilityConfig;
 class UPlayerAnimationConfig;
+class UPlayerClassConfig;
 class UBaseGameplayAbility;
+struct FPlayerWeaponPartConfig;
 
 /**
  *
@@ -23,6 +27,12 @@ public:
 	APlayerCharacter();
 
 	void HandleMove(const FVector2D& InputValue);
+	void ToggleWalkRun();
+	bool IsRunning() const;
+	// Whether Player press WASD
+	bool HasMovementInput() const;
+	// Whether Player is Moving
+	bool IsMovementAccelerating() const;
 
 	virtual void Tick(float DeltaTime) override;
 	virtual void PostInitializeComponents() override;
@@ -36,14 +46,14 @@ public:
 	// On the client, called when PlayerState is copied to this Pawn
 	virtual void OnRep_PlayerState() override;
 
+	UFUNCTION(BlueprintPure, Category="Class")
+	UPlayerClassConfig* GetPlayerClassConfig() const { return PlayerClassConfig; }
+
 	UFUNCTION(BlueprintPure, Category="Animation")
-	UPlayerAnimationConfig* GetAnimationConfig() const { return AnimationConfig; }
+	UPlayerAnimationConfig* GetPlayerAnimationConfig() const;
 
-	UFUNCTION(BlueprintCallable, Category="Locomotion")
-	void SetSprinting(bool bNewSprinting);
-
-	UFUNCTION(BlueprintPure, Category="Locomotion")
-	bool IsSprinting() const { return bIsSprinting; }
+	UFUNCTION(BlueprintPure, Category="Weapon")
+	TArray<APlayerWeapon*> GetEquippedWeapons() const;
 
 protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Camera")
@@ -56,37 +66,46 @@ protected:
 	FVector2D MovementInputVector = FVector2D::ZeroVector;
 
 	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category="Locomotion")
-	FVector WorldMoveDirection = FVector::ZeroVector;
+	bool bWantsToRun = true;
 
-	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category="Locomotion")
-	bool bHasMovementInput = false;
+	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category="Locomotion|Turn")
+	float CurrentTurnRate = 600.0f;
 
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Locomotion")
-	FRotator MovementRotationRate = FRotator(0.0f, 360.0f, 0.0f);
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Class")
+	TObjectPtr<UPlayerClassConfig> PlayerClassConfig;
 
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Locomotion")
-	float WalkSpeed = 300.0f;
-
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Locomotion")
-	float SprintSpeed = 600.0f;
-
-	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category="Locomotion")
-	bool bIsSprinting = false;
-
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Abilities")
-	TArray<TSubclassOf<UBaseGameplayAbility>> StartupAbilityClasses;
-
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Animation")
-	TObjectPtr<UPlayerAnimationConfig> AnimationConfig;
+	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category="Weapon")
+	TArray<TObjectPtr<APlayerWeapon>> EquippedWeapons;
 
 private:
 	void InitPlayerProperties();
 	void InitGasActorInfo();
 	void InitCameraComponents();
-	void InitMovementSettings() const;
-	void ApplyMovementTuningSettings() const;
+	void InitAttributesFromConfig();
+	void ApplyAnimationConfig();
+	void EquipWeaponsFromConfig();
+	void ClearEquippedWeapons();
+	APlayerWeapon* SpawnAndAttachWeapon(const FPlayerWeaponPartConfig& WeaponPartConfig);
+
+	/* Movement and Camera Control */
+	void InitMovementSettings();
 	void ApplyCameraRelativeMovementInput();
 	void ClearMovementInput();
-	void RefreshMovementStateTags();
-	void GrantStartupAbilities();
+	void ApplyMovementTuningSettings() const;
+	void UpdateMovementRotationRate(float DeltaTime);
+
+	/* Gameplay Ability System */
+
+	void GrantClassAbilities() const;
+
+	static void GiveConfiguredAbility(
+		UAbilitySystemComponent* ASC,
+		UBaseAbilityConfig* AbilityConfig
+	);
+
+	static void GiveAbilityFromClass(
+		UAbilitySystemComponent* ASC,
+		TSubclassOf<UBaseGameplayAbility> AbilityClass,
+		UObject* SourceObject
+	);
 };

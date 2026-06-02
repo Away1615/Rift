@@ -4,7 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/PlayerController.h"
-#include "Input/PlayerInputConfig.h"
+#include "Data/PlayerInputConfig.h"
 #include "BasePlayerController.generated.h"
 
 class UBaseAbilitySystemComponent;
@@ -32,6 +32,6 @@ protected:
 
 private:
 	void HandleMoveInput(const FInputActionValue& InputActionValue);
-	void HandleMoveCompleted();
 	void HandleLookInput(const FInputActionValue& InputActionValue);
+	void HandleMoveCompleted();
 };

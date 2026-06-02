@@ -7,11 +7,11 @@
 #include "BaseAbilitySystemComponent.generated.h"
 
 /**
- * 
+ *
  */
 UCLASS()
 class RIFTWARD_API UBaseAbilitySystemComponent : public UAbilitySystemComponent
 {
 	GENERATED_BODY()
-	
+
 };

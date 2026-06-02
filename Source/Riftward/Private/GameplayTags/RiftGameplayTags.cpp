@@ -16,36 +16,16 @@ void FRiftGameplayTags::InitializeNativeTags()
 {
 	UGameplayTagsManager& Manager = UGameplayTagsManager::Get();
 
-	GameplayTags.State_Movement_Grounded =
-		Manager.AddNativeGameplayTag(TEXT("State.Movement.Grounded"));
+	GameplayTags.Event_Ability_TwinSword_Core_DodgeFinished =
+		Manager.AddNativeGameplayTag(TEXT("Event.Ability.TwinSword.Core.DodgeFinished"));
 
-	GameplayTags.State_Movement_Airborne =
-		Manager.AddNativeGameplayTag(TEXT("State.Movement.Airborne"));
+	GameplayTags.Event_Ability_TwinSword_Primary_ComboWindow =
+		Manager.AddNativeGameplayTag(TEXT("Event.Ability.TwinSword.Primary.ComboWindow"));
 
-	GameplayTags.State_Movement_Climbing =
-		Manager.AddNativeGameplayTag(TEXT("State.Movement.Climbing"));
+	GameplayTags.Event_Ability_TwinSword_Primary_HitCheck =
+		Manager.AddNativeGameplayTag(TEXT("Event.Ability.TwinSword.Primary.HitCheck"));
 
-	GameplayTags.State_Movement_Blocked =
-		Manager.AddNativeGameplayTag(TEXT("State.Movement.Blocked"));
+	GameplayTags.State_Ability_TwinSword_Core_PerfectDodgeWindow =
+		Manager.AddNativeGameplayTag(TEXT("State.Ability.TwinSword.Core.PerfectDodgeWindow"));
 
-	GameplayTags.State_Action_Sprinting =
-		Manager.AddNativeGameplayTag(TEXT("State.Action.Sprinting"));
-
-	GameplayTags.State_Action_CoreActive =
-		Manager.AddNativeGameplayTag(TEXT("State.Action.CoreActive"));
-
-	GameplayTags.State_Core_PerfectWindow =
-		Manager.AddNativeGameplayTag(TEXT("State.Core.PerfectWindow"));
-
-	GameplayTags.State_Core_PerfectSuccess =
-		Manager.AddNativeGameplayTag(TEXT("State.Core.PerfectSuccess"));
-
-	GameplayTags.State_Weapon_Equipped =
-		Manager.AddNativeGameplayTag(TEXT("State.Weapon.Equipped"));
-
-	GameplayTags.State_Weapon_Equipping =
-		Manager.AddNativeGameplayTag(TEXT("State.Weapon.Equipping"));
-
-	GameplayTags.State_Weapon_Unequipping =
-		Manager.AddNativeGameplayTag(TEXT("State.Weapon.Unequipping"));
 }
