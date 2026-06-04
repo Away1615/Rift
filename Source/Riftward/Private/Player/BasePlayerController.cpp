@@ -7,7 +7,8 @@
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
 #include "Character/PlayerCharacter.h"
-#include "Data/PlayerInputConfig.h"
+#include "Data/Player/Input/PlayerInputConfig.h"
+#include "Data/Player/Input/AbilityInputID.h"
 
 void ABasePlayerController::BeginPlay()
 {
@@ -69,6 +70,16 @@ void ABasePlayerController::SetupInputComponent()
 			ETriggerEvent::Triggered,
 			this,
 			&ABasePlayerController::HandleLookInput
+		);
+	}
+
+	if (DefaultInputConfig->SwichAction)
+	{
+		EnhancedInputComponent->BindAction(
+			DefaultInputConfig->SwichAction,
+			ETriggerEvent::Completed,
+			this,
+			&ABasePlayerController::HandleSwichInput
 		);
 	}
 
@@ -155,6 +166,14 @@ void ABasePlayerController::HandleLookInput(const FInputActionValue& InputAction
 	AddYawInput(LookValue.X);
 	// Rotate around Y axis
 	AddPitchInput(LookValue.Y);
+}
+
+void ABasePlayerController::HandleSwichInput()
+{
+	APlayerCharacter* PlayerCharacter = GetPawn<APlayerCharacter>();
+	if (!PlayerCharacter) return;
+
+	PlayerCharacter->ToggleWalkRun();
 }
 
 void ABasePlayerController::HandleMoveCompleted()

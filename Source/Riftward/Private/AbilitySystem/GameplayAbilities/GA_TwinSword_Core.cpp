@@ -2,14 +2,16 @@
 
 
 #include "AbilitySystem/GameplayAbilities/GA_TwinSword_Core.h"
-#include "Animation/AnimInstance.h"
-#include "Character/PlayerCharacter.h"
+#include "AbilitySystemComponent.h"
 #include "Abilities/Tasks/AbilityTask_PlayMontageAndWait.h"
-#include "Animation/AnimMontage.h"
-#include "Data/Ability/TwinSword/TwinSwordCoreAbilityConfig.h"
 #include "Abilities/Tasks/AbilityTask_WaitGameplayEvent.h"
-#include "GameplayTags/RiftGameplayTags.h"
+#include "Animation/AnimInstance.h"
+#include "Animation/AnimMontage.h"
+#include "Character/PlayerCharacter.h"
+#include "Data/Player/Ability/TwinSword/TwinSwordCoreAbilityConfig.h"
+#include "Data/Player/Input/AbilityInputID.h"
 #include "Debug/Logger.h"
+#include "GameplayTags/RiftGameplayTags.h"
 
 UGA_TwinSword_Core::UGA_TwinSword_Core()
 {
@@ -65,6 +67,7 @@ void UGA_TwinSword_Core::ActivateAbility(const FGameplayAbilitySpecHandle Handle
 
 	if (!CommitAbility(Handle, ActorInfo, ActivationInfo))
 	{
+		Logger::Error(PlayerCharacter, TEXT("TwinSword dodge montage CommitAbility failed"));
 		EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
 		return;
 	}
@@ -73,6 +76,11 @@ void UGA_TwinSword_Core::ActivateAbility(const FGameplayAbilitySpecHandle Handle
 	bPlayRecover = !PlayerCharacter->IsMovementAccelerating();
 
 	const FRiftGameplayTags& RiftTags = FRiftGameplayTags::Get();
+	if (UAbilitySystemComponent* AbilitySystemComponent = GetAbilitySystemComponentFromActorInfo())
+	{
+		AbilitySystemComponent->AddLooseGameplayTag(GetAbilityActiveStateTag());
+		bAddedDodgeActiveTag = true;
+	}
 
 	UAbilityTask_WaitGameplayEvent* DodgeFinishedTask =
 		UAbilityTask_WaitGameplayEvent::WaitGameplayEvent(
@@ -110,10 +118,24 @@ void UGA_TwinSword_Core::ActivateAbility(const FGameplayAbilitySpecHandle Handle
 void UGA_TwinSword_Core::EndAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo,
 	const FGameplayAbilityActivationInfo ActivationInfo, bool bReplicateEndAbility, bool bWasCancelled)
 {
+	if (bAddedDodgeActiveTag)
+	{
+		if (UAbilitySystemComponent* AbilitySystemComponent = GetAbilitySystemComponentFromActorInfo())
+		{
+			AbilitySystemComponent->RemoveLooseGameplayTag(GetAbilityActiveStateTag());
+		}
+	}
+
 	ActiveMontage = nullptr;
 	bPlayRecover = false;
+	bAddedDodgeActiveTag = false;
 
 	Super::EndAbility(Handle, ActorInfo, ActivationInfo, bReplicateEndAbility, bWasCancelled);
+}
+
+FGameplayTag UGA_TwinSword_Core::GetAbilityActiveStateTag() const
+{
+	return FRiftGameplayTags::Get().State_Ability_TwinSword_Core_DodgeActive;
 }
 
 void UGA_TwinSword_Core::HandleDodgeFinished(FGameplayEventData Payload)

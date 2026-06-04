@@ -24,7 +24,7 @@ void UHealthAttributeSet::PreAttributeChange(const FGameplayAttribute& Attribute
 {
 	Super::PreAttributeChange(Attribute, NewValue);
 
-	if (Attribute == GetHealthAttribute())
+	if (Attribute == GetHealthAttribute() || Attribute == GetMaxHealthAttribute())
 	{
 		NewValue = FMath::Clamp(NewValue, 0.0f, GetMaxHealth());
 	}
@@ -34,11 +34,7 @@ void UHealthAttributeSet::PostGameplayEffectExecute(const FGameplayEffectModCall
 {
 	Super::PostGameplayEffectExecute(Data);
 
-	if (Data.EvaluatedData.Attribute == GetHealthAttribute())
-	{
-		SetHealth(FMath::Clamp(GetHealth(), 0.0f, GetMaxHealth()));
-	}
-	else if (Data.EvaluatedData.Attribute == GetMaxHealthAttribute())
+	if (Data.EvaluatedData.Attribute == GetHealthAttribute() || Data.EvaluatedData.Attribute == GetMaxHealthAttribute())
 	{
 		SetHealth(FMath::Clamp(GetHealth(), 0.0f, GetMaxHealth()));
 	}

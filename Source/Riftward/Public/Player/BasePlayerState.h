@@ -8,6 +8,7 @@
 #include "GameFramework/PlayerState.h"
 #include "BasePlayerState.generated.h"
 
+class UResourceAttributeSet;
 class UHealthAttributeSet;
 /**
  *
@@ -22,6 +23,7 @@ public:
 	virtual UAbilitySystemComponent* GetAbilitySystemComponent() const override;
 
 	UHealthAttributeSet* GetHealthAttributeSet() const { return HealthAttributeSet; }
+	UResourceAttributeSet* GetResourceAttributeSet() const { return ResourceAttributeSet; }
 
 protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Abilities")
@@ -29,4 +31,8 @@ protected:
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Abilities")
 	TObjectPtr<UHealthAttributeSet> HealthAttributeSet;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Abilities")
+	TObjectPtr<UResourceAttributeSet> ResourceAttributeSet;
+
 };

@@ -20,10 +20,20 @@ public:
 
 	FGameplayTag Event_Ability_TwinSword_Primary_ComboWindow;
 
+	FGameplayTag Event_Ability_TwinSword_Secondary_ComboWindow;
+
 	FGameplayTag Event_Ability_TwinSword_Primary_HitCheck;
 
 	/* State */
 	FGameplayTag State_Ability_TwinSword_Core_PerfectDodgeWindow;
+
+	FGameplayTag State_Ability_TwinSword_Core_PerfectDodgeEmpowered;
+
+	FGameplayTag State_Ability_TwinSword_Core_DodgeActive;
+
+	FGameplayTag State_Ability_TwinSword_Primary_ComboActive;
+
+	FGameplayTag State_Ability_TwinSword_Secondary_ComboActive;
 
 private:
 	static FRiftGameplayTags GameplayTags;

@@ -4,18 +4,20 @@
 #include "Character/PlayerCharacter.h"
 
 #include "AbilitySystem/Attributes/HealthAttributeSet.h"
+#include "AbilitySystem/Attributes/ResourceAttributeSet.h"
 #include "Player/BasePlayerState.h"
-#include "Data/PlayerClassConfig.h"
-#include "Data/Ability/BaseAbilityConfig.h"
-#include "Data/Ability/PlayerAbilitySetConfig.h"
-#include "Data/Animation/PlayerAnimationConfig.h"
-#include "Data/Common/PlayerCommonConfig.h"
-#include "Data/Weapon/PlayerWeaponConfig.h"
 #include "AbilitySystem/GameplayAbilities/BaseGameplayAbility.h"
 #include "Components/SkeletalMeshComponent.h"
+#include "Data/Player/PlayerClassConfig.h"
+#include "Data/Player/Ability/BaseAbilityConfig.h"
+#include "Data/Player/Ability/PlayerAbilitySetConfig.h"
+#include "Data/Player/Animation/PlayerAnimationConfig.h"
+#include "Data/Player/Common/PlayerCommonConfig.h"
+#include "Data/Player/Weapon/PlayerWeaponConfig.h"
 #include "Debug/Logger.h"
 #include "Equipment/PlayerWeapon.h"
 #include "GameFramework/CharacterMovementComponent.h"
+#include "Net/UnrealNetwork.h"
 
 APlayerCharacter::APlayerCharacter()
 {
@@ -35,7 +37,13 @@ void APlayerCharacter::PostInitializeComponents()
 {
     Super::PostInitializeComponents();
     ApplyAnimationConfig();
-    ApplyMovementTuningSettings();
+    ApplyMovementSettings();
+}
+
+void APlayerCharacter::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
+{
+    Super::GetLifetimeReplicatedProps(OutLifetimeProps);
+    DOREPLIFETIME(APlayerCharacter, PlayerClassConfig);
 }
 
 UAbilitySystemComponent* APlayerCharacter::GetAbilitySystemComponent() const
@@ -49,6 +57,16 @@ UAbilitySystemComponent* APlayerCharacter::GetAbilitySystemComponent() const
 UPlayerAnimationConfig* APlayerCharacter::GetPlayerAnimationConfig() const
 {
     return PlayerClassConfig ? PlayerClassConfig->PlayerAnimationConfig : nullptr;
+}
+
+void APlayerCharacter::SelectPlayerClass_Implementation(UPlayerClassConfig* NewPlayerClassConfig)
+{
+    if (!NewPlayerClassConfig || PlayerClassConfig == NewPlayerClassConfig) return;
+
+    ClearClassAbilities();
+    PlayerClassConfig = NewPlayerClassConfig;
+    AssemblePlayerClass();
+    ForceNetUpdate();
 }
 
 TArray<APlayerWeapon*> APlayerCharacter::GetEquippedWeapons() const
@@ -71,9 +89,7 @@ void APlayerCharacter::PossessedBy(AController* NewController)
 {
     Super::PossessedBy(NewController);
     InitGasActorInfo();
-    InitAttributesFromConfig();
-    EquipWeaponsFromConfig();
-    GrantClassAbilities();
+    AssemblePlayerClass();
 }
 
 void APlayerCharacter::OnRep_PlayerState()
@@ -106,7 +122,7 @@ void APlayerCharacter::HandleMove(const FVector2D& InputValue)
 void APlayerCharacter::ToggleWalkRun()
 {
     bWantsToRun = !bWantsToRun;
-    ApplyMovementTuningSettings();
+    ApplyMovementSettings();
 }
 
 bool APlayerCharacter::IsRunning() const
@@ -142,7 +158,25 @@ void APlayerCharacter::InitCameraComponents()
     CameraComponent->bUsePawnControlRotation = false;
 }
 
-void APlayerCharacter::InitAttributesFromConfig()
+void APlayerCharacter::AssemblePlayerClass()
+{
+    ApplyAnimationConfig();
+    ApplyMovementSettings();
+
+    if (!HasAuthority()) return;
+
+    ApplyAttributesFromConfig();
+    ApplyWeaponsFromConfig();
+    GrantClassAbilities();
+}
+
+void APlayerCharacter::OnRep_PlayerClassConfig()
+{
+    ApplyAnimationConfig();
+    ApplyMovementSettings();
+}
+
+void APlayerCharacter::ApplyAttributesFromConfig() const
 {
     if (!HasAuthority() || !PlayerClassConfig || !PlayerClassConfig->PlayerCommonConfig) return;
 
@@ -156,9 +190,17 @@ void APlayerCharacter::InitAttributesFromConfig()
 
     HealthSet->SetMaxHealth(CommonConfig->MaxHealth);
     HealthSet->SetHealth(FMath::Clamp(CommonConfig->Health, 0.0f, CommonConfig->MaxHealth));
+
+    UResourceAttributeSet* ResourceSet = BasePlayerState->GetResourceAttributeSet();
+    ResourceSet->SetMana(CommonConfig->Mana);
+    ResourceSet->SetMaxMana(CommonConfig->MaxMana);
+    ResourceSet->SetStamina(CommonConfig->Stamina);
+    ResourceSet->SetMaxStamina(CommonConfig->MaxStamina);
+    ResourceSet->SetUltimateCharge(CommonConfig->UltimateCharge);
+    ResourceSet->SetMaxUltimateCharge(CommonConfig->MaxUltimateCharge);
 }
 
-void APlayerCharacter::ApplyAnimationConfig()
+void APlayerCharacter::ApplyAnimationConfig() const
 {
     const UPlayerAnimationConfig* AnimationConfig = GetPlayerAnimationConfig();
     if (!AnimationConfig) return;
@@ -177,7 +219,7 @@ void APlayerCharacter::ApplyAnimationConfig()
     }
 }
 
-void APlayerCharacter::EquipWeaponsFromConfig()
+void APlayerCharacter::ApplyWeaponsFromConfig()
 {
     if (!HasAuthority()) return;
 
@@ -292,13 +334,6 @@ void APlayerCharacter::InitMovementSettings()
     MovementComponent->bOrientRotationToMovement = true;
     // Turn character to controller desired direction
     MovementComponent->bUseControllerDesiredRotation = false;
-
-    const UPlayerCommonConfig* CommonConfig = PlayerClassConfig ? PlayerClassConfig->PlayerCommonConfig : nullptr;
-    const float InitialTurnRate = CommonConfig
-        ? (CommonConfig->MinTurnRate + CommonConfig->MaxTurnRate) / 2.0f
-        : CurrentTurnRate;
-
-    MovementComponent->RotationRate = FRotator(0.0f, InitialTurnRate, 0.0f);
 }
 
 void APlayerCharacter::ApplyCameraRelativeMovementInput()
@@ -327,19 +362,31 @@ void APlayerCharacter::ClearMovementInput()
     MovementInputVector = FVector2D::ZeroVector;
 }
 
-void APlayerCharacter::ApplyMovementTuningSettings() const
+void APlayerCharacter::ApplyMovementSettings() const
 {
     UCharacterMovementComponent* MovementComponent = GetCharacterMovement();
     if (!MovementComponent) return;
 
     const UPlayerCommonConfig* CommonConfig = PlayerClassConfig ? PlayerClassConfig->PlayerCommonConfig : nullptr;
-    const float ConfigWalkSpeed = CommonConfig ? CommonConfig->WalkSpeed : 200.0f;
-    const float ConfigRunSpeed = CommonConfig ? CommonConfig->RunSpeed : 600.0f;
 
+    if (!CommonConfig) return;
+    const float ConfigWalkSpeed = CommonConfig->WalkSpeed;
+    const float ConfigRunSpeed = CommonConfig->RunSpeed;
     MovementComponent->MaxWalkSpeed = bWantsToRun ? ConfigRunSpeed : ConfigWalkSpeed;
+
+    const float InitialTurnRate = CommonConfig
+        ? (CommonConfig->MinTurnRate + CommonConfig->MaxTurnRate) / 2.0f
+        : CurrentTurnRate;
+    MovementComponent->RotationRate = FRotator(0.0f, InitialTurnRate, 0.0f);
+
+    MovementComponent->MaxAcceleration = CommonConfig->MaxAcceleration;
+    MovementComponent->BrakingDecelerationWalking = CommonConfig->BrakingDecelerationWalking;
+    MovementComponent->BrakingFriction = 2;
+    MovementComponent->BrakingFrictionFactor = 1;
+    MovementComponent->GroundFriction = 8;
 }
 
-void APlayerCharacter::UpdateMovementRotationRate(float DeltaTime)
+void APlayerCharacter::UpdateMovementRotationRate(const float DeltaTime)
 {
     UCharacterMovementComponent* MovementComponent = GetCharacterMovement();
     if (!MovementComponent) return;
@@ -382,7 +429,7 @@ void APlayerCharacter::UpdateMovementRotationRate(float DeltaTime)
     MovementComponent->RotationRate = FRotator(0.0f, CurrentTurnRate, 0.0f);
 }
 
-void APlayerCharacter::GrantClassAbilities() const
+void APlayerCharacter::GrantClassAbilities()
 {
     if (!HasAuthority()) return;
 
@@ -394,7 +441,7 @@ void APlayerCharacter::GrantClassAbilities() const
 
     GiveConfiguredAbility(ASC, AbilityConfig->CoreAbilityConfig);
     GiveConfiguredAbility(ASC, AbilityConfig->PrimaryAbilityConfig);
-    // GiveConfiguredAbility(ASC, PlayerClassConfig->SecondaryAbilityConfig);
+    GiveConfiguredAbility(ASC, AbilityConfig->SecondaryAbilityConfig);
     // GiveConfiguredAbility(ASC, PlayerClassConfig->Skill1AbilityConfig);
     // GiveConfiguredAbility(ASC, PlayerClassConfig->Skill2AbilityConfig);
     // GiveConfiguredAbility(ASC, PlayerClassConfig->UltimateAbilityConfig);
@@ -403,6 +450,19 @@ void APlayerCharacter::GrantClassAbilities() const
     {
         GiveAbilityFromClass(ASC, AbilityClass, PlayerClassConfig);
     }
+}
+
+void APlayerCharacter::ClearClassAbilities()
+{
+    UAbilitySystemComponent* ASC = GetAbilitySystemComponent();
+    if (!ASC) return;
+
+    for (const FGameplayAbilitySpecHandle AbilityHandle : GrantedClassAbilityHandles)
+    {
+        ASC->ClearAbility(AbilityHandle);
+    }
+
+    GrantedClassAbilityHandles.Empty();
 }
 
 void APlayerCharacter::GiveConfiguredAbility(UAbilitySystemComponent* ASC, UBaseAbilityConfig* AbilityConfig)
@@ -420,10 +480,10 @@ void APlayerCharacter::GiveAbilityFromClass(UAbilitySystemComponent* ASC, TSubcl
 
     if (!AbilityCDO) return;
 
-    ASC->GiveAbility(FGameplayAbilitySpec(
+    GrantedClassAbilityHandles.Add(ASC->GiveAbility(FGameplayAbilitySpec(
         AbilityClass,
         1,
         static_cast<int32>(AbilityCDO->AbilityInputID),
         SourceObject
-    ));
+    )));
 }

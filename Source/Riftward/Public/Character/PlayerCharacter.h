@@ -36,6 +36,7 @@ public:
 
 	virtual void Tick(float DeltaTime) override;
 	virtual void PostInitializeComponents() override;
+	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 
 	// Getter
 	virtual UAbilitySystemComponent* GetAbilitySystemComponent() const override;
@@ -48,6 +49,9 @@ public:
 
 	UFUNCTION(BlueprintPure, Category="Class")
 	UPlayerClassConfig* GetPlayerClassConfig() const { return PlayerClassConfig; }
+
+	UFUNCTION(BlueprintCallable, Server, Reliable, Category="Class")
+	void SelectPlayerClass(UPlayerClassConfig* NewPlayerClassConfig);
 
 	UFUNCTION(BlueprintPure, Category="Animation")
 	UPlayerAnimationConfig* GetPlayerAnimationConfig() const;
@@ -71,7 +75,7 @@ protected:
 	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category="Locomotion|Turn")
 	float CurrentTurnRate = 600.0f;
 
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Class")
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, ReplicatedUsing=OnRep_PlayerClassConfig, Category="Class")
 	TObjectPtr<UPlayerClassConfig> PlayerClassConfig;
 
 	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category="Weapon")
@@ -81,31 +85,38 @@ private:
 	void InitPlayerProperties();
 	void InitGasActorInfo();
 	void InitCameraComponents();
-	void InitAttributesFromConfig();
-	void ApplyAnimationConfig();
-	void EquipWeaponsFromConfig();
+	void AssemblePlayerClass();
+	void ApplyAttributesFromConfig() const;
+	void ApplyAnimationConfig() const;
+	void ApplyWeaponsFromConfig();
 	void ClearEquippedWeapons();
 	APlayerWeapon* SpawnAndAttachWeapon(const FPlayerWeaponPartConfig& WeaponPartConfig);
+
+	UFUNCTION()
+	void OnRep_PlayerClassConfig();
 
 	/* Movement and Camera Control */
 	void InitMovementSettings();
 	void ApplyCameraRelativeMovementInput();
 	void ClearMovementInput();
-	void ApplyMovementTuningSettings() const;
+	void ApplyMovementSettings() const;
 	void UpdateMovementRotationRate(float DeltaTime);
 
 	/* Gameplay Ability System */
 
-	void GrantClassAbilities() const;
+	void GrantClassAbilities();
+	void ClearClassAbilities();
 
-	static void GiveConfiguredAbility(
+	void GiveConfiguredAbility(
 		UAbilitySystemComponent* ASC,
 		UBaseAbilityConfig* AbilityConfig
 	);
 
-	static void GiveAbilityFromClass(
+	void GiveAbilityFromClass(
 		UAbilitySystemComponent* ASC,
 		TSubclassOf<UBaseGameplayAbility> AbilityClass,
 		UObject* SourceObject
 	);
+
+	TArray<FGameplayAbilitySpecHandle> GrantedClassAbilityHandles;
 };

@@ -6,12 +6,26 @@
 #include "GameFramework/HUD.h"
 #include "BaseHUD.generated.h"
 
+class UPlayerHUDWidget;
 /**
- * 
+ *
  */
 UCLASS()
 class RIFTWARD_API ABaseHUD : public AHUD
 {
 	GENERATED_BODY()
-	
+public:
+	ABaseHUD();
+
+protected:
+	virtual void BeginPlay() override;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="UI")
+	TSubclassOf<UPlayerHUDWidget> PlayerInfoPanelClass;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UPlayerHUDWidget> PlayerInfoPanel;
+
+private:
+	void CreatePlayerInfoPanel();
 };

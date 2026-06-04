@@ -41,11 +41,13 @@ protected:
 		bool bReplicateEndAbility,
 		bool bWasCancelled) override;
 
+	 virtual FGameplayTag GetAbilityActiveStateTag() const override;
 private:
 	UPROPERTY()
 	TObjectPtr<UAnimMontage> ActiveMontage;
 
 	bool bPlayRecover = false;
+	bool bAddedDodgeActiveTag = false;
 
 	UFUNCTION()
 	void HandleDodgeFinished(FGameplayEventData Payload);

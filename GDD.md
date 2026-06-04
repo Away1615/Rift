@@ -214,43 +214,45 @@
 | --- | --- |
 | 血量 | 生存资源，归零后进入死亡状态 |
 | 蓝量 | Shift、E、Q、Space 等主动技能消耗；E 技能期间持续消耗蓝量 |
-| 耐力 | Shift、E、Q、Space 等主动技能消耗 |
+| 耐力 | 右键 Combo2 / Combo4、Shift、E、Q、Space 等主动技能消耗 |
 | 终极技能充能 | 通过造成伤害和成功完美闪避获得 |
 
-战士轻击连招和重击 / 分支重击不消耗蓝量或耐力。Shift、E、Q、Space 同时消耗蓝量和耐力；E 武器虚影强化持续期间额外持续消耗蓝量。
+战士左键 Combo1 不消耗蓝量或耐力。右键 Combo2 威力更高，但消耗耐力。成功完美闪避不会直接给予持续攻速和剑气，而是强化下一次攻击输入：下一次左键从 Combo1 升级为 Combo3，下一次右键从 Combo2 升级为 Combo4。Combo4 继承右键强化连招的耐力消耗。Shift、E、Q、Space 同时消耗蓝量和耐力；E 武器虚影强化持续期间额外持续消耗蓝量。
 
 ### 7.3 技能
 
 | 输入 | 技能 | 说明 |
 | --- | --- | --- |
 | 被动 | 战斗专注 | 近战命中时获得少量额外 Q 充能 |
-| 鼠标左键 | GAS 轻击连招 | 四段轻击链，支持输入缓冲、连招窗口和近战自动锁敌 |
-| 鼠标右键 | 重击 / 分支重击 | 可单独释放，也可在指定连招窗口接入不同重击分支 |
-| Space | 完美闪避 | 短距离闪避；若在敌方攻击命中前的完美窗口内成功规避伤害，获得特定时间攻击速度加成和额外剑气攻击 |
+| 鼠标左键 | Combo1 基础连招 | 基础双刀连招，支持输入缓冲、连招窗口和近战自动锁敌 |
+| 鼠标右键 | Combo2 强化连招 | 威力高于 Combo1，但消耗耐力 |
+| Space | 完美闪避 | 短距离闪避；若在敌方攻击命中前的完美窗口内成功规避伤害，强化下一次左键或右键连招 |
 | Shift | 剑气斩 | 对前方挥出剑气，沿路径造成伤害 |
 | E | 武器虚影强化 | 召唤武器虚影，短时间增加攻击范围 |
-| Q | 星爆气流斩 | 前方多段近战终极技能 |
+| Q | 终极强化 | 一定时间内提高攻击速度，并让攻击额外挥出剑气；剑气造成范围伤害，飞行约 2 米后消散 |
 
 ### 7.4 GAS 连招管理
 
-战士连招不是简单的“按左键播放四段动画”，而是由 GAS、Gameplay Tags 和 Montage Notify 共同管理的状态机。Space 完美闪避属于战士核心机制，可以在指定取消窗口中打断部分后摇。
+战士连招不是简单的“按键播放固定动画”，而是由 GAS、Gameplay Tags 和 Montage Notify 共同管理的状态机。左键和右键分别进入不同连招族；Space 完美闪避属于战士核心机制，可以在指定取消窗口中打断部分后摇，并在成功时强化下一次攻击输入。
 
 #### 7.4.1 连招结构
 
 ```text
-Light 1
--> Light 2
--> Light 3
--> Light 4 Finisher
+Left Mouse
+-> Combo1
 
-Light 2 + Right Mouse
--> Heavy Breaker
+Right Mouse
+-> Combo2
 
-Light 3 + Right Mouse
--> Heavy Sweep
+Successful Perfect Dodge + next Left Mouse
+-> Combo3
 
-Successful Perfect Dodge + Left/Right Mouse
--> Counter Slash
+Successful Perfect Dodge + next Right Mouse
+-> Combo4
+
+Ultimate Active + any melee combo
+-> Increased attack speed
+-> Extra sword wave damage, dissipates after about 2 meters
 ```
 
 #### 7.4.2 连招规则
@@ -258,11 +260,12 @@ Successful Perfect Dodge + Left/Right Mouse
 | 机制 | 规则 |
 | --- | --- |
 | 近战自动锁敌 | 攻击起手时在近战有效范围内短暂选择最合适的敌人，角色平滑转向目标；不改变镜头，不形成持续锁定状态 |
-| 输入缓冲 | 在 ComboInputWindow 内输入下一次轻击或重击，GAS 记录为 PendingComboInput |
-| 连招阶段 | 当前阶段通过 Gameplay Tag 表示，例如 `State.Combo.Step.1` 到 `State.Combo.Step.4` |
-| 重击分支 | 在指定 BranchWindow 内按右键，可从轻击链切入不同重击 |
+| 输入缓冲 | 在 ComboInputWindow 内输入下一次左键或右键，GAS 记录为 PendingComboInput |
+| 连招阶段 | 当前阶段通过 Gameplay Tag 表示，例如 `State.Combo.Type.Combo1` 和 `State.Combo.Step.1` |
+| 右键 Combo2 | 右键启动高威力连招，消耗耐力；Combo2 可以拥有独立起手动画，不要求从 Combo1 分支进入 |
 | 核心取消 | 在 CoreCancelWindow 内按 Space 可使用完美闪避取消后摇，并按 Space 技能规则消耗蓝量和耐力 |
-| 完美闪避反击 | 成功完美闪避后添加 `State.Counter.Ready`，下一次攻击转为 Counter Slash |
+| 完美闪避强化 | 成功完美闪避后添加 `State.Warrior.PerfectDodgeEmpowered`；下一次左键消耗该状态并进入 Combo3，下一次右键消耗该状态并进入 Combo4 |
+| 终极强化 | Q 激活后添加 `State.Warrior.UltimateActive`；持续期间攻击速度提高，近战攻击额外生成剑气范围伤害，剑气约 2 米后消散 |
 | 连招重置 | 超过输入窗口、被硬直、状态受限或核心取消后重置连招 |
 | 伤害结算 | 只有 DamageWindow 内由服务器执行联网命中验证并应用 Gameplay Effect |
 
@@ -285,8 +288,8 @@ Successful Perfect Dodge + Left/Right Mouse
 
 | 窗口 | 来源 | 作用 |
 | --- | --- | --- |
-| ComboInputWindow | Anim Notify State | 接收下一段轻击输入 |
-| BranchWindow | Anim Notify State | 接收右键重击分支输入 |
+| ComboInputWindow | Anim Notify State | 接收下一段左键或右键输入 |
+| BranchWindow | Anim Notify State | 可选窗口；允许从当前连段切换到另一套连招 |
 | CoreCancelWindow | Anim Notify State | 允许 Space 核心机制取消后摇 |
 | DamageWindow | Anim Notify State | 服务器执行命中验证和伤害 GE |
 | PerfectDodgeWindow | Gameplay Ability | 服务器接受敌方攻击事件并判定是否完美闪避成功 |
@@ -296,15 +299,17 @@ Successful Perfect Dodge + Left/Right Mouse
 | Tag | 用途 |
 | --- | --- |
 | `State.Combo.Active` | 玩家正在连招中 |
-| `State.Combo.Step.1` / `2` / `3` / `4` | 当前轻击阶段 |
+| `State.Combo.Type.Combo1` / `Combo2` / `Combo3` / `Combo4` | 当前连招族 |
+| `State.Combo.Step.1` / `2` / `3` / `4` | 当前连招阶段 |
 | `State.Combo.InputWindow` | 允许接收下一段输入 |
-| `State.Combo.BranchWindow` | 允许切入重击分支 |
+| `State.Combo.BranchWindow` | 允许切换到另一套连招 |
 | `State.Combo.CoreCancelWindow` | 允许 Space 核心机制取消后摇 |
 | `State.Combo.DamageWindow` | 当前动画处于服务器命中检测窗口 |
-| `State.Core.PerfectWindow` | 当前处于完美闪避判定窗口 |
+| `State.Core.PerfectDodgeWindow` | 当前处于完美闪避判定窗口 |
 | `State.Core.PerfectSuccess` | 本次核心机制成功触发完美效果 |
-| `State.Counter.Ready` | 成功完美闪避后的反击窗口 |
+| `State.Warrior.PerfectDodgeEmpowered` | 成功完美闪避后，下一次左键 / 右键连招升级 |
 | `State.Warrior.SwordAura` | 战士武器虚影强化中 |
+| `State.Warrior.UltimateActive` | 战士终极强化持续中 |
 | `State.Action.Locked` | 当前动作期间限制其他技能 |
 | `Cost.Warrior.ActiveSkill` | 战士 Shift / E / Q / Space 主动技能消耗 |
 
@@ -313,29 +318,33 @@ Successful Perfect Dodge + Left/Right Mouse
 | Gameplay Effect | 用途 |
 | --- | --- |
 | `GE_Cost_Warrior_CoreDodge` | 完美闪避 / 核心取消蓝量和耐力消耗 |
+| `GE_Cost_Warrior_Combo2` | 右键 Combo2 耐力消耗 |
+| `GE_Cost_Warrior_Combo4` | 完美闪避强化后的右键 Combo4 耐力消耗 |
 | `GE_Cost_Warrior_SwordWave` | 剑气斩蓝量和耐力消耗 |
 | `GE_Cost_Warrior_WeaponAura` | 武器虚影强化启动蓝量和耐力消耗 |
 | `GE_Cost_Warrior_WeaponAura_Tick` | 武器虚影强化持续期间蓝量消耗 |
-| `GE_Cost_Warrior_Ultimate` | 星爆气流斩蓝量和耐力消耗 |
-| `GE_Damage_Warrior_Light` | 轻击伤害 |
-| `GE_Damage_Warrior_Heavy` | 重击伤害 |
+| `GE_Cost_Warrior_Ultimate` | 终极强化启动消耗 |
+| `GE_Damage_Warrior_Combo1` | 左键基础连招伤害 |
+| `GE_Damage_Warrior_Combo2` | 右键高威力连招伤害 |
+| `GE_Damage_Warrior_Combo3` | 完美闪避强化后的左键连招伤害 |
+| `GE_Damage_Warrior_Combo4` | 完美闪避强化后的右键连招伤害 |
 | `GE_Damage_Warrior_SwordWave` | 剑气路径伤害 |
-| `GE_Damage_Warrior_Counter` | 完美闪避反击伤害 |
-| `GE_Buff_Warrior_PerfectDodge` | 完美闪避成功后的攻击速度加成和额外剑气攻击 |
+| `GE_Damage_Warrior_UltimateSwordWave` | 终极强化期间攻击附带的剑气范围伤害 |
+| `GE_Buff_Warrior_PerfectDodge` | 完美闪避成功后添加下一次连招升级状态 |
 | `GE_Buff_Warrior_SwordAura` | 武器虚影强化，增加攻击范围 |
+| `GE_Buff_Warrior_Ultimate` | 终极强化状态，提高攻击速度并允许攻击附带剑气 |
 | `GE_UltimateCharge_OnHit` | 命中后增加 Q 充能 |
 
 #### 7.4.6 Ability 划分
 
 | Ability | 作用 |
 | --- | --- |
-| `GA_Warrior_LightAttack` | 根据当前 Combo Step 播放对应 Montage Section，并开启输入窗口 |
-| `GA_Warrior_HeavyAttack` | 处理普通重击和 Light 2 / Light 3 后的重击分支 |
-| `GA_Warrior_CoreDodge` | 处理 Space 完美闪避、成功判定、Buff 和 Counter Ready Tag |
+| `GA_Warrior_PrimaryCombo` | 处理左键 Combo1；若存在完美闪避强化状态，则转为 Combo3 |
+| `GA_Warrior_SecondaryCombo` | 处理右键 Combo2 和耐力消耗；若存在完美闪避强化状态，则转为 Combo4 |
+| `GA_Warrior_CoreDodge` | 处理 Space 完美闪避、成功判定和下一次连招升级状态 |
 | `GA_Warrior_SwordWave` | 处理 Shift 剑气斩和路径伤害 |
 | `GA_Warrior_WeaponAura` | 处理 E 武器虚影强化和攻击范围提升 |
-| `GA_Warrior_CounterSlash` | 消耗 Counter Ready Tag，释放反击攻击 |
-| `GA_Warrior_Ultimate` | 星爆气流斩，多段服务器伤害检测 |
+| `GA_Warrior_Ultimate` | 处理终极强化状态，限时提高攻击速度并让攻击附带剑气范围伤害 |
 
 #### 7.4.7 联网命中验证
 
@@ -344,17 +353,17 @@ Successful Perfect Dodge + Left/Right Mouse
 - 伤害检测只在服务器执行，客户端命中特效不能直接造成伤害。
 - 服务器在 DamageWindow 内执行武器 Sweep / Trace。
 - 每次攻击需要记录本段攻击已命中的目标，防止同一 DamageWindow 对同一目标重复结算。
-- 服务器拒绝非法转移，例如没有 BranchWindow 却请求重击分支。
+- 服务器拒绝非法转移，例如没有 BranchWindow 却请求跨连招切换。
 - 所有关键连招状态通过 Gameplay Tags 或轻量复制变量显示到 Debug HUD。
 
 ### 7.5 MVP 约束
 
 - 战士必须使用 GAS 管理连招，而不是手写简单 Combo Index。
-- 必做一套四段轻击链。
-- 必做至少两个重击分支：Light 2 后的 Heavy Breaker、Light 3 后的 Heavy Sweep。
-- 必做 Space 完美闪避核心机制，成功时给予短时攻击速度加成和额外剑气攻击。
-- 必做核心取消窗口，但只要求在 Light 2 / Light 3 后开放。
-- 终极技能可以实现为固定动作演出 + 多次服务器伤害检测。
+- 必做左键 Combo1 的基础连招。
+- 必做右键 Combo2 的基础版本，并正确消耗耐力。
+- 必做 Space 完美闪避核心机制，成功时让下一次左键 Combo1 升级为 Combo3，或下一次右键 Combo2 升级为 Combo4。
+- 必做核心取消窗口，但只要求在 Combo1 的中后段开放。
+- 终极技能实现为限时强化：攻击速度提高，攻击附带约 2 米内有效的剑气范围伤害。
 - 不做多武器连招树、不做空中连招、不做处决系统。
 
 ## 8. 法师
@@ -555,7 +564,7 @@ Dormant
 
 | 职业 | 作用 |
 | --- | --- |
-| 战士 | 重击、剑气和终极技能具有较高破韧能力 |
+| 战士 | Combo2 / Combo4、剑气和终极强化期间的剑气具有较高破韧能力 |
 | 法师 | 地系偏破韧 / 石化，风系偏聚怪，火系偏生命伤害 |
 | 弓箭手 | 弱点标记后对生命、护盾和韧性获得额外倍率 |
 
@@ -870,7 +879,7 @@ Boss 弱点窗口：
 - 冲锋撞墙后短暂暴露弱点。
 - 砸地和裂地波后摇期间暴露弱点。
 - 韧性归零时暴露弱点并延长当前后摇。
-- 弓箭手可以在这些窗口内标记弱点；法师地系和战士重击可以加快破韧。
+- 弓箭手可以在这些窗口内标记弱点；法师地系和战士 Combo2 / Combo4 可以加快破韧。
 
 ### 14.4 Boss 状态流程
 
@@ -931,7 +940,7 @@ Boss 血量归零
 | 房间 | 验证加入、分配座位、保存职业 | 输入房间号、显示大厅 UI |
 | 玩家移动 | 使用 UE 移动复制 | 本地输入和镜头 |
 | 战斗 | 校验攻击、应用伤害、恢复和资源变化 | 发送输入请求、播放反馈 |
-| GAS 连招 | 校验连招阶段、分支窗口、资源消耗和伤害窗口 | 发送输入、预测动画、显示连招反馈 |
+| GAS 连招 | 校验连招阶段、连招切换窗口、资源消耗和伤害窗口 | 发送输入、预测动画、显示连招反馈 |
 | 资源 | 维护耐力、蓝量、冷却和 Q 充能 | 显示 UI |
 | 技能 | 校验目标、消耗、冷却和命中结果 | 动画、特效、输入 |
 | 敌人 | 生成、AI、移动、攻击、韧性、护盾、弱点、死亡 | 显示复制状态 |
@@ -964,7 +973,7 @@ Boss 血量归零
 | 双客户端加入 | 两个客户端进入同一房间并互相可见 |
 | 四客户端加入 | 四个客户端能占用四个座位 |
 | 战士攻击 | 服务器应用伤害，所有客户端看到敌人血量和死亡一致 |
-| GAS 连招 | 战士轻击链、重击分支、核心取消和完美闪避反击在双客户端下状态一致 |
+| GAS 连招 | 战士 Combo1 / Combo2、核心取消和完美闪避升级 Combo3 / Combo4 在双客户端下状态一致 |
 | 法师施法 | 法术消耗、投射物、伤害和冷却保持一致 |
 | 敌人 AI | 敌人在所有客户端上移动、攻击、韧性、护盾和弱点状态一致 |
 | 攻击槽 | 同一玩家不会被超出限制的近战怪同时攻击 |
@@ -1083,7 +1092,7 @@ Boss 血量归零
 | --- | --- |
 | 5 月 28 日 - 6 月 1 日 | UE5 工程、Dedicated Server、双客户端连接、第三人称角色复制 |
 | 6 月 2 日 - 6 月 5 日 | GAS 基础接入：ASC、Attribute Set、Gameplay Tags、Cost/Cooldown GE |
-| 6 月 6 日 - 6 月 9 日 | 战士 GAS 连招：输入缓存、动画通知窗口、主动技能资源消耗、空格完美闪避、轻击链和重击分支 |
+| 6 月 6 日 - 6 月 9 日 | 战士 GAS 连招：输入缓存、动画通知窗口、主动技能资源消耗、空格完美闪避、Combo1 / Combo2 和完美闪避升级 Combo3 / Combo4 |
 | 6 月 10 日 - 6 月 12 日 | 联网命中验证：服务器 Sweep/Trace、Damage GE、命中去重、双客户端同步测试 |
 | 6 月 13 日 - 6 月 14 日 | 法师基础技能、资源、冷却 |
 | 6 月 15 日 - 6 月 16 日 | 近战 / 远程敌人 AI、第一波和目标防守 |
@@ -1103,9 +1112,9 @@ Boss 血量归零
 5. 战斗状态由服务器权威处理。
 6. 战士使用 GAS 实现服务端权威连招管理。
 7. 连招系统支持输入缓存，并能在窗口外拒绝非法输入。
-8. 连招窗口、分支窗口、核心取消窗口和伤害窗口由 Anim Notify / Montage Event 驱动。
-9. 轻击、重击不消耗蓝量或耐力；核心取消、完美闪避和战士主动技能正确消耗或检查蓝量 / 耐力。
-10. 连招阶段、输入窗口、核心机制状态、伤害窗口和反击窗口通过 Gameplay Tags 管理。
+8. 连招输入窗口、连招切换窗口、核心取消窗口和伤害窗口由 Anim Notify / Montage Event 驱动。
+9. 左键 Combo1 不消耗蓝量或耐力；右键 Combo2 / Combo4 正确消耗耐力；核心取消、完美闪避和战士主动技能正确消耗或检查蓝量 / 耐力。
+10. 连招阶段、输入窗口、核心机制状态、伤害窗口和完美闪避升级状态通过 Gameplay Tags 管理。
 11. 伤害通过 Gameplay Effect 应用，而不是直接改血。
 12. 近战命中由服务器执行 Sweep / Trace 验证，双客户端下命中和死亡结果一致。
 13. 法师至少具备基础可玩版本。
