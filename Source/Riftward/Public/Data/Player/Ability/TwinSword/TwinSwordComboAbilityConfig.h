@@ -27,6 +27,9 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Cost", meta=(ClampMin="0.0"))
 	float StaminaCost = 0.0f;
 
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Cost")
+	TSubclassOf<UGameplayEffect> StaminaCostEffectClass;
+
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="HitCheck")
 	float HitRange = 180.0f;
 
@@ -37,7 +40,7 @@ public:
 	bool bDrawDebugHitCheck = false;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Damage")
-	TSubclassOf<UGameplayEffect> DamageEffectClass;
+	TSubclassOf<UGameplayEffect> InstantDamageEffectClass;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Damage")
 	TArray<float> ComboDamages;

@@ -3,48 +3,50 @@
 
 #include "GameplayTags/RiftGameplayTags.h"
 
-UE_DEFINE_GAMEPLAY_TAG(TAG_Data_Damage, "Data.Damage");
+UE_DEFINE_GAMEPLAY_TAG(Tag_Data_Damage, "Data.Damage");
+UE_DEFINE_GAMEPLAY_TAG(Tag_Data_StaminaCost, "Data.StaminaCost");
 
-UE_DEFINE_GAMEPLAY_TAG(TAG_Event_Ability_TwinSword_Core_DodgeFinished,
+UE_DEFINE_GAMEPLAY_TAG(Tag_Event_Ability_TwinSword_Core_DodgeFinished,
                        "Event.Ability.TwinSword.Core.DodgeFinished");
-UE_DEFINE_GAMEPLAY_TAG(TAG_Event_Ability_TwinSword_Primary_ComboWindow,
+UE_DEFINE_GAMEPLAY_TAG(Tag_Event_Ability_TwinSword_Primary_ComboWindow,
                        "Event.Ability.TwinSword.Primary.ComboWindow");
-UE_DEFINE_GAMEPLAY_TAG(TAG_Event_Ability_TwinSword_Secondary_ComboWindow,
+UE_DEFINE_GAMEPLAY_TAG(Tag_Event_Ability_TwinSword_Secondary_ComboWindow,
                        "Event.Ability.TwinSword.Secondary.ComboWindow");
-UE_DEFINE_GAMEPLAY_TAG(TAG_Event_Ability_TwinSword_Combo_WeaponTraceBegin,
+UE_DEFINE_GAMEPLAY_TAG(Tag_Event_Ability_TwinSword_Combo_WeaponTraceBegin,
                        "Event.Ability.TwinSword.Combo.WeaponTrace.Begin");
-UE_DEFINE_GAMEPLAY_TAG(TAG_Event_Ability_TwinSword_Combo_WeaponTraceTick,
+UE_DEFINE_GAMEPLAY_TAG(Tag_Event_Ability_TwinSword_Combo_WeaponTraceTick,
                        "Event.Ability.TwinSword.Combo.WeaponTrace.Tick");
-UE_DEFINE_GAMEPLAY_TAG(TAG_Event_Ability_TwinSword_Combo_WeaponTraceEnd,
+UE_DEFINE_GAMEPLAY_TAG(Tag_Event_Ability_TwinSword_Combo_WeaponTraceEnd,
                        "Event.Ability.TwinSword.Combo.WeaponTrace.End");
 
-UE_DEFINE_GAMEPLAY_TAG(TAG_State_Ability_TwinSword_Core_PerfectDodgeWindow,
+UE_DEFINE_GAMEPLAY_TAG(Tag_State_Ability_TwinSword_Core_PerfectDodgeWindow,
                        "State.Ability.TwinSword.Core.PerfectDodgeWindow");
-UE_DEFINE_GAMEPLAY_TAG(TAG_State_Ability_TwinSword_Core_PerfectDodgeEmpowered,
+UE_DEFINE_GAMEPLAY_TAG(Tag_State_Ability_TwinSword_Core_PerfectDodgeEmpowered,
                        "State.Ability.TwinSword.Core.PerfectDodgeEmpowered");
-UE_DEFINE_GAMEPLAY_TAG(TAG_State_Ability_TwinSword_Core_DodgeActive,
+UE_DEFINE_GAMEPLAY_TAG(Tag_State_Ability_TwinSword_Core_DodgeActive,
                        "State.Ability.TwinSword.Core.DodgeActive");
-UE_DEFINE_GAMEPLAY_TAG(TAG_State_Ability_TwinSword_Primary_ComboActive,
+UE_DEFINE_GAMEPLAY_TAG(Tag_State_Ability_TwinSword_Primary_ComboActive,
                        "State.Ability.TwinSword.Primary.ComboActive");
-UE_DEFINE_GAMEPLAY_TAG(TAG_State_Ability_TwinSword_Secondary_ComboActive,
+UE_DEFINE_GAMEPLAY_TAG(Tag_State_Ability_TwinSword_Secondary_ComboActive,
                        "State.Ability.TwinSword.Secondary.ComboActive");
 
 FRiftGameplayTags::FRiftGameplayTags()
 {
-	Data_Damage = TAG_Data_Damage;
+	Data_Damage = Tag_Data_Damage;
+	Data_StaminaCost = Tag_Data_StaminaCost;
 
-	Event_Ability_TwinSword_Core_DodgeFinished = TAG_Event_Ability_TwinSword_Core_DodgeFinished;
-	Event_Ability_TwinSword_Primary_ComboWindow = TAG_Event_Ability_TwinSword_Primary_ComboWindow;
-	Event_Ability_TwinSword_Secondary_ComboWindow = TAG_Event_Ability_TwinSword_Secondary_ComboWindow;
-	Event_Ability_TwinSword_Combo_WeaponTraceBegin = TAG_Event_Ability_TwinSword_Combo_WeaponTraceBegin;
-	Event_Ability_TwinSword_Combo_WeaponTraceTick = TAG_Event_Ability_TwinSword_Combo_WeaponTraceTick;
-	Event_Ability_TwinSword_Combo_WeaponTraceEnd = TAG_Event_Ability_TwinSword_Combo_WeaponTraceEnd;
+	Event_Ability_TwinSword_Core_DodgeFinished = Tag_Event_Ability_TwinSword_Core_DodgeFinished;
+	Event_Ability_TwinSword_Primary_ComboWindow = Tag_Event_Ability_TwinSword_Primary_ComboWindow;
+	Event_Ability_TwinSword_Secondary_ComboWindow = Tag_Event_Ability_TwinSword_Secondary_ComboWindow;
+	Event_Ability_TwinSword_Combo_WeaponTraceBegin = Tag_Event_Ability_TwinSword_Combo_WeaponTraceBegin;
+	Event_Ability_TwinSword_Combo_WeaponTraceTick = Tag_Event_Ability_TwinSword_Combo_WeaponTraceTick;
+	Event_Ability_TwinSword_Combo_WeaponTraceEnd = Tag_Event_Ability_TwinSword_Combo_WeaponTraceEnd;
 
-	State_Ability_TwinSword_Core_PerfectDodgeWindow = TAG_State_Ability_TwinSword_Core_PerfectDodgeWindow;
-	State_Ability_TwinSword_Core_PerfectDodgeEmpowered = TAG_State_Ability_TwinSword_Core_PerfectDodgeEmpowered;
-	State_Ability_TwinSword_Core_DodgeActive = TAG_State_Ability_TwinSword_Core_DodgeActive;
-	State_Ability_TwinSword_Primary_ComboActive = TAG_State_Ability_TwinSword_Primary_ComboActive;
-	State_Ability_TwinSword_Secondary_ComboActive = TAG_State_Ability_TwinSword_Secondary_ComboActive;
+	State_Ability_TwinSword_Core_PerfectDodgeWindow = Tag_State_Ability_TwinSword_Core_PerfectDodgeWindow;
+	State_Ability_TwinSword_Core_PerfectDodgeEmpowered = Tag_State_Ability_TwinSword_Core_PerfectDodgeEmpowered;
+	State_Ability_TwinSword_Core_DodgeActive = Tag_State_Ability_TwinSword_Core_DodgeActive;
+	State_Ability_TwinSword_Primary_ComboActive = Tag_State_Ability_TwinSword_Primary_ComboActive;
+	State_Ability_TwinSword_Secondary_ComboActive = Tag_State_Ability_TwinSword_Secondary_ComboActive;
 }
 
 const FRiftGameplayTags& FRiftGameplayTags::Get()

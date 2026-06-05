@@ -34,6 +34,14 @@ protected:
 	virtual FGameplayTag GetComboWindowEventTag() const;
 	virtual FGameplayTag GetAbilityActiveStateTag() const override;
 	virtual bool ShouldCommitComboAbility() const;
+	virtual bool CheckCost(
+		const FGameplayAbilitySpecHandle Handle,
+		const FGameplayAbilityActorInfo* ActorInfo,
+		FGameplayTagContainer* OptionalRelevantTags = nullptr) const override;
+	virtual void ApplyCost(
+		const FGameplayAbilitySpecHandle Handle,
+		const FGameplayAbilityActorInfo* ActorInfo,
+		const FGameplayAbilityActivationInfo ActivationInfo) const override;
 
 private:
 	struct FWeaponTraceState
@@ -55,6 +63,9 @@ private:
 	bool bWeaponTraceActive = false;
 
 	const UTwinSwordComboAbilityConfig* GetComboConfig() const;
+	const UTwinSwordComboAbilityConfig* GetComboConfigFromSpec(
+		FGameplayAbilitySpecHandle Handle,
+		const FGameplayAbilityActorInfo* ActorInfo) const;
 	void ResetComboSectionLinks() const;
 	void WaitForComboWindow();
 	void WaitForComboInput();

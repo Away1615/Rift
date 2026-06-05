@@ -1,11 +1,12 @@
-﻿// Fill out your copyright notice in the Description page of Project Settings.
+// Fill out your copyright notice in the Description page of Project Settings.
 
 
-#include "AbilitySystem/GameplayEffects/GE_TwinSword_Damage.h"
+#include "AbilitySystem/GameplayEffects/GE_InstantDamage.h"
+
 #include "AbilitySystem/Attributes/HealthAttributeSet.h"
 #include "GameplayTags/RiftGameplayTags.h"
 
-UGE_TwinSword_Damage::UGE_TwinSword_Damage()
+UGE_InstantDamage::UGE_InstantDamage()
 {
 	DurationPolicy = EGameplayEffectDurationType::Instant;
 

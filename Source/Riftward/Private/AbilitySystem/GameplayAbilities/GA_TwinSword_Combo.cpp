@@ -14,6 +14,7 @@
 #include "Debug/Logger.h"
 #include "DrawDebugHelpers.h"
 #include "AbilitySystem/Attributes/HealthAttributeSet.h"
+#include "AbilitySystem/Attributes/ResourceAttributeSet.h"
 #include "Equipment/PlayerWeapon.h"
 #include "GameplayTags/RiftGameplayTags.h"
 
@@ -143,9 +144,96 @@ bool UGA_TwinSword_Combo::ShouldCommitComboAbility() const
 	return false;
 }
 
+bool UGA_TwinSword_Combo::CheckCost(const FGameplayAbilitySpecHandle Handle,
+                                    const FGameplayAbilityActorInfo* ActorInfo,
+                                    FGameplayTagContainer* OptionalRelevantTags) const
+{
+	if (!ShouldCommitComboAbility())
+	{
+		return Super::CheckCost(Handle, ActorInfo, OptionalRelevantTags);
+	}
+
+	const UTwinSwordComboAbilityConfig* ComboConfig = GetComboConfigFromSpec(Handle, ActorInfo);
+	if (!ComboConfig)
+	{
+		return false;
+	}
+
+	if (ComboConfig->StaminaCost <= 0.0f)
+	{
+		return true;
+	}
+
+	if (!ComboConfig->StaminaCostEffectClass)
+	{
+		return false;
+	}
+
+	const UAbilitySystemComponent* AbilitySystemComponent = ActorInfo
+		? ActorInfo->AbilitySystemComponent.Get()
+		: nullptr;
+
+	return AbilitySystemComponent
+		&& AbilitySystemComponent->GetNumericAttribute(UResourceAttributeSet::GetStaminaAttribute()) >= ComboConfig->StaminaCost;
+}
+
+void UGA_TwinSword_Combo::ApplyCost(const FGameplayAbilitySpecHandle Handle,
+                                    const FGameplayAbilityActorInfo* ActorInfo,
+                                    const FGameplayAbilityActivationInfo ActivationInfo) const
+{
+	if (!ShouldCommitComboAbility())
+	{
+		Super::ApplyCost(Handle, ActorInfo, ActivationInfo);
+		return;
+	}
+
+	const UTwinSwordComboAbilityConfig* ComboConfig = GetComboConfigFromSpec(Handle, ActorInfo);
+	if (!ComboConfig || ComboConfig->StaminaCost <= 0.0f || !ComboConfig->StaminaCostEffectClass)
+	{
+		return;
+	}
+
+	FGameplayEffectSpecHandle SpecHandle = MakeOutgoingGameplayEffectSpec(
+		Handle,
+		ActorInfo,
+		ActivationInfo,
+		ComboConfig->StaminaCostEffectClass,
+		GetAbilityLevel(Handle, ActorInfo)
+	);
+
+	if (!SpecHandle.IsValid())
+	{
+		return;
+	}
+
+	SpecHandle.Data->SetSetByCallerMagnitude(
+		FRiftGameplayTags::Get().Data_StaminaCost,
+		-ComboConfig->StaminaCost
+	);
+
+	ApplyGameplayEffectSpecToOwner(Handle, ActorInfo, ActivationInfo, SpecHandle);
+}
+
 const UTwinSwordComboAbilityConfig* UGA_TwinSword_Combo::GetComboConfig() const
 {
 	const FGameplayAbilitySpec* Spec = GetCurrentAbilitySpec();
+	return Spec
+		? Cast<UTwinSwordComboAbilityConfig>(Spec->SourceObject.Get())
+		: nullptr;
+}
+
+const UTwinSwordComboAbilityConfig* UGA_TwinSword_Combo::GetComboConfigFromSpec(
+	const FGameplayAbilitySpecHandle Handle,
+	const FGameplayAbilityActorInfo* ActorInfo) const
+{
+	const UAbilitySystemComponent* AbilitySystemComponent = ActorInfo
+		? ActorInfo->AbilitySystemComponent.Get()
+		: nullptr;
+
+	const FGameplayAbilitySpec* Spec = AbilitySystemComponent
+		? AbilitySystemComponent->FindAbilitySpecFromHandle(Handle)
+		: nullptr;
+
 	return Spec
 		? Cast<UTwinSwordComboAbilityConfig>(Spec->SourceObject.Get())
 		: nullptr;
@@ -430,7 +518,7 @@ void UGA_TwinSword_Combo::ApplyDamageToHitActor(AActor* HitActor, const FHitResu
 	if (!CurrentActorInfo || !CurrentActorInfo->IsNetAuthority()) return;
 
 	const UTwinSwordComboAbilityConfig* ComboConfig = GetComboConfig();
-	if (!ComboConfig || !ComboConfig->DamageEffectClass) return;
+	if (!ComboConfig || !ComboConfig->InstantDamageEffectClass) return;
 
 	UAbilitySystemComponent* SourceASC = GetAbilitySystemComponentFromActorInfo();
 	if (!SourceASC) return;
@@ -446,7 +534,7 @@ void UGA_TwinSword_Combo::ApplyDamageToHitActor(AActor* HitActor, const FHitResu
 	EffectContext.AddHitResult(Hit);
 
 	FGameplayEffectSpecHandle SpecHandle = SourceASC->MakeOutgoingSpec(
-		ComboConfig->DamageEffectClass,
+		ComboConfig->InstantDamageEffectClass,
 		GetAbilityLevel(),
 		EffectContext
 	);
