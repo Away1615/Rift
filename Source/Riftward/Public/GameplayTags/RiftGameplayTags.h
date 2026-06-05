@@ -8,7 +8,14 @@
 
 UE_DECLARE_GAMEPLAY_TAG_EXTERN(Tag_Data_Damage);
 UE_DECLARE_GAMEPLAY_TAG_EXTERN(Tag_Data_StaminaCost);
+UE_DECLARE_GAMEPLAY_TAG_EXTERN(Tag_Data_ManaCost);
+UE_DECLARE_GAMEPLAY_TAG_EXTERN(Tag_Ability_TwinSword_Core);
+UE_DECLARE_GAMEPLAY_TAG_EXTERN(Tag_Ability_TwinSword_Primary);
+UE_DECLARE_GAMEPLAY_TAG_EXTERN(Tag_Ability_TwinSword_Secondary);
+UE_DECLARE_GAMEPLAY_TAG_EXTERN(Tag_Ability_TwinSword_Signature);
+UE_DECLARE_GAMEPLAY_TAG_EXTERN(Tag_Ability_TwinSword_Enhance);
 UE_DECLARE_GAMEPLAY_TAG_EXTERN(Tag_Event_Ability_TwinSword_Core_DodgeFinished);
+UE_DECLARE_GAMEPLAY_TAG_EXTERN(Tag_Event_Ability_TwinSword_Core_PerfectDodgeSuccess);
 UE_DECLARE_GAMEPLAY_TAG_EXTERN(Tag_Event_Ability_TwinSword_Primary_ComboWindow);
 UE_DECLARE_GAMEPLAY_TAG_EXTERN(Tag_Event_Ability_TwinSword_Secondary_ComboWindow);
 UE_DECLARE_GAMEPLAY_TAG_EXTERN(Tag_Event_Ability_TwinSword_Combo_WeaponTraceBegin);
@@ -19,6 +26,7 @@ UE_DECLARE_GAMEPLAY_TAG_EXTERN(Tag_State_Ability_TwinSword_Core_PerfectDodgeEmpo
 UE_DECLARE_GAMEPLAY_TAG_EXTERN(Tag_State_Ability_TwinSword_Core_DodgeActive);
 UE_DECLARE_GAMEPLAY_TAG_EXTERN(Tag_State_Ability_TwinSword_Primary_ComboActive);
 UE_DECLARE_GAMEPLAY_TAG_EXTERN(Tag_State_Ability_TwinSword_Secondary_ComboActive);
+UE_DECLARE_GAMEPLAY_TAG_EXTERN(Tag_State_Ability_TwinSword_Enhance_Active);
 
 struct FRiftGameplayTags
 {
@@ -35,8 +43,23 @@ public:
 
 	FGameplayTag Data_StaminaCost;
 
+	FGameplayTag Data_ManaCost;
+
+	/* Ability */
+	FGameplayTag Ability_TwinSword_Core;
+
+	FGameplayTag Ability_TwinSword_Primary;
+
+	FGameplayTag Ability_TwinSword_Secondary;
+
+	FGameplayTag Ability_TwinSword_Signature;
+
+	FGameplayTag Ability_TwinSword_Enhance;
+
 	/* Event */
 	FGameplayTag Event_Ability_TwinSword_Core_DodgeFinished;
+
+	FGameplayTag Event_Ability_TwinSword_Core_PerfectDodgeSuccess;
 
 	FGameplayTag Event_Ability_TwinSword_Primary_ComboWindow;
 
@@ -58,4 +81,6 @@ public:
 	FGameplayTag State_Ability_TwinSword_Primary_ComboActive;
 
 	FGameplayTag State_Ability_TwinSword_Secondary_ComboActive;
+
+	FGameplayTag State_Ability_TwinSword_Enhance_Active;
 };

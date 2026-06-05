@@ -8,7 +8,7 @@
 
 class UAnimMontage;
 class APlayerCharacter;
-class UTwinSwordCoreAbilityConfig;
+class URiftAbilityDodgeFragment;
 
 /**
  *
@@ -48,9 +48,20 @@ private:
 
 	bool bPlayRecover = false;
 	bool bAddedDodgeActiveTag = false;
+	bool bAddedPerfectWindowTag = false;
+	bool bChangingToPerfectDodgeMontage = false;
 
 	UFUNCTION()
 	void HandleDodgeFinished(FGameplayEventData Payload);
+
+	UFUNCTION()
+	void HandlePerfectDodgeSuccess(FGameplayEventData Payload);
+
+	UFUNCTION()
+	void HandlePerfectWindowExpired();
+
+	void PlayPerfectDodgeFeedback(const URiftAbilityDodgeFragment* DodgeFragment);
+	void PlayPerfectDodgeMontage(const URiftAbilityDodgeFragment* DodgeFragment);
 
 	UFUNCTION()
 	void HandleMontageCompleted();

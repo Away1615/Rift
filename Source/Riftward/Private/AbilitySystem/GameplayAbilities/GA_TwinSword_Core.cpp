@@ -4,11 +4,12 @@
 #include "AbilitySystem/GameplayAbilities/GA_TwinSword_Core.h"
 #include "AbilitySystemComponent.h"
 #include "Abilities/Tasks/AbilityTask_PlayMontageAndWait.h"
+#include "Abilities/Tasks/AbilityTask_WaitDelay.h"
 #include "Abilities/Tasks/AbilityTask_WaitGameplayEvent.h"
 #include "Animation/AnimInstance.h"
 #include "Animation/AnimMontage.h"
 #include "Character/PlayerCharacter.h"
-#include "Data/Player/Ability/TwinSword/TwinSwordCoreAbilityConfig.h"
+#include "Data/Player/Ability/PlayerAbilitySetConfig.h"
 #include "Data/Player/Input/AbilityInputID.h"
 #include "Debug/Logger.h"
 #include "GameplayTags/RiftGameplayTags.h"
@@ -44,19 +45,21 @@ void UGA_TwinSword_Core::ActivateAbility(const FGameplayAbilitySpecHandle Handle
 		return;
 	}
 
-	const FGameplayAbilitySpec* Spec = GetCurrentAbilitySpec();
-	const UTwinSwordCoreAbilityConfig* CoreConfig = Spec
-		? Cast<UTwinSwordCoreAbilityConfig>(Spec->SourceObject.Get())
+	const FPlayerAbilityEntry* CoreEntry = GetAbilityEntry();
+	const URiftAbilityMontageFragment* MontageFragment = CoreEntry
+		? CoreEntry->FindFragment<URiftAbilityMontageFragment>()
 		: nullptr;
-
-	if (!CoreConfig)
+	const URiftAbilityDodgeFragment* DodgeFragment = CoreEntry
+		? CoreEntry->FindFragment<URiftAbilityDodgeFragment>()
+		: nullptr;
+	if (!CoreEntry || !MontageFragment || !DodgeFragment)
 	{
-		Logger::Error(PlayerCharacter, TEXT("TwinSword CoreAbilityConfig is missing"));
+		Logger::Error(PlayerCharacter, TEXT("TwinSword core fragments are missing"));
 		EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
 		return;
 	}
 
-	UAnimMontage* MontageToPlay = CoreConfig->DodgeMontage;
+	UAnimMontage* MontageToPlay = MontageFragment->Montage;
 
 	if (!MontageToPlay)
 	{
@@ -80,7 +83,37 @@ void UGA_TwinSword_Core::ActivateAbility(const FGameplayAbilitySpecHandle Handle
 	{
 		AbilitySystemComponent->AddLooseGameplayTag(GetAbilityActiveStateTag());
 		bAddedDodgeActiveTag = true;
+
+		if (DodgeFragment->PerfectWindowDuration > 0.0f)
+		{
+			AbilitySystemComponent->AddLooseGameplayTag(RiftTags.State_Ability_TwinSword_Core_PerfectDodgeWindow);
+			bAddedPerfectWindowTag = true;
+		}
 	}
+
+	if (DodgeFragment->PerfectWindowDuration > 0.0f)
+	{
+		UAbilityTask_WaitDelay* PerfectWindowTask =
+			UAbilityTask_WaitDelay::WaitDelay(this, DodgeFragment->PerfectWindowDuration);
+		PerfectWindowTask->OnFinish.AddDynamic(this, &UGA_TwinSword_Core::HandlePerfectWindowExpired);
+		PerfectWindowTask->ReadyForActivation();
+	}
+
+	UAbilityTask_WaitGameplayEvent* PerfectDodgeSuccessTask =
+		UAbilityTask_WaitGameplayEvent::WaitGameplayEvent(
+			this,
+			RiftTags.Event_Ability_TwinSword_Core_PerfectDodgeSuccess,
+			nullptr,
+			false,
+			true
+		);
+
+	PerfectDodgeSuccessTask->EventReceived.AddDynamic(
+		this,
+		&UGA_TwinSword_Core::HandlePerfectDodgeSuccess
+	);
+
+	PerfectDodgeSuccessTask->ReadyForActivation();
 
 	UAbilityTask_WaitGameplayEvent* DodgeFinishedTask =
 		UAbilityTask_WaitGameplayEvent::WaitGameplayEvent(
@@ -103,8 +136,8 @@ void UGA_TwinSword_Core::ActivateAbility(const FGameplayAbilitySpecHandle Handle
 			this,
 			NAME_None,
 			MontageToPlay,
-			1.0f,
-			FName("Dodge"),
+			MontageFragment->PlayRate,
+			MontageFragment->StartSection.IsNone() ? FName(TEXT("Dodge")) : MontageFragment->StartSection,
 			true
 		);
 
@@ -126,9 +159,19 @@ void UGA_TwinSword_Core::EndAbility(const FGameplayAbilitySpecHandle Handle, con
 		}
 	}
 
+	if (bAddedPerfectWindowTag)
+	{
+		if (UAbilitySystemComponent* AbilitySystemComponent = GetAbilitySystemComponentFromActorInfo())
+		{
+			AbilitySystemComponent->RemoveLooseGameplayTag(FRiftGameplayTags::Get().State_Ability_TwinSword_Core_PerfectDodgeWindow);
+		}
+	}
+
 	ActiveMontage = nullptr;
 	bPlayRecover = false;
 	bAddedDodgeActiveTag = false;
+	bAddedPerfectWindowTag = false;
+	bChangingToPerfectDodgeMontage = false;
 
 	Super::EndAbility(Handle, ActorInfo, ActivationInfo, bReplicateEndAbility, bWasCancelled);
 }
@@ -136,6 +179,92 @@ void UGA_TwinSword_Core::EndAbility(const FGameplayAbilitySpecHandle Handle, con
 FGameplayTag UGA_TwinSword_Core::GetAbilityActiveStateTag() const
 {
 	return FRiftGameplayTags::Get().State_Ability_TwinSword_Core_DodgeActive;
+}
+
+void UGA_TwinSword_Core::HandlePerfectDodgeSuccess(FGameplayEventData Payload)
+{
+	UAbilitySystemComponent* AbilitySystemComponent = GetAbilitySystemComponentFromActorInfo();
+	if (!AbilitySystemComponent) return;
+
+	const FRiftGameplayTags& RiftTags = FRiftGameplayTags::Get();
+	if (!AbilitySystemComponent->HasMatchingGameplayTag(RiftTags.State_Ability_TwinSword_Core_PerfectDodgeWindow))
+	{
+		return;
+	}
+
+	AbilitySystemComponent->AddLooseGameplayTag(RiftTags.State_Ability_TwinSword_Core_PerfectDodgeEmpowered);
+	AbilitySystemComponent->RemoveLooseGameplayTag(RiftTags.State_Ability_TwinSword_Core_PerfectDodgeWindow);
+	bAddedPerfectWindowTag = false;
+
+	const FPlayerAbilityEntry* CoreEntry = GetAbilityEntry();
+	const URiftAbilityDodgeFragment* DodgeFragment = CoreEntry
+		? CoreEntry->FindFragment<URiftAbilityDodgeFragment>()
+		: nullptr;
+	PlayPerfectDodgeFeedback(DodgeFragment);
+	PlayPerfectDodgeMontage(DodgeFragment);
+}
+
+void UGA_TwinSword_Core::HandlePerfectWindowExpired()
+{
+	if (!bAddedPerfectWindowTag) return;
+
+	if (UAbilitySystemComponent* AbilitySystemComponent = GetAbilitySystemComponentFromActorInfo())
+	{
+		AbilitySystemComponent->RemoveLooseGameplayTag(FRiftGameplayTags::Get().State_Ability_TwinSword_Core_PerfectDodgeWindow);
+	}
+
+	bAddedPerfectWindowTag = false;
+}
+
+void UGA_TwinSword_Core::PlayPerfectDodgeFeedback(const URiftAbilityDodgeFragment* DodgeFragment)
+{
+	if (!DodgeFragment || !CurrentActorInfo || !CurrentActorInfo->IsNetAuthority()) return;
+
+	APlayerCharacter* PlayerCharacter = Cast<APlayerCharacter>(GetAvatarActorFromActorInfo());
+	if (!PlayerCharacter) return;
+
+	PlayerCharacter->MulticastPlayAbilityCue(
+		DodgeFragment->PerfectSuccessEffect,
+		DodgeFragment->PerfectSuccessSound,
+		DodgeFragment->CueSocketName,
+		DodgeFragment->CueLocationOffset
+	);
+}
+
+void UGA_TwinSword_Core::PlayPerfectDodgeMontage(const URiftAbilityDodgeFragment* DodgeFragment)
+{
+	if (!DodgeFragment) return;
+
+	UAnimInstance* AnimInstance = CurrentActorInfo
+		? CurrentActorInfo->GetAnimInstance()
+		: nullptr;
+	if (!AnimInstance) return;
+
+	if (!DodgeFragment->PerfectSuccessSection.IsNone() && ActiveMontage)
+	{
+		AnimInstance->Montage_JumpToSection(DodgeFragment->PerfectSuccessSection, ActiveMontage);
+		return;
+	}
+
+	if (!DodgeFragment->PerfectSuccessMontage) return;
+
+	ActiveMontage = DodgeFragment->PerfectSuccessMontage;
+	bChangingToPerfectDodgeMontage = true;
+
+	UAbilityTask_PlayMontageAndWait* MontageTask =
+		UAbilityTask_PlayMontageAndWait::CreatePlayMontageAndWaitProxy(
+			this,
+			NAME_None,
+			DodgeFragment->PerfectSuccessMontage,
+			DodgeFragment->PerfectSuccessPlayRate,
+			NAME_None,
+			true
+		);
+
+	MontageTask->OnCompleted.AddDynamic(this, &UGA_TwinSword_Core::HandleMontageCompleted);
+	MontageTask->OnCancelled.AddDynamic(this, &UGA_TwinSword_Core::HandleMontageCancelled);
+	MontageTask->OnInterrupted.AddDynamic(this, &UGA_TwinSword_Core::HandleMontageInterrupted);
+	MontageTask->ReadyForActivation();
 }
 
 void UGA_TwinSword_Core::HandleDodgeFinished(FGameplayEventData Payload)
@@ -167,10 +296,22 @@ void UGA_TwinSword_Core::HandleMontageCompleted()
 
 void UGA_TwinSword_Core::HandleMontageCancelled()
 {
+	if (bChangingToPerfectDodgeMontage)
+	{
+		bChangingToPerfectDodgeMontage = false;
+		return;
+	}
+
 	EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, true);
 }
 
 void UGA_TwinSword_Core::HandleMontageInterrupted()
 {
+	if (bChangingToPerfectDodgeMontage)
+	{
+		bChangingToPerfectDodgeMontage = false;
+		return;
+	}
+
 	EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, true);
 }

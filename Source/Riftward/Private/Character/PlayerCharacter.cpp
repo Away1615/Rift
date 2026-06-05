@@ -9,7 +9,6 @@
 #include "AbilitySystem/GameplayAbilities/BaseGameplayAbility.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Data/Player/PlayerClassConfig.h"
-#include "Data/Player/Ability/BaseAbilityConfig.h"
 #include "Data/Player/Ability/PlayerAbilitySetConfig.h"
 #include "Data/Player/Animation/PlayerAnimationConfig.h"
 #include "Data/Player/Common/PlayerCommonConfig.h"
@@ -17,6 +16,7 @@
 #include "Debug/Logger.h"
 #include "Equipment/PlayerWeapon.h"
 #include "GameFramework/CharacterMovementComponent.h"
+#include "Kismet/GameplayStatics.h"
 #include "Net/UnrealNetwork.h"
 
 APlayerCharacter::APlayerCharacter()
@@ -83,6 +83,15 @@ TArray<APlayerWeapon*> APlayerCharacter::GetEquippedWeapons() const
     }
 
     return Weapons;
+}
+
+void APlayerCharacter::MulticastPlayAbilityCue_Implementation(
+    UParticleSystem* Effect,
+    USoundBase* Sound,
+    const FName SocketName,
+    const FVector LocationOffset)
+{
+    PlayAbilityCueLocal(Effect, Sound, SocketName, LocationOffset);
 }
 
 void APlayerCharacter::PossessedBy(AController* NewController)
@@ -345,6 +354,61 @@ APlayerWeapon* APlayerCharacter::SpawnAndAttachWeapon(const FPlayerWeaponPartCon
     return WeaponActor;
 }
 
+void APlayerCharacter::PlayAbilityCueLocal(
+    UParticleSystem* Effect,
+    USoundBase* Sound,
+    const FName SocketName,
+    const FVector LocationOffset)
+{
+    USkeletalMeshComponent* CharacterMesh = GetMesh();
+
+    if (Effect)
+    {
+        if (CharacterMesh && !SocketName.IsNone())
+        {
+            UGameplayStatics::SpawnEmitterAttached(
+                Effect,
+                CharacterMesh,
+                SocketName,
+                LocationOffset,
+                FRotator::ZeroRotator,
+                EAttachLocation::KeepRelativeOffset,
+                true
+            );
+        }
+        else
+        {
+            UGameplayStatics::SpawnEmitterAtLocation(
+                GetWorld(),
+                Effect,
+                GetActorLocation() + LocationOffset
+            );
+        }
+    }
+
+    if (Sound)
+    {
+        if (CharacterMesh && !SocketName.IsNone())
+        {
+            UGameplayStatics::SpawnSoundAttached(
+                Sound,
+                CharacterMesh,
+                SocketName,
+                LocationOffset,
+                EAttachLocation::KeepRelativeOffset
+            );
+        }
+        else
+        {
+            UGameplayStatics::SpawnSoundAtLocation(
+                GetWorld(),
+                Sound,
+                GetActorLocation() + LocationOffset
+            );
+        }
+    }
+}
+
 void APlayerCharacter::InitMovementSettings()
 {
     UCharacterMovementComponent* MovementComponent = GetCharacterMovement();
@@ -463,16 +527,9 @@ void APlayerCharacter::GrantClassAbilities()
     const UPlayerAbilitySetConfig* AbilityConfig = PlayerClassConfig->PlayerAbilityConfig;
     if (!AbilityConfig) return;
 
-    GiveConfiguredAbility(ASC, AbilityConfig->CoreAbilityConfig);
-    GiveConfiguredAbility(ASC, AbilityConfig->PrimaryAbilityConfig);
-    GiveConfiguredAbility(ASC, AbilityConfig->SecondaryAbilityConfig);
-    // GiveConfiguredAbility(ASC, PlayerClassConfig->Skill1AbilityConfig);
-    // GiveConfiguredAbility(ASC, PlayerClassConfig->Skill2AbilityConfig);
-    // GiveConfiguredAbility(ASC, PlayerClassConfig->UltimateAbilityConfig);
-
-    for (const TSubclassOf<UBaseGameplayAbility> AbilityClass : AbilityConfig->PassiveAbilities)
+    for (const FPlayerAbilityEntry& AbilityEntry : AbilityConfig->Abilities)
     {
-        GiveAbilityFromClass(ASC, AbilityClass, PlayerClassConfig);
+        GiveConfiguredAbilityEntry(ASC, AbilityEntry);
     }
 }
 
@@ -489,25 +546,45 @@ void APlayerCharacter::ClearClassAbilities()
     GrantedClassAbilityHandles.Empty();
 }
 
-void APlayerCharacter::GiveConfiguredAbility(UAbilitySystemComponent* ASC, UBaseAbilityConfig* AbilityConfig)
+void APlayerCharacter::GiveConfiguredAbilityEntry(UAbilitySystemComponent* ASC, const FPlayerAbilityEntry& AbilityEntry)
 {
-    if (!AbilityConfig) return;
+    if (!ASC || !PlayerClassConfig || !PlayerClassConfig->PlayerAbilityConfig) return;
+    if (!AbilityEntry.bAutoGrant) return;
 
-    GiveAbilityFromClass(ASC, AbilityConfig->AbilityClass, AbilityConfig);
+    const TSubclassOf<UBaseGameplayAbility> AbilityClass =
+        PlayerClassConfig->PlayerAbilityConfig->ResolveAbilityClass(AbilityEntry);
+
+    GiveAbilityFromClass(
+        ASC,
+        AbilityClass,
+        AbilityEntry.Level,
+        static_cast<int32>(AbilityEntry.InputID),
+        AbilityEntry.AbilityID,
+        PlayerClassConfig->PlayerAbilityConfig
+    );
 }
 
-void APlayerCharacter::GiveAbilityFromClass(UAbilitySystemComponent* ASC, TSubclassOf<UBaseGameplayAbility> AbilityClass, UObject* SourceObject)
+void APlayerCharacter::GiveAbilityFromClass(
+    UAbilitySystemComponent* ASC,
+    TSubclassOf<UBaseGameplayAbility> AbilityClass,
+    const int32 AbilityLevel,
+    const int32 InputID,
+    const FGameplayTag AbilityID,
+    UObject* SourceObject)
 {
-    if (!ASC || !AbilityClass || ASC->FindAbilitySpecFromClass(AbilityClass)) return;
+    if (!ASC || !AbilityClass) return;
 
-    const UBaseGameplayAbility* AbilityCDO = AbilityClass->GetDefaultObject<UBaseGameplayAbility>();
-
-    if (!AbilityCDO) return;
-
-    GrantedClassAbilityHandles.Add(ASC->GiveAbility(FGameplayAbilitySpec(
+    FGameplayAbilitySpec AbilitySpec(
         AbilityClass,
-        1,
-        static_cast<int32>(AbilityCDO->AbilityInputID),
+        AbilityLevel,
+        InputID,
         SourceObject
-    )));
+    );
+
+    if (AbilityID.IsValid())
+    {
+        AbilitySpec.GetDynamicSpecSourceTags().AddTag(AbilityID);
+    }
+
+    GrantedClassAbilityHandles.Add(ASC->GiveAbility(AbilitySpec));
 }

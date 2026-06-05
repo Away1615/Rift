@@ -10,11 +10,11 @@
 #include "Animation/AnimInstance.h"
 #include "Character/PlayerCharacter.h"
 #include "Character/EnemyCharacter.h"
-#include "Data/Player/Ability/TwinSword/TwinSwordComboAbilityConfig.h"
+#include "AbilitySystem/GameplayEffects/GE_InstantDamage.h"
+#include "Data/Player/Ability/PlayerAbilitySetConfig.h"
 #include "Debug/Logger.h"
 #include "DrawDebugHelpers.h"
 #include "AbilitySystem/Attributes/HealthAttributeSet.h"
-#include "AbilitySystem/Attributes/ResourceAttributeSet.h"
 #include "Equipment/PlayerWeapon.h"
 #include "GameplayTags/RiftGameplayTags.h"
 
@@ -32,22 +32,34 @@ void UGA_TwinSword_Combo::ActivateAbility(const FGameplayAbilitySpecHandle Handl
 		return;
 	}
 
-	const UTwinSwordComboAbilityConfig* ComboConfig = GetComboConfig();
-	if (!ComboConfig)
+	const FPlayerAbilityEntry* ComboEntry = GetAbilityEntry();
+	const URiftAbilityMontageFragment* MontageFragment = ComboEntry
+		? ComboEntry->FindFragment<URiftAbilityMontageFragment>()
+		: nullptr;
+	const URiftAbilityComboFragment* ComboFragment = ComboEntry
+		? ComboEntry->FindFragment<URiftAbilityComboFragment>()
+		: nullptr;
+	if (!ComboEntry || !MontageFragment || !ComboFragment)
 	{
-		Logger::Error(PlayerCharacter, TEXT("TwinSword ComboAbilityConfig is missing"));
+		Logger::Error(PlayerCharacter, TEXT("TwinSword combo fragments are missing"));
 		EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
 		return;
 	}
 
 	UAbilitySystemComponent* AbilitySystemComponent = GetAbilitySystemComponentFromActorInfo();
+	if (!AbilitySystemComponent)
+	{
+		EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
+		return;
+	}
+
 	const FRiftGameplayTags& RiftTags = FRiftGameplayTags::Get();
 	const bool bUseSuperAttack = AbilitySystemComponent
 		&& AbilitySystemComponent->HasMatchingGameplayTag(RiftTags.State_Ability_TwinSword_Core_PerfectDodgeEmpowered);
 
-	UAnimMontage* MontageToPlay = bUseSuperAttack
-		? ComboConfig->SuperAttackMontage
-		: ComboConfig->AttackMontage;
+	UAnimMontage* MontageToPlay = bUseSuperAttack && MontageFragment->EmpoweredMontage
+		? MontageFragment->EmpoweredMontage
+		: MontageFragment->Montage;
 
 	if (!MontageToPlay)
 	{
@@ -58,7 +70,7 @@ void UGA_TwinSword_Combo::ActivateAbility(const FGameplayAbilitySpecHandle Handl
 		return;
 	}
 
-	if (ComboConfig->ComboSections.IsEmpty())
+	if (ComboFragment->Steps.IsEmpty())
 	{
 		Logger::Error(PlayerCharacter, TEXT("TwinSword combo sections are missing"));
 		EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
@@ -75,22 +87,42 @@ void UGA_TwinSword_Combo::ActivateAbility(const FGameplayAbilitySpecHandle Handl
 	{
 		AbilitySystemComponent->RemoveLooseGameplayTag(RiftTags.State_Ability_TwinSword_Core_PerfectDodgeEmpowered);
 	}
+	bCurrentAttackEmpowered = bUseSuperAttack;
 
 	AbilitySystemComponent->AddLooseGameplayTag(GetAbilityActiveStateTag());
 	bAddedComboActiveTag = true;
 
 	ActiveMontage = MontageToPlay;
-	ActiveComboSections = ComboConfig->ComboSections;
+	ActiveComboSections.Reset();
+	for (const FRiftComboStepSpec& ComboStep : ComboFragment->Steps)
+	{
+		if (!ComboStep.SectionName.IsNone())
+		{
+			ActiveComboSections.Add(ComboStep.SectionName);
+		}
+	}
+
+	if (ActiveComboSections.IsEmpty())
+	{
+		Logger::Error(PlayerCharacter, TEXT("TwinSword combo section names are missing"));
+		EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
+		return;
+	}
+
 	bHasBufferedInput = false;
 	bCanConsumeBufferedInput = false;
+
+	const FName StartSection = MontageFragment->StartSection.IsNone()
+		? ActiveComboSections[0]
+		: MontageFragment->StartSection;
 
 	UAbilityTask_PlayMontageAndWait* MontageTask =
 		UAbilityTask_PlayMontageAndWait::CreatePlayMontageAndWaitProxy(
 			this,
 			NAME_None,
 			ActiveMontage,
-			1.0f,
-			ActiveComboSections[0],
+			MontageFragment->PlayRate,
+			StartSection,
 			true
 		);
 
@@ -124,6 +156,7 @@ void UGA_TwinSword_Combo::EndAbility(const FGameplayAbilitySpecHandle Handle,
 	bHasBufferedInput = false;
 	bCanConsumeBufferedInput = false;
 	bAddedComboActiveTag = false;
+	bCurrentAttackEmpowered = false;
 	ResetWeaponTrace();
 
 	Super::EndAbility(Handle, ActorInfo, ActivationInfo, bReplicateEndAbility, bWasCancelled);
@@ -153,28 +186,7 @@ bool UGA_TwinSword_Combo::CheckCost(const FGameplayAbilitySpecHandle Handle,
 		return Super::CheckCost(Handle, ActorInfo, OptionalRelevantTags);
 	}
 
-	const UTwinSwordComboAbilityConfig* ComboConfig = GetComboConfigFromSpec(Handle, ActorInfo);
-	if (!ComboConfig)
-	{
-		return false;
-	}
-
-	if (ComboConfig->StaminaCost <= 0.0f)
-	{
-		return true;
-	}
-
-	if (!ComboConfig->StaminaCostEffectClass)
-	{
-		return false;
-	}
-
-	const UAbilitySystemComponent* AbilitySystemComponent = ActorInfo
-		? ActorInfo->AbilitySystemComponent.Get()
-		: nullptr;
-
-	return AbilitySystemComponent
-		&& AbilitySystemComponent->GetNumericAttribute(UResourceAttributeSet::GetStaminaAttribute()) >= ComboConfig->StaminaCost;
+	return Super::CheckCost(Handle, ActorInfo, OptionalRelevantTags);
 }
 
 void UGA_TwinSword_Combo::ApplyCost(const FGameplayAbilitySpecHandle Handle,
@@ -187,56 +199,7 @@ void UGA_TwinSword_Combo::ApplyCost(const FGameplayAbilitySpecHandle Handle,
 		return;
 	}
 
-	const UTwinSwordComboAbilityConfig* ComboConfig = GetComboConfigFromSpec(Handle, ActorInfo);
-	if (!ComboConfig || ComboConfig->StaminaCost <= 0.0f || !ComboConfig->StaminaCostEffectClass)
-	{
-		return;
-	}
-
-	FGameplayEffectSpecHandle SpecHandle = MakeOutgoingGameplayEffectSpec(
-		Handle,
-		ActorInfo,
-		ActivationInfo,
-		ComboConfig->StaminaCostEffectClass,
-		GetAbilityLevel(Handle, ActorInfo)
-	);
-
-	if (!SpecHandle.IsValid())
-	{
-		return;
-	}
-
-	SpecHandle.Data->SetSetByCallerMagnitude(
-		FRiftGameplayTags::Get().Data_StaminaCost,
-		-ComboConfig->StaminaCost
-	);
-
-	ApplyGameplayEffectSpecToOwner(Handle, ActorInfo, ActivationInfo, SpecHandle);
-}
-
-const UTwinSwordComboAbilityConfig* UGA_TwinSword_Combo::GetComboConfig() const
-{
-	const FGameplayAbilitySpec* Spec = GetCurrentAbilitySpec();
-	return Spec
-		? Cast<UTwinSwordComboAbilityConfig>(Spec->SourceObject.Get())
-		: nullptr;
-}
-
-const UTwinSwordComboAbilityConfig* UGA_TwinSword_Combo::GetComboConfigFromSpec(
-	const FGameplayAbilitySpecHandle Handle,
-	const FGameplayAbilityActorInfo* ActorInfo) const
-{
-	const UAbilitySystemComponent* AbilitySystemComponent = ActorInfo
-		? ActorInfo->AbilitySystemComponent.Get()
-		: nullptr;
-
-	const FGameplayAbilitySpec* Spec = AbilitySystemComponent
-		? AbilitySystemComponent->FindAbilitySpecFromHandle(Handle)
-		: nullptr;
-
-	return Spec
-		? Cast<UTwinSwordComboAbilityConfig>(Spec->SourceObject.Get())
-		: nullptr;
+	Super::ApplyCost(Handle, ActorInfo, ActivationInfo);
 }
 
 void UGA_TwinSword_Combo::ResetComboSectionLinks() const
@@ -418,13 +381,24 @@ void UGA_TwinSword_Combo::PerformWeaponTrace()
 	if (!bWeaponTraceActive || !CurrentActorInfo || !CurrentActorInfo->IsNetAuthority()) return;
 
 	APlayerCharacter* PlayerCharacter = Cast<APlayerCharacter>(GetAvatarActorFromActorInfo());
-	const UTwinSwordComboAbilityConfig* ComboConfig = GetComboConfig();
+	const FPlayerAbilityEntry* ComboEntry = GetAbilityEntry();
+	const URiftAbilityHitFragment* HitFragment = ComboEntry
+		? ComboEntry->FindFragment<URiftAbilityHitFragment>()
+		: nullptr;
 	UWorld* World = GetWorld();
 
-	if (!PlayerCharacter || !ComboConfig || !World) return;
+	if (!PlayerCharacter || !ComboEntry || !HitFragment || !World) return;
 
 	constexpr int32 TraceSampleCount = 8;
-	const float TraceRadius = FMath::Max(1.0f, ComboConfig->HitRadius);
+	float TraceRadius = FMath::Max(1.0f, HitFragment->Radius);
+	if (const UAbilitySystemComponent* AbilitySystemComponent = GetAbilitySystemComponentFromActorInfo())
+	{
+		if (AbilitySystemComponent->HasMatchingGameplayTag(FRiftGameplayTags::Get().State_Ability_TwinSword_Enhance_Active))
+		{
+			TraceRadius *= FMath::Max(0.01f, HitFragment->EnhancedRadiusMultiplier);
+		}
+	}
+
 	const FCollisionShape TraceShape = FCollisionShape::MakeSphere(TraceRadius);
 	const FCollisionObjectQueryParams ObjectQueryParams(ECC_Pawn);
 
@@ -442,7 +416,7 @@ void UGA_TwinSword_Combo::PerformWeaponTrace()
 		const FVector CurrentStart = Weapon->GetTraceStartLocation();
 		const FVector CurrentEnd = Weapon->GetTraceEndLocation();
 
-		if (ComboConfig->bDrawDebugHitCheck)
+		if (HitFragment->bDrawDebug)
 		{
 			DrawDebugLine(World, TraceState.PreviousStart, CurrentStart, FColor::Green, false, 0.2f, 0, 1.5f);
 			DrawDebugLine(World, TraceState.PreviousEnd, CurrentEnd, FColor::Green, false, 0.2f, 0, 1.5f);
@@ -465,7 +439,7 @@ void UGA_TwinSword_Combo::PerformWeaponTrace()
 				QueryParams
 			);
 
-			if (ComboConfig->bDrawDebugHitCheck)
+			if (HitFragment->bDrawDebug)
 			{
 				for (const FHitResult& Hit : Hits)
 				{
@@ -517,8 +491,11 @@ void UGA_TwinSword_Combo::ApplyDamageToHitActor(AActor* HitActor, const FHitResu
 {
 	if (!CurrentActorInfo || !CurrentActorInfo->IsNetAuthority()) return;
 
-	const UTwinSwordComboAbilityConfig* ComboConfig = GetComboConfig();
-	if (!ComboConfig || !ComboConfig->InstantDamageEffectClass) return;
+	const FPlayerAbilityEntry* ComboEntry = GetAbilityEntry();
+	const URiftAbilityComboFragment* ComboFragment = ComboEntry
+		? ComboEntry->FindFragment<URiftAbilityComboFragment>()
+		: nullptr;
+	if (!ComboEntry || !ComboFragment) return;
 
 	UAbilitySystemComponent* SourceASC = GetAbilitySystemComponentFromActorInfo();
 	if (!SourceASC) return;
@@ -534,7 +511,7 @@ void UGA_TwinSword_Combo::ApplyDamageToHitActor(AActor* HitActor, const FHitResu
 	EffectContext.AddHitResult(Hit);
 
 	FGameplayEffectSpecHandle SpecHandle = SourceASC->MakeOutgoingSpec(
-		ComboConfig->InstantDamageEffectClass,
+		UGE_InstantDamage::StaticClass(),
 		GetAbilityLevel(),
 		EffectContext
 	);
@@ -542,9 +519,13 @@ void UGA_TwinSword_Combo::ApplyDamageToHitActor(AActor* HitActor, const FHitResu
 	if (!SpecHandle.IsValid()) return;
 
 	const int32 ComboIndex = GetCurrentComboSectionIndex();
-	if (!ComboConfig->ComboDamages.IsValidIndex(ComboIndex)) return;
+	if (!ComboFragment->Steps.IsValidIndex(ComboIndex)) return;
 
-	const float Damage = ComboConfig->ComboDamages[ComboIndex];
+	float Damage = ComboFragment->Steps[ComboIndex].Damage;
+	if (bCurrentAttackEmpowered)
+	{
+		Damage *= FMath::Max(0.0f, ComboFragment->EmpoweredDamageMultiplier);
+	}
 
 	SpecHandle.Data->SetSetByCallerMagnitude(
 		FRiftGameplayTags::Get().Data_Damage,

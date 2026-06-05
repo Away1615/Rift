@@ -6,14 +6,17 @@
 #include "Camera/CameraComponent.h"
 #include "Character/BaseCharacter.h"
 #include "GameFramework/SpringArmComponent.h"
+#include "GameplayTagContainer.h"
 #include "PlayerCharacter.generated.h"
 
 class APlayerWeapon;
-class UBaseAbilityConfig;
 class UPlayerAnimationConfig;
 class UPlayerClassConfig;
 class UBaseGameplayAbility;
+class UParticleSystem;
+class USoundBase;
 struct FPlayerWeaponPartConfig;
+struct FPlayerAbilityEntry;
 
 /**
  *
@@ -59,6 +62,14 @@ public:
 	UFUNCTION(BlueprintPure, Category="Weapon")
 	TArray<APlayerWeapon*> GetEquippedWeapons() const;
 
+	UFUNCTION(NetMulticast, Unreliable)
+	void MulticastPlayAbilityCue(
+		UParticleSystem* Effect,
+		USoundBase* Sound,
+		FName SocketName,
+		FVector LocationOffset
+	);
+
 protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Camera")
 	TObjectPtr<USpringArmComponent> SpringArmComponent;
@@ -93,6 +104,12 @@ private:
 	void ApplyWeaponsFromConfig();
 	void ClearEquippedWeapons();
 	APlayerWeapon* SpawnAndAttachWeapon(const FPlayerWeaponPartConfig& WeaponPartConfig);
+	void PlayAbilityCueLocal(
+		UParticleSystem* Effect,
+		USoundBase* Sound,
+		FName SocketName,
+		FVector LocationOffset
+	);
 
 	UFUNCTION()
 	void OnRep_PlayerClassConfig();
@@ -109,14 +126,17 @@ private:
 	void GrantClassAbilities();
 	void ClearClassAbilities();
 
-	void GiveConfiguredAbility(
+	void GiveConfiguredAbilityEntry(
 		UAbilitySystemComponent* ASC,
-		UBaseAbilityConfig* AbilityConfig
+		const FPlayerAbilityEntry& AbilityEntry
 	);
 
 	void GiveAbilityFromClass(
 		UAbilitySystemComponent* ASC,
 		TSubclassOf<UBaseGameplayAbility> AbilityClass,
+		int32 AbilityLevel,
+		int32 InputID,
+		FGameplayTag AbilityID,
 		UObject* SourceObject
 	);
 

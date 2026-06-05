@@ -9,7 +9,6 @@
 #include "GA_TwinSword_Combo.generated.h"
 
 class UAnimMontage;
-class UTwinSwordComboAbilityConfig;
 class APlayerWeapon;
 
 UCLASS(Abstract)
@@ -61,11 +60,8 @@ private:
 	bool bCanConsumeBufferedInput = false;
 	bool bAddedComboActiveTag = false;
 	bool bWeaponTraceActive = false;
+	bool bCurrentAttackEmpowered = false;
 
-	const UTwinSwordComboAbilityConfig* GetComboConfig() const;
-	const UTwinSwordComboAbilityConfig* GetComboConfigFromSpec(
-		FGameplayAbilitySpecHandle Handle,
-		const FGameplayAbilityActorInfo* ActorInfo) const;
 	void ResetComboSectionLinks() const;
 	void WaitForComboWindow();
 	void WaitForComboInput();
