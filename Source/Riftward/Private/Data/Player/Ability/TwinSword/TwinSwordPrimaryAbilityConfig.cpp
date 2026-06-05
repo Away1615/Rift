@@ -11,7 +11,6 @@ UTwinSwordPrimaryAbilityConfig::UTwinSwordPrimaryAbilityConfig()
 	ComboSections = {
 		FName(TEXT("Attack1")),
 		FName(TEXT("Attack2")),
-		FName(TEXT("Attack3")),
-		FName(TEXT("Attack4"))
+		FName(TEXT("Attack3"))
 	};
 }

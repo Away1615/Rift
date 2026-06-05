@@ -10,6 +10,7 @@
 
 class UAnimMontage;
 class UTwinSwordComboAbilityConfig;
+class APlayerWeapon;
 
 UCLASS(Abstract)
 class RIFTWARD_API UGA_TwinSword_Combo : public UBaseGameplayAbility
@@ -35,28 +36,53 @@ protected:
 	virtual bool ShouldCommitComboAbility() const;
 
 private:
+	struct FWeaponTraceState
+	{
+		TWeakObjectPtr<APlayerWeapon> Weapon;
+		FVector PreviousStart = FVector::ZeroVector;
+		FVector PreviousEnd = FVector::ZeroVector;
+	};
+
 	UPROPERTY()
 	TObjectPtr<UAnimMontage> ActiveMontage;
 
 	TArray<FName> ActiveComboSections;
+	TArray<FWeaponTraceState> WeaponTraceStates;
+	TSet<TWeakObjectPtr<AActor>> HitActorsThisTraceWindow;
 	bool bHasBufferedInput = false;
 	bool bCanConsumeBufferedInput = false;
 	bool bAddedComboActiveTag = false;
+	bool bWeaponTraceActive = false;
 
 	const UTwinSwordComboAbilityConfig* GetComboConfig() const;
 	void ResetComboSectionLinks() const;
 	void WaitForComboWindow();
 	void WaitForComboInput();
+	void WaitForWeaponTraceEvents();
 	void BufferInput();
 	void TryConsumeBufferedInput();
 	void JumpToNextComboSection();
 	int32 GetCurrentComboSectionIndex() const;
+	void BeginWeaponTrace();
+	void PerformWeaponTrace();
+	void EndWeaponTrace();
+	void ResetWeaponTrace();
+	void ApplyDamageToHitActor(AActor* HitActor, const FHitResult& Hit);
 
 	UFUNCTION()
 	void HandleComboWindow(FGameplayEventData Payload);
 
 	UFUNCTION()
 	void HandleComboInputPressed(float TimeWaited);
+
+	UFUNCTION()
+	void HandleWeaponTraceBegin(FGameplayEventData Payload);
+
+	UFUNCTION()
+	void HandleWeaponTraceTick(FGameplayEventData Payload);
+
+	UFUNCTION()
+	void HandleWeaponTraceEnd(FGameplayEventData Payload);
 
 	UFUNCTION()
 	void HandleMontageCompleted();

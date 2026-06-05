@@ -18,8 +18,25 @@ APlayerWeapon::APlayerWeapon()
 	WeaponMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("WeaponMesh"));
 	WeaponMesh->SetupAttachment(GripRoot);
 
+	TraceStart = CreateDefaultSubobject<USceneComponent>(TEXT("TraceStart"));
+	TraceStart->SetupAttachment(WeaponMesh);
+
+	TraceEnd = CreateDefaultSubobject<USceneComponent>(TEXT("TraceEnd"));
+	TraceEnd->SetupAttachment(WeaponMesh);
+	TraceEnd->SetRelativeLocation(FVector(0.0f, 0.0f, 100.0f));
+
 	WeaponMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	WeaponMesh->SetGenerateOverlapEvents(false);
+}
+
+FVector APlayerWeapon::GetTraceStartLocation() const
+{
+	return TraceStart->GetComponentLocation();
+}
+
+FVector APlayerWeapon::GetTraceEndLocation() const
+{
+	return TraceEnd->GetComponentLocation();
 }
 
 // Called when the game starts or when spawned

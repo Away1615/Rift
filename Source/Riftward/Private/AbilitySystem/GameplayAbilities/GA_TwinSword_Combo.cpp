@@ -9,8 +9,12 @@
 #include "Abilities/Tasks/AbilityTask_WaitInputPress.h"
 #include "Animation/AnimInstance.h"
 #include "Character/PlayerCharacter.h"
+#include "Character/EnemyCharacter.h"
 #include "Data/Player/Ability/TwinSword/TwinSwordComboAbilityConfig.h"
 #include "Debug/Logger.h"
+#include "DrawDebugHelpers.h"
+#include "AbilitySystem/Attributes/HealthAttributeSet.h"
+#include "Equipment/PlayerWeapon.h"
 #include "GameplayTags/RiftGameplayTags.h"
 
 void UGA_TwinSword_Combo::ActivateAbility(const FGameplayAbilitySpecHandle Handle,
@@ -92,11 +96,12 @@ void UGA_TwinSword_Combo::ActivateAbility(const FGameplayAbilitySpecHandle Handl
 	MontageTask->OnCompleted.AddDynamic(this, &UGA_TwinSword_Combo::HandleMontageCompleted);
 	MontageTask->OnCancelled.AddDynamic(this, &UGA_TwinSword_Combo::HandleMontageCancelled);
 	MontageTask->OnInterrupted.AddDynamic(this, &UGA_TwinSword_Combo::HandleMontageInterrupted);
-	MontageTask->ReadyForActivation();
 
 	ResetComboSectionLinks();
 	WaitForComboWindow();
 	WaitForComboInput();
+	WaitForWeaponTraceEvents();
+	MontageTask->ReadyForActivation();
 }
 
 void UGA_TwinSword_Combo::EndAbility(const FGameplayAbilitySpecHandle Handle,
@@ -118,6 +123,7 @@ void UGA_TwinSword_Combo::EndAbility(const FGameplayAbilitySpecHandle Handle,
 	bHasBufferedInput = false;
 	bCanConsumeBufferedInput = false;
 	bAddedComboActiveTag = false;
+	ResetWeaponTrace();
 
 	Super::EndAbility(Handle, ActorInfo, ActivationInfo, bReplicateEndAbility, bWasCancelled);
 }
@@ -203,6 +209,44 @@ void UGA_TwinSword_Combo::WaitForComboInput()
 	ComboInputTask->ReadyForActivation();
 }
 
+void UGA_TwinSword_Combo::WaitForWeaponTraceEvents()
+{
+	const FRiftGameplayTags& RiftTags = FRiftGameplayTags::Get();
+
+	UAbilityTask_WaitGameplayEvent* BeginTask =
+		UAbilityTask_WaitGameplayEvent::WaitGameplayEvent(
+			this,
+			RiftTags.Event_Ability_TwinSword_Combo_WeaponTraceBegin,
+			nullptr,
+			false,
+			true
+		);
+	BeginTask->EventReceived.AddDynamic(this, &UGA_TwinSword_Combo::HandleWeaponTraceBegin);
+	BeginTask->ReadyForActivation();
+
+	UAbilityTask_WaitGameplayEvent* TickTask =
+		UAbilityTask_WaitGameplayEvent::WaitGameplayEvent(
+			this,
+			RiftTags.Event_Ability_TwinSword_Combo_WeaponTraceTick,
+			nullptr,
+			false,
+			true
+		);
+	TickTask->EventReceived.AddDynamic(this, &UGA_TwinSword_Combo::HandleWeaponTraceTick);
+	TickTask->ReadyForActivation();
+
+	UAbilityTask_WaitGameplayEvent* EndTask =
+		UAbilityTask_WaitGameplayEvent::WaitGameplayEvent(
+			this,
+			RiftTags.Event_Ability_TwinSword_Combo_WeaponTraceEnd,
+			nullptr,
+			false,
+			true
+		);
+	EndTask->EventReceived.AddDynamic(this, &UGA_TwinSword_Combo::HandleWeaponTraceEnd);
+	EndTask->ReadyForActivation();
+}
+
 void UGA_TwinSword_Combo::BufferInput()
 {
 	bHasBufferedInput = true;
@@ -259,6 +303,184 @@ int32 UGA_TwinSword_Combo::GetCurrentComboSectionIndex() const
 	return ActiveComboSections.IndexOfByKey(CurrentSection);
 }
 
+void UGA_TwinSword_Combo::BeginWeaponTrace()
+{
+	if (!CurrentActorInfo || !CurrentActorInfo->IsNetAuthority()) return;
+
+	const APlayerCharacter* PlayerCharacter = Cast<APlayerCharacter>(GetAvatarActorFromActorInfo());
+	if (!PlayerCharacter) return;
+
+	ResetWeaponTrace();
+
+	for (APlayerWeapon* Weapon : PlayerCharacter->GetEquippedWeapons())
+	{
+		if (!Weapon) continue;
+
+		FWeaponTraceState& TraceState = WeaponTraceStates.AddDefaulted_GetRef();
+		TraceState.Weapon = Weapon;
+		TraceState.PreviousStart = Weapon->GetTraceStartLocation();
+		TraceState.PreviousEnd = Weapon->GetTraceEndLocation();
+	}
+
+	bWeaponTraceActive = !WeaponTraceStates.IsEmpty();
+}
+
+void UGA_TwinSword_Combo::PerformWeaponTrace()
+{
+	if (!bWeaponTraceActive || !CurrentActorInfo || !CurrentActorInfo->IsNetAuthority()) return;
+
+	APlayerCharacter* PlayerCharacter = Cast<APlayerCharacter>(GetAvatarActorFromActorInfo());
+	const UTwinSwordComboAbilityConfig* ComboConfig = GetComboConfig();
+	UWorld* World = GetWorld();
+
+	if (!PlayerCharacter || !ComboConfig || !World) return;
+
+	constexpr int32 TraceSampleCount = 8;
+	const float TraceRadius = FMath::Max(1.0f, ComboConfig->HitRadius);
+	const FCollisionShape TraceShape = FCollisionShape::MakeSphere(TraceRadius);
+	const FCollisionObjectQueryParams ObjectQueryParams(ECC_Pawn);
+
+	FCollisionQueryParams QueryParams(SCENE_QUERY_STAT(TwinSwordWeaponTrace), false, PlayerCharacter);
+	for (APlayerWeapon* Weapon : PlayerCharacter->GetEquippedWeapons())
+	{
+		QueryParams.AddIgnoredActor(Weapon);
+	}
+
+	for (FWeaponTraceState& TraceState : WeaponTraceStates)
+	{
+		APlayerWeapon* Weapon = TraceState.Weapon.Get();
+		if (!Weapon) continue;
+
+		const FVector CurrentStart = Weapon->GetTraceStartLocation();
+		const FVector CurrentEnd = Weapon->GetTraceEndLocation();
+
+		if (ComboConfig->bDrawDebugHitCheck)
+		{
+			DrawDebugLine(World, TraceState.PreviousStart, CurrentStart, FColor::Green, false, 0.2f, 0, 1.5f);
+			DrawDebugLine(World, TraceState.PreviousEnd, CurrentEnd, FColor::Green, false, 0.2f, 0, 1.5f);
+		}
+
+		for (int32 SampleIndex = 0; SampleIndex < TraceSampleCount; ++SampleIndex)
+		{
+			const float Alpha = static_cast<float>(SampleIndex) / static_cast<float>(TraceSampleCount - 1);
+			const FVector PreviousSample = FMath::Lerp(TraceState.PreviousStart, TraceState.PreviousEnd, Alpha);
+			const FVector CurrentSample = FMath::Lerp(CurrentStart, CurrentEnd, Alpha);
+
+			TArray<FHitResult> Hits;
+			World->SweepMultiByObjectType(
+				Hits,
+				PreviousSample,
+				CurrentSample,
+				FQuat::Identity,
+				ObjectQueryParams,
+				TraceShape,
+				QueryParams
+			);
+
+			if (ComboConfig->bDrawDebugHitCheck)
+			{
+				for (const FHitResult& Hit : Hits)
+				{
+					DrawDebugPoint(World, Hit.ImpactPoint, 12.0f, FColor::Yellow, false, 0.2f);
+				}
+			}
+
+			for (const FHitResult& Hit : Hits)
+			{
+				AEnemyCharacter* HitEnemy = Cast<AEnemyCharacter>(Hit.GetActor());
+				if (!HitEnemy) continue;
+
+				const TWeakObjectPtr<AActor> HitActor(HitEnemy);
+				if (HitActorsThisTraceWindow.Contains(HitActor)) continue;
+
+				HitActorsThisTraceWindow.Add(HitActor);
+				ApplyDamageToHitActor(HitEnemy, Hit);
+				Logger::Log(
+					PlayerCharacter,
+					FString::Printf(TEXT("Weapon trace hit %s"), *GetNameSafe(HitEnemy)),
+					ELogOutputType::LogOnly
+				);
+			}
+		}
+
+		TraceState.PreviousStart = CurrentStart;
+		TraceState.PreviousEnd = CurrentEnd;
+	}
+}
+
+void UGA_TwinSword_Combo::EndWeaponTrace()
+{
+	if (bWeaponTraceActive)
+	{
+		PerformWeaponTrace();
+	}
+
+	ResetWeaponTrace();
+}
+
+void UGA_TwinSword_Combo::ResetWeaponTrace()
+{
+	WeaponTraceStates.Reset();
+	HitActorsThisTraceWindow.Reset();
+	bWeaponTraceActive = false;
+}
+
+void UGA_TwinSword_Combo::ApplyDamageToHitActor(AActor* HitActor, const FHitResult& Hit)
+{
+	if (!CurrentActorInfo || !CurrentActorInfo->IsNetAuthority()) return;
+
+	const UTwinSwordComboAbilityConfig* ComboConfig = GetComboConfig();
+	if (!ComboConfig || !ComboConfig->DamageEffectClass) return;
+
+	UAbilitySystemComponent* SourceASC = GetAbilitySystemComponentFromActorInfo();
+	if (!SourceASC) return;
+
+	AEnemyCharacter* HitEnemy = Cast<AEnemyCharacter>(HitActor);
+	if (!HitEnemy) return;
+
+	UAbilitySystemComponent* TargetASC = HitEnemy->GetAbilitySystemComponent();
+	if (!TargetASC) return;
+
+	FGameplayEffectContextHandle EffectContext = SourceASC->MakeEffectContext();
+	EffectContext.AddSourceObject(this);
+	EffectContext.AddHitResult(Hit);
+
+	FGameplayEffectSpecHandle SpecHandle = SourceASC->MakeOutgoingSpec(
+		ComboConfig->DamageEffectClass,
+		GetAbilityLevel(),
+		EffectContext
+	);
+
+	if (!SpecHandle.IsValid()) return;
+
+	const int32 ComboIndex = GetCurrentComboSectionIndex();
+	if (!ComboConfig->ComboDamages.IsValidIndex(ComboIndex)) return;
+
+	const float Damage = ComboConfig->ComboDamages[ComboIndex];
+
+	SpecHandle.Data->SetSetByCallerMagnitude(
+		FRiftGameplayTags::Get().Data_Damage,
+		-Damage
+	);
+
+	SourceASC->ApplyGameplayEffectSpecToTarget(
+		*SpecHandle.Data.Get(),
+		TargetASC
+	);
+
+	const float NewHealth = TargetASC->GetNumericAttribute(UHealthAttributeSet::GetHealthAttribute());
+
+	Logger::Log(
+		this,
+		FString::Printf(
+			TEXT("Damaged %s, Health: %.0f"),
+			*GetNameSafe(HitActor),
+			NewHealth
+		),
+		ELogOutputType::LogOnly
+	);
+}
+
 void UGA_TwinSword_Combo::HandleComboWindow(FGameplayEventData Payload)
 {
 	bCanConsumeBufferedInput = true;
@@ -270,6 +492,21 @@ void UGA_TwinSword_Combo::HandleComboInputPressed(float TimeWaited)
 	BufferInput();
 	TryConsumeBufferedInput();
 	WaitForComboInput();
+}
+
+void UGA_TwinSword_Combo::HandleWeaponTraceBegin(FGameplayEventData Payload)
+{
+	BeginWeaponTrace();
+}
+
+void UGA_TwinSword_Combo::HandleWeaponTraceTick(FGameplayEventData Payload)
+{
+	PerformWeaponTrace();
+}
+
+void UGA_TwinSword_Combo::HandleWeaponTraceEnd(FGameplayEventData Payload)
+{
+	EndWeaponTrace();
 }
 
 void UGA_TwinSword_Combo::HandleMontageCompleted()

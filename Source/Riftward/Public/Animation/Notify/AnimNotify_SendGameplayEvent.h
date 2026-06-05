@@ -7,7 +7,7 @@
 #include "GameplayTagContainer.h"
 #include "AnimNotify_SendGameplayEvent.generated.h"
 
-UCLASS()
+UCLASS(DisplayName="Rift | Send Gameplay Event")
 class RIFTWARD_API UAnimNotify_SendGameplayEvent : public UAnimNotify
 {
 	GENERATED_BODY()

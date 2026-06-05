@@ -20,6 +20,8 @@ public:
 
 	USceneComponent* GetGripRoot() const { return GripRoot; }
 	UStaticMeshComponent* GetWeaponMesh() const { return WeaponMesh; };
+	FVector GetTraceStartLocation() const;
+	FVector GetTraceEndLocation() const;
 
 protected:
 	// Called when the game starts or when spawned
@@ -30,6 +32,12 @@ protected:
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Weapon")
 	TObjectPtr<UStaticMeshComponent> WeaponMesh;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Weapon|Trace")
+	TObjectPtr<USceneComponent> TraceStart;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Weapon|Trace")
+	TObjectPtr<USceneComponent> TraceEnd;
 
 public:
 	// Called every frame

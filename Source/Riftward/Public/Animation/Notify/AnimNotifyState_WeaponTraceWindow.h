@@ -1,25 +1,27 @@
-// Fill out your copyright notice in the Description page of Project Settings.
-
 #pragma once
 
 #include "CoreMinimal.h"
 #include "Animation/AnimNotifies/AnimNotifyState.h"
 #include "GameplayTagContainer.h"
-#include "AnimNotifyState_GameplayTagWindow.generated.h"
+#include "AnimNotifyState_WeaponTraceWindow.generated.h"
 
-UCLASS(DisplayName="Gameplay Tag Window")
-class RIFTWARD_API UAnimNotifyState_GameplayTagWindow : public UAnimNotifyState
+UCLASS(DisplayName="Rift | Weapon Trace Window")
+class RIFTWARD_API UAnimNotifyState_WeaponTraceWindow : public UAnimNotifyState
 {
 	GENERATED_BODY()
 
 public:
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Gameplay Tag")
-	FGameplayTag StateTag;
-
 	virtual void NotifyBegin(
 		USkeletalMeshComponent* MeshComp,
 		UAnimSequenceBase* Animation,
 		float TotalDuration,
+		const FAnimNotifyEventReference& EventReference
+	) override;
+
+	virtual void NotifyTick(
+		USkeletalMeshComponent* MeshComp,
+		UAnimSequenceBase* Animation,
+		float FrameDeltaTime,
 		const FAnimNotifyEventReference& EventReference
 	) override;
 
@@ -28,4 +30,7 @@ public:
 		UAnimSequenceBase* Animation,
 		const FAnimNotifyEventReference& EventReference
 	) override;
+
+private:
+	static void SendGameplayEvent(USkeletalMeshComponent* MeshComp, const FGameplayTag& EventTag);
 };

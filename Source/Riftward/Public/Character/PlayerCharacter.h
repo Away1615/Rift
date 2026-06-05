@@ -82,9 +82,11 @@ protected:
 	TArray<TObjectPtr<APlayerWeapon>> EquippedWeapons;
 
 private:
+	// Set up network replication
 	void InitPlayerProperties();
 	void InitGasActorInfo();
 	void InitCameraComponents();
+
 	void AssemblePlayerClass();
 	void ApplyAttributesFromConfig() const;
 	void ApplyAnimationConfig() const;

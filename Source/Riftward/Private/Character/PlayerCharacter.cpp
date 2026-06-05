@@ -88,6 +88,13 @@ TArray<APlayerWeapon*> APlayerCharacter::GetEquippedWeapons() const
 void APlayerCharacter::PossessedBy(AController* NewController)
 {
     Super::PossessedBy(NewController);
+
+    if (USkeletalMeshComponent* CharacterMesh = GetMesh())
+    {
+        CharacterMesh->VisibilityBasedAnimTickOption =
+            EVisibilityBasedAnimTickOption::AlwaysTickPoseAndRefreshBones;
+    }
+
     InitGasActorInfo();
     AssemblePlayerClass();
 }
@@ -192,12 +199,29 @@ void APlayerCharacter::ApplyAttributesFromConfig() const
     HealthSet->SetHealth(FMath::Clamp(CommonConfig->Health, 0.0f, CommonConfig->MaxHealth));
 
     UResourceAttributeSet* ResourceSet = BasePlayerState->GetResourceAttributeSet();
-    ResourceSet->SetMana(CommonConfig->Mana);
     ResourceSet->SetMaxMana(CommonConfig->MaxMana);
-    ResourceSet->SetStamina(CommonConfig->Stamina);
+    ResourceSet->SetMana(CommonConfig->Mana);
     ResourceSet->SetMaxStamina(CommonConfig->MaxStamina);
-    ResourceSet->SetUltimateCharge(CommonConfig->UltimateCharge);
+    ResourceSet->SetStamina(CommonConfig->Stamina);
     ResourceSet->SetMaxUltimateCharge(CommonConfig->MaxUltimateCharge);
+    ResourceSet->SetUltimateCharge(CommonConfig->UltimateCharge);
+
+    Logger::Log(
+        this,
+        FString::Printf(
+            TEXT("%s Attributes: Health=%.0f/%.0f Stamina=%.0f/%.0f Mana=%.0f/%.0f Ultimate=%.0f/%.0f"),
+            *GetNameSafe(BasePlayerState),
+            HealthSet->GetHealth(),
+            HealthSet->GetMaxHealth(),
+            ResourceSet->GetStamina(),
+            ResourceSet->GetMaxStamina(),
+            ResourceSet->GetMana(),
+            ResourceSet->GetMaxMana(),
+            ResourceSet->GetUltimateCharge(),
+            ResourceSet->GetMaxUltimateCharge()
+        )
+    );
+
 }
 
 void APlayerCharacter::ApplyAnimationConfig() const

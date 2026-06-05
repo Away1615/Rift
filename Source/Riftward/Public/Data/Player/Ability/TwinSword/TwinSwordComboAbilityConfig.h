@@ -6,6 +6,7 @@
 #include "Data/Player/Ability/BaseAbilityConfig.h"
 #include "TwinSwordComboAbilityConfig.generated.h"
 
+class UGameplayEffect;
 class UAnimMontage;
 
 UCLASS(Abstract, BlueprintType)
@@ -31,4 +32,14 @@ public:
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="HitCheck")
 	float HitRadius = 80.0f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="HitCheck")
+	bool bDrawDebugHitCheck = false;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Damage")
+	TSubclassOf<UGameplayEffect> DamageEffectClass;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Damage")
+	TArray<float> ComboDamages;
+
 };

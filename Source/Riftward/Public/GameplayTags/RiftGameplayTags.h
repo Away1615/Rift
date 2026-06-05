@@ -4,17 +4,34 @@
 
 #include "CoreMinimal.h"
 #include "GameplayTagContainer.h"
+#include "NativeGameplayTags.h"
+
+UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_Rift_Data_Damage);
+UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_Rift_Event_Ability_TwinSword_Core_DodgeFinished);
+UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_Rift_Event_Ability_TwinSword_Primary_ComboWindow);
+UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_Rift_Event_Ability_TwinSword_Secondary_ComboWindow);
+UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_Rift_Event_Ability_TwinSword_Combo_WeaponTraceBegin);
+UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_Rift_Event_Ability_TwinSword_Combo_WeaponTraceTick);
+UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_Rift_Event_Ability_TwinSword_Combo_WeaponTraceEnd);
+UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_Rift_State_Ability_TwinSword_Core_PerfectDodgeWindow);
+UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_Rift_State_Ability_TwinSword_Core_PerfectDodgeEmpowered);
+UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_Rift_State_Ability_TwinSword_Core_DodgeActive);
+UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_Rift_State_Ability_TwinSword_Primary_ComboActive);
+UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_Rift_State_Ability_TwinSword_Secondary_ComboActive);
 
 struct FRiftGameplayTags
 {
 public:
-	static const FRiftGameplayTags& Get();
+	FRiftGameplayTags();
 
-	static void InitializeNativeTags();
+	static const FRiftGameplayTags& Get();
 
 	// ======================
 	// TwinSword
 	// ======================
+	/* Data */
+	FGameplayTag Data_Damage;
+
 	/* Event */
 	FGameplayTag Event_Ability_TwinSword_Core_DodgeFinished;
 
@@ -22,7 +39,11 @@ public:
 
 	FGameplayTag Event_Ability_TwinSword_Secondary_ComboWindow;
 
-	FGameplayTag Event_Ability_TwinSword_Primary_HitCheck;
+	FGameplayTag Event_Ability_TwinSword_Combo_WeaponTraceBegin;
+
+	FGameplayTag Event_Ability_TwinSword_Combo_WeaponTraceTick;
+
+	FGameplayTag Event_Ability_TwinSword_Combo_WeaponTraceEnd;
 
 	/* State */
 	FGameplayTag State_Ability_TwinSword_Core_PerfectDodgeWindow;
@@ -34,7 +55,4 @@ public:
 	FGameplayTag State_Ability_TwinSword_Primary_ComboActive;
 
 	FGameplayTag State_Ability_TwinSword_Secondary_ComboActive;
-
-private:
-	static FRiftGameplayTags GameplayTags;
 };
