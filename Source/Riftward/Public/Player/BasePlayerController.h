@@ -8,7 +8,6 @@
 #include "Data/Player/Input/PlayerInputConfig.h"
 #include "BasePlayerController.generated.h"
 
-class UBaseAbilitySystemComponent;
 struct FInputActionValue;
 class UPlayerInputConfig;
 /**
@@ -23,14 +22,10 @@ protected:
 	virtual void BeginPlay() override;
 	virtual void SetupInputComponent() override;
 
-	UBaseAbilitySystemComponent* GetBaseAbilitySystemComponent() const;
 	APlayerCharacter* GetPlayerCharacter() const;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Input")
 	TObjectPtr<UPlayerInputConfig> DefaultInputConfig;
-
-	void HandleAbilityInputPressed(EAbilityInputID AbilityInputID);
-	void HandleAbilityInputReleased(EAbilityInputID AbilityInputID);
 
 private:
 	void HandleMoveInput(const FInputActionValue& InputActionValue);

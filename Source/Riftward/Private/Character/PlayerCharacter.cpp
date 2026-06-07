@@ -3,20 +3,14 @@
 
 #include "Character/PlayerCharacter.h"
 
-#include "AbilitySystem/Attributes/HealthAttributeSet.h"
-#include "AbilitySystem/Attributes/ResourceAttributeSet.h"
-#include "Player/BasePlayerState.h"
-#include "AbilitySystem/GameplayAbilities/BaseGameplayAbility.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Data/Player/PlayerClassConfig.h"
-#include "Data/Player/Ability/PlayerAbilitySetConfig.h"
 #include "Data/Player/Animation/PlayerAnimationConfig.h"
 #include "Data/Player/Common/PlayerCommonConfig.h"
 #include "Data/Player/Weapon/PlayerWeaponConfig.h"
 #include "Debug/Logger.h"
 #include "Equipment/PlayerWeapon.h"
 #include "GameFramework/CharacterMovementComponent.h"
-#include "Kismet/GameplayStatics.h"
 #include "Net/UnrealNetwork.h"
 
 APlayerCharacter::APlayerCharacter()
@@ -46,14 +40,6 @@ void APlayerCharacter::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& Out
     DOREPLIFETIME(APlayerCharacter, PlayerClassConfig);
 }
 
-UAbilitySystemComponent* APlayerCharacter::GetAbilitySystemComponent() const
-{
-    const ABasePlayerState* BasePlayerState = GetPlayerState<ABasePlayerState>();
-    return BasePlayerState
-        ? BasePlayerState->GetAbilitySystemComponent()
-        : Super::GetAbilitySystemComponent();
-}
-
 UPlayerAnimationConfig* APlayerCharacter::GetPlayerAnimationConfig() const
 {
     return PlayerClassConfig ? PlayerClassConfig->PlayerAnimationConfig : nullptr;
@@ -63,7 +49,6 @@ void APlayerCharacter::SelectPlayerClass_Implementation(UPlayerClassConfig* NewP
 {
     if (!NewPlayerClassConfig || PlayerClassConfig == NewPlayerClassConfig) return;
 
-    ClearClassAbilities();
     PlayerClassConfig = NewPlayerClassConfig;
     AssemblePlayerClass();
     ForceNetUpdate();
@@ -85,15 +70,6 @@ TArray<APlayerWeapon*> APlayerCharacter::GetEquippedWeapons() const
     return Weapons;
 }
 
-void APlayerCharacter::MulticastPlayAbilityCue_Implementation(
-    UParticleSystem* Effect,
-    USoundBase* Sound,
-    const FName SocketName,
-    const FVector LocationOffset)
-{
-    PlayAbilityCueLocal(Effect, Sound, SocketName, LocationOffset);
-}
-
 void APlayerCharacter::PossessedBy(AController* NewController)
 {
     Super::PossessedBy(NewController);
@@ -104,14 +80,12 @@ void APlayerCharacter::PossessedBy(AController* NewController)
             EVisibilityBasedAnimTickOption::AlwaysTickPoseAndRefreshBones;
     }
 
-    InitGasActorInfo();
     AssemblePlayerClass();
 }
 
 void APlayerCharacter::OnRep_PlayerState()
 {
     Super::OnRep_PlayerState();
-    InitGasActorInfo();
 }
 
 bool APlayerCharacter::HasMovementInput() const
@@ -142,16 +116,6 @@ void APlayerCharacter::InitPlayerProperties()
     SetReplicateMovement(true);
 }
 
-void APlayerCharacter::InitGasActorInfo()
-{
-    ABasePlayerState* BasePlayerState = GetPlayerState<ABasePlayerState>();
-    if (BasePlayerState && BasePlayerState->GetAbilitySystemComponent())
-    {
-        BasePlayerState->GetAbilitySystemComponent()
-                       ->InitAbilityActorInfo(BasePlayerState, this);
-    }
-}
-
 void APlayerCharacter::InitCameraComponents()
 {
     SpringArmComponent = CreateDefaultSubobject<USpringArmComponent>(TEXT("SpringArmComponent"));
@@ -170,56 +134,13 @@ void APlayerCharacter::AssemblePlayerClass()
 
     if (!HasAuthority()) return;
 
-    ApplyAttributesFromConfig();
     ApplyWeaponsFromConfig();
-    GrantClassAbilities();
 }
 
 void APlayerCharacter::OnRep_PlayerClassConfig()
 {
     ApplyAnimationConfig();
     ApplyMovementSettings();
-}
-
-void APlayerCharacter::ApplyAttributesFromConfig() const
-{
-    if (!HasAuthority() || !PlayerClassConfig || !PlayerClassConfig->PlayerCommonConfig) return;
-
-    const ABasePlayerState* BasePlayerState = GetPlayerState<ABasePlayerState>();
-    if (!BasePlayerState) return;
-
-    UHealthAttributeSet* HealthSet = BasePlayerState->GetHealthAttributeSet();
-    if (!HealthSet) return;
-
-    const UPlayerCommonConfig* CommonConfig = PlayerClassConfig->PlayerCommonConfig;
-
-    HealthSet->SetMaxHealth(CommonConfig->MaxHealth);
-    HealthSet->SetHealth(FMath::Clamp(CommonConfig->Health, 0.0f, CommonConfig->MaxHealth));
-
-    UResourceAttributeSet* ResourceSet = BasePlayerState->GetResourceAttributeSet();
-    ResourceSet->SetMaxMana(CommonConfig->MaxMana);
-    ResourceSet->SetMana(CommonConfig->Mana);
-    ResourceSet->SetMaxStamina(CommonConfig->MaxStamina);
-    ResourceSet->SetStamina(CommonConfig->Stamina);
-    ResourceSet->SetMaxUltimateCharge(CommonConfig->MaxUltimateCharge);
-    ResourceSet->SetUltimateCharge(CommonConfig->UltimateCharge);
-
-    Logger::Log(
-        this,
-        FString::Printf(
-            TEXT("%s Attributes: Health=%.0f/%.0f Stamina=%.0f/%.0f Mana=%.0f/%.0f Ultimate=%.0f/%.0f"),
-            *GetNameSafe(BasePlayerState),
-            HealthSet->GetHealth(),
-            HealthSet->GetMaxHealth(),
-            ResourceSet->GetStamina(),
-            ResourceSet->GetMaxStamina(),
-            ResourceSet->GetMana(),
-            ResourceSet->GetMaxMana(),
-            ResourceSet->GetUltimateCharge(),
-            ResourceSet->GetMaxUltimateCharge()
-        )
-    );
-
 }
 
 void APlayerCharacter::ApplyAnimationConfig() const
@@ -343,61 +264,6 @@ APlayerWeapon* APlayerCharacter::SpawnAndAttachWeapon(const FPlayerWeaponPartCon
     return WeaponActor;
 }
 
-void APlayerCharacter::PlayAbilityCueLocal(
-    UParticleSystem* Effect,
-    USoundBase* Sound,
-    const FName SocketName,
-    const FVector LocationOffset)
-{
-    USkeletalMeshComponent* CharacterMesh = GetMesh();
-
-    if (Effect)
-    {
-        if (CharacterMesh && !SocketName.IsNone())
-        {
-            UGameplayStatics::SpawnEmitterAttached(
-                Effect,
-                CharacterMesh,
-                SocketName,
-                LocationOffset,
-                FRotator::ZeroRotator,
-                EAttachLocation::KeepRelativeOffset,
-                true
-            );
-        }
-        else
-        {
-            UGameplayStatics::SpawnEmitterAtLocation(
-                GetWorld(),
-                Effect,
-                GetActorLocation() + LocationOffset
-            );
-        }
-    }
-
-    if (Sound)
-    {
-        if (CharacterMesh && !SocketName.IsNone())
-        {
-            UGameplayStatics::SpawnSoundAttached(
-                Sound,
-                CharacterMesh,
-                SocketName,
-                LocationOffset,
-                EAttachLocation::KeepRelativeOffset
-            );
-        }
-        else
-        {
-            UGameplayStatics::SpawnSoundAtLocation(
-                GetWorld(),
-                Sound,
-                GetActorLocation() + LocationOffset
-            );
-        }
-    }
-}
-
 void APlayerCharacter::InitMovementSettings()
 {
     UCharacterMovementComponent* MovementComponent = GetCharacterMovement();
@@ -502,77 +368,4 @@ void APlayerCharacter::UpdateMovementRotationRate(const float DeltaTime)
     );
 
     MovementComponent->RotationRate = FRotator(0.0f, CurrentTurnRate, 0.0f);
-}
-
-
-void APlayerCharacter::GrantClassAbilities()
-{
-    if (!HasAuthority()) return;
-
-    UAbilitySystemComponent* ASC = GetAbilitySystemComponent();
-    if (!ASC || !PlayerClassConfig) return;
-
-    const UPlayerAbilitySetConfig* AbilityConfig = PlayerClassConfig->PlayerAbilityConfig;
-    if (!AbilityConfig) return;
-
-    TArray<FPlayerAbilityGrant> AbilityGrants;
-    AbilityConfig->GetGrantableAbilities(AbilityGrants);
-
-    for (const FPlayerAbilityGrant& AbilityGrant : AbilityGrants)
-    {
-        GiveConfiguredAbilityEntry(ASC, AbilityGrant);
-    }
-}
-
-void APlayerCharacter::ClearClassAbilities()
-{
-    UAbilitySystemComponent* ASC = GetAbilitySystemComponent();
-    if (!ASC) return;
-
-    for (const FGameplayAbilitySpecHandle AbilityHandle : GrantedClassAbilityHandles)
-    {
-        ASC->ClearAbility(AbilityHandle);
-    }
-
-    GrantedClassAbilityHandles.Empty();
-}
-
-void APlayerCharacter::GiveConfiguredAbilityEntry(UAbilitySystemComponent* ASC, const FPlayerAbilityGrant& AbilityGrant)
-{
-    if (!ASC || !PlayerClassConfig || !PlayerClassConfig->PlayerAbilityConfig) return;
-    if (!AbilityGrant.bAutoGrant || !AbilityGrant.Ability) return;
-
-    const EAbilityInputID InputID = UPlayerAbilitySetConfig::GetInputIDForSlot(AbilityGrant.Slot);
-
-    GiveAbilityFromClass(
-        ASC,
-        AbilityGrant.Ability->AbilityClass,
-        static_cast<int32>(InputID),
-        AbilityGrant.Ability->AbilityID,
-        AbilityGrant.Ability
-    );
-}
-
-void APlayerCharacter::GiveAbilityFromClass(
-    UAbilitySystemComponent* ASC,
-    TSubclassOf<UBaseGameplayAbility> AbilityClass,
-    const int32 InputID,
-    const FGameplayTag AbilityID,
-    UObject* SourceObject)
-{
-    if (!ASC || !AbilityClass) return;
-
-    FGameplayAbilitySpec AbilitySpec(
-        AbilityClass,
-        1,
-        InputID,
-        SourceObject
-    );
-
-    if (AbilityID.IsValid())
-    {
-        AbilitySpec.GetDynamicSpecSourceTags().AddTag(AbilityID);
-    }
-
-    GrantedClassAbilityHandles.Add(ASC->GiveAbility(AbilitySpec));
 }

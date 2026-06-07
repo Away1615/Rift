@@ -30,8 +30,3 @@ void ABaseCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCompo
 	Super::SetupPlayerInputComponent(PlayerInputComponent);
 
 }
-
-UAbilitySystemComponent* ABaseCharacter::GetAbilitySystemComponent() const
-{
-	return nullptr;
-}

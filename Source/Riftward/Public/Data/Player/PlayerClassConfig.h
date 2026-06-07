@@ -6,10 +6,7 @@
 #include "Engine/DataAsset.h"
 #include "PlayerClassConfig.generated.h"
 
-class UPlayerAbilitySetConfig;
-class UBaseAbilityConfig;
 class UPlayerCommonConfig;
-class UBaseGameplayAbility;
 class UPlayerAnimationConfig;
 class UPlayerWeaponConfig;
 /**
@@ -29,8 +26,5 @@ public:
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Animation")
 	TObjectPtr<UPlayerAnimationConfig> PlayerAnimationConfig;
-
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Ability")
-	TObjectPtr<UPlayerAbilitySetConfig> PlayerAbilityConfig;
 
 };

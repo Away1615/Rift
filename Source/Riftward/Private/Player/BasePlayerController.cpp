@@ -2,15 +2,11 @@
 
 #include "Player/BasePlayerController.h"
 
-#include "AbilitySystemBlueprintLibrary.h"
-#include "AbilitySystemInterface.h"
-#include "AbilitySystem/BaseAbilitySystemComponent.h"
 #include "InputActionValue.h"
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
 #include "Character/PlayerCharacter.h"
 #include "Data/Player/Input/PlayerInputConfig.h"
-#include "Data/Player/Input/AbilityInputID.h"
 
 void ABasePlayerController::BeginPlay()
 {
@@ -74,77 +70,11 @@ void ABasePlayerController::SetupInputComponent()
 			&ABasePlayerController::HandleLookInput
 		);
 	}
-
-	// Bind Ability Inputs
-	for (const FAbilityInputAction& Action : DefaultInputConfig->AbilityInputActions)
-	{
-		if (!Action.InputAction || Action.InputID == EAbilityInputID::None)
-		{
-			continue;
-		}
-
-		EnhancedInputComponent->BindAction(
-			Action.InputAction,
-			Action.TriggerEvent,
-			this,
-			&ABasePlayerController::HandleAbilityInputPressed,
-			Action.InputID
-		);
-
-		EnhancedInputComponent->BindAction(
-			Action.InputAction,
-			ETriggerEvent::Completed,
-			this,
-			&ABasePlayerController::HandleAbilityInputReleased,
-			Action.InputID
-		);
-
-		EnhancedInputComponent->BindAction(
-			Action.InputAction,
-			ETriggerEvent::Canceled,
-			this,
-			&ABasePlayerController::HandleAbilityInputReleased,
-			Action.InputID
-		);
-	}
-
-}
-
-UBaseAbilitySystemComponent* ABasePlayerController::GetBaseAbilitySystemComponent() const
-{
-	APlayerCharacter* PlayerCharacter = GetPlayerCharacter();
-	UAbilitySystemComponent* ASC = UAbilitySystemBlueprintLibrary::GetAbilitySystemComponent(PlayerCharacter);
-	return Cast<UBaseAbilitySystemComponent>(ASC);
 }
 
 APlayerCharacter* ABasePlayerController::GetPlayerCharacter() const
 {
 	return GetPawn<APlayerCharacter>();
-}
-
-void ABasePlayerController::HandleAbilityInputPressed(EAbilityInputID AbilityInputID)
-{
-	if (AbilityInputID == EAbilityInputID::None) return;
-
-	UBaseAbilitySystemComponent* ASC = GetBaseAbilitySystemComponent();
-	if (!ASC) return;
-
-	if (ASC->TryBufferAttackInputForActiveCombo(AbilityInputID))
-	{
-		return;
-	}
-
-	ASC->CancelActiveAbilitiesInterruptedByInput(AbilityInputID);
-	ASC->AbilityLocalInputPressed(static_cast<int32>(AbilityInputID));
-}
-
-void ABasePlayerController::HandleAbilityInputReleased(EAbilityInputID AbilityInputID)
-{
-	if (AbilityInputID == EAbilityInputID::None) return;
-
-	UBaseAbilitySystemComponent* ASC = GetBaseAbilitySystemComponent();
-	if (!ASC) return;
-	ASC->AbilityLocalInputReleased(static_cast<int32>(AbilityInputID));
 }
 
 void ABasePlayerController::HandleMoveInput(const FInputActionValue& InputActionValue)

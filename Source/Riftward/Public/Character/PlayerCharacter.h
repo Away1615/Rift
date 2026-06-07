@@ -6,17 +6,12 @@
 #include "Camera/CameraComponent.h"
 #include "Character/BaseCharacter.h"
 #include "GameFramework/SpringArmComponent.h"
-#include "GameplayTagContainer.h"
 #include "PlayerCharacter.generated.h"
 
 class APlayerWeapon;
 class UPlayerAnimationConfig;
 class UPlayerClassConfig;
-class UBaseGameplayAbility;
-class UParticleSystem;
-class USoundBase;
 struct FPlayerWeaponPartConfig;
-struct FPlayerAbilityGrant;
 
 /**
  *
@@ -39,9 +34,6 @@ public:
 	virtual void PostInitializeComponents() override;
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 
-	// Getter
-	virtual UAbilitySystemComponent* GetAbilitySystemComponent() const override;
-
 	// On the server, called when this Pawn is controlled by the Controller
 	virtual void PossessedBy(AController* NewController) override;
 
@@ -59,14 +51,6 @@ public:
 
 	UFUNCTION(BlueprintPure, Category="Weapon")
 	TArray<APlayerWeapon*> GetEquippedWeapons() const;
-
-	UFUNCTION(NetMulticast, Unreliable)
-	void MulticastPlayAbilityCue(
-		UParticleSystem* Effect,
-		USoundBase* Sound,
-		FName SocketName,
-		FVector LocationOffset
-	);
 
 protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Camera")
@@ -90,21 +74,13 @@ protected:
 private:
 	// Set up network replication
 	void InitPlayerProperties();
-	void InitGasActorInfo();
 	void InitCameraComponents();
 
 	void AssemblePlayerClass();
-	void ApplyAttributesFromConfig() const;
 	void ApplyAnimationConfig() const;
 	void ApplyWeaponsFromConfig();
 	void ClearEquippedWeapons();
 	APlayerWeapon* SpawnAndAttachWeapon(const FPlayerWeaponPartConfig& WeaponPartConfig);
-	void PlayAbilityCueLocal(
-		UParticleSystem* Effect,
-		USoundBase* Sound,
-		FName SocketName,
-		FVector LocationOffset
-	);
 
 	UFUNCTION()
 	void OnRep_PlayerClassConfig();
@@ -115,24 +91,4 @@ private:
 	void ClearMovementInput();
 	void ApplyMovementSettings() const;
 	void UpdateMovementRotationRate(float DeltaTime);
-
-	/* Gameplay Ability System */
-
-	void GrantClassAbilities();
-	void ClearClassAbilities();
-
-	void GiveConfiguredAbilityEntry(
-		UAbilitySystemComponent* ASC,
-		const FPlayerAbilityGrant& AbilityGrant
-	);
-
-	void GiveAbilityFromClass(
-		UAbilitySystemComponent* ASC,
-		TSubclassOf<UBaseGameplayAbility> AbilityClass,
-		int32 InputID,
-		FGameplayTag AbilityID,
-		UObject* SourceObject
-	);
-
-	TArray<FGameplayAbilitySpecHandle> GrantedClassAbilityHandles;
 };

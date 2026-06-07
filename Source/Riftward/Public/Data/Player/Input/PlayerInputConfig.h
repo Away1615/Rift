@@ -4,9 +4,9 @@
 
 #include "CoreMinimal.h"
 #include "Engine/DataAsset.h"
-#include "Data/Player/Input/AbilityInputAction.h"
 #include "PlayerInputConfig.generated.h"
 
+class UInputAction;
 class UInputMappingContext;
 
 /**
@@ -29,7 +29,4 @@ public:
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Input")
 	TObjectPtr<UInputAction> LookAction;
-
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Input|Abilities")
-	TArray<FAbilityInputAction> AbilityInputActions;
 };

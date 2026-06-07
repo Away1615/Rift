@@ -3,14 +3,11 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "AbilitySystemInterface.h"
 #include "GameFramework/Character.h"
-#include "AbilitySystem/BaseAbilitySystemComponent.h"
-#include "AbilitySystem/Attributes/BaseAttributeSet.h"
 #include "BaseCharacter.generated.h"
 
 UCLASS(Abstract)
-class RIFTWARD_API ABaseCharacter : public ACharacter, public IAbilitySystemInterface
+class RIFTWARD_API ABaseCharacter : public ACharacter
 {
 	GENERATED_BODY()
 
@@ -26,8 +23,5 @@ public:
 
 	// Called to bind functionality to input
 	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
-
-	// Called to get AbilitySystemComponent
-	virtual UAbilitySystemComponent* GetAbilitySystemComponent() const override;
 
 };
