@@ -5,10 +5,12 @@
 #include "CoreMinimal.h"
 #include "Abilities/GameplayAbility.h"
 #include "Data/Player/Input/AbilityInputID.h"
+#include "GameplayEffectTypes.h"
 #include "BaseGameplayAbility.generated.h"
 
 class UPlayerAbilitySetConfig;
-struct FPlayerAbilityEntry;
+class UAbilityDefinitionConfig;
+class UGameplayEffect;
 
 /**
  *
@@ -42,11 +44,33 @@ protected:
 
 	virtual FGameplayTag GetAbilityActiveStateTag() const;
 
-	const FPlayerAbilityEntry* GetAbilityEntry() const;
-	const FPlayerAbilityEntry* GetAbilityEntryFromSpec(
+	FActiveGameplayEffectHandle ApplyInfiniteStateTagEffect(
+		FGameplayAbilitySpecHandle Handle,
+		const FGameplayAbilityActorInfo* ActorInfo,
+		FGameplayAbilityActivationInfo ActivationInfo,
+		FGameplayTag StateTag) const;
+	FActiveGameplayEffectHandle ApplyDurationStateTagEffect(
+		FGameplayAbilitySpecHandle Handle,
+		const FGameplayAbilityActorInfo* ActorInfo,
+		FGameplayAbilityActivationInfo ActivationInfo,
+		FGameplayTag StateTag,
+		float Duration) const;
+	void RemoveGrantedStateTagEffect(FActiveGameplayEffectHandle& EffectHandle) const;
+
+	const UAbilityDefinitionConfig* GetAbilityDefinition() const;
+	const UAbilityDefinitionConfig* GetAbilityDefinitionFromSpec(
 		FGameplayAbilitySpecHandle Handle,
 		const FGameplayAbilityActorInfo* ActorInfo) const;
 	const UPlayerAbilitySetConfig* GetAbilitySetConfigFromSpec(
 		FGameplayAbilitySpecHandle Handle,
 		const FGameplayAbilityActorInfo* ActorInfo) const;
+
+private:
+	FActiveGameplayEffectHandle ApplyStateTagEffect(
+		FGameplayAbilitySpecHandle Handle,
+		const FGameplayAbilityActorInfo* ActorInfo,
+		FGameplayAbilityActivationInfo ActivationInfo,
+		TSubclassOf<UGameplayEffect> EffectClass,
+		FGameplayTag StateTag,
+		float Duration = 0.0f) const;
 };

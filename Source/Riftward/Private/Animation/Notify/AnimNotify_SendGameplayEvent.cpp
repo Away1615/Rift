@@ -2,9 +2,8 @@
 
 
 #include "Animation/Notify/AnimNotify_SendGameplayEvent.h"
-#include "AbilitySystemBlueprintLibrary.h"
-#include "AbilitySystemComponent.h"
-#include "Components/SkeletalMeshComponent.h"
+
+#include "Tools/GameTools.h"
 
 void UAnimNotify_SendGameplayEvent::Notify(
 	USkeletalMeshComponent* MeshComp,
@@ -13,20 +12,5 @@ void UAnimNotify_SendGameplayEvent::Notify(
 {
 	Super::Notify(MeshComp, Animation, EventReference);
 
-
-	if (!MeshComp || !EventTag.IsValid()) return;
-
-	AActor* Owner = MeshComp->GetOwner();
-	if (!Owner) return;
-
-	UAbilitySystemComponent* ASC = UAbilitySystemBlueprintLibrary::GetAbilitySystemComponent(Owner);
-
-	if (!ASC) return;
-
-	FGameplayEventData EventData;
-	EventData.EventTag = EventTag;
-	EventData.Instigator = Owner;
-	EventData.Target = Owner;
-
-	ASC->HandleGameplayEvent(EventTag, &EventData);
+	GameTools::SendGameplayEvent(MeshComp, EventTag);
 }

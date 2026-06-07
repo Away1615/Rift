@@ -30,9 +30,6 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Input")
 	TObjectPtr<UInputAction> LookAction;
 
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Input")
-	TObjectPtr<UInputAction> SwichAction;
-
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Input|Abilities")
 	TArray<FAbilityInputAction> AbilityInputActions;
 };

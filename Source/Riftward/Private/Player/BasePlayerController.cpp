@@ -1,6 +1,8 @@
 // Fill out your copyright notice in the Description page of Project Settings.
 
 #include "Player/BasePlayerController.h"
+
+#include "AbilitySystemBlueprintLibrary.h"
 #include "AbilitySystemInterface.h"
 #include "AbilitySystem/BaseAbilitySystemComponent.h"
 #include "InputActionValue.h"
@@ -73,17 +75,6 @@ void ABasePlayerController::SetupInputComponent()
 		);
 	}
 
-	if (DefaultInputConfig->SwichAction)
-	{
-		EnhancedInputComponent->BindAction(
-			DefaultInputConfig->SwichAction,
-			ETriggerEvent::Completed,
-			this,
-			&ABasePlayerController::HandleSwichInput
-		);
-	}
-
-
 	// Bind Ability Inputs
 	for (const FAbilityInputAction& Action : DefaultInputConfig->AbilityInputActions)
 	{
@@ -94,7 +85,7 @@ void ABasePlayerController::SetupInputComponent()
 
 		EnhancedInputComponent->BindAction(
 			Action.InputAction,
-			ETriggerEvent::Started,
+			Action.TriggerEvent,
 			this,
 			&ABasePlayerController::HandleAbilityInputPressed,
 			Action.InputID
@@ -121,13 +112,14 @@ void ABasePlayerController::SetupInputComponent()
 
 UBaseAbilitySystemComponent* ABasePlayerController::GetBaseAbilitySystemComponent() const
 {
-	const APawn* ControlledPawn = GetPawn();
-	if (!ControlledPawn) return nullptr;
+	APlayerCharacter* PlayerCharacter = GetPlayerCharacter();
+	UAbilitySystemComponent* ASC = UAbilitySystemBlueprintLibrary::GetAbilitySystemComponent(PlayerCharacter);
+	return Cast<UBaseAbilitySystemComponent>(ASC);
+}
 
-	const IAbilitySystemInterface* AbilitySystemInterface = Cast<IAbilitySystemInterface>(ControlledPawn);
-	if (!AbilitySystemInterface) return nullptr;
-
-	return Cast<UBaseAbilitySystemComponent>(AbilitySystemInterface->GetAbilitySystemComponent());
+APlayerCharacter* ABasePlayerController::GetPlayerCharacter() const
+{
+	return GetPawn<APlayerCharacter>();
 }
 
 void ABasePlayerController::HandleAbilityInputPressed(EAbilityInputID AbilityInputID)
@@ -137,6 +129,12 @@ void ABasePlayerController::HandleAbilityInputPressed(EAbilityInputID AbilityInp
 	UBaseAbilitySystemComponent* ASC = GetBaseAbilitySystemComponent();
 	if (!ASC) return;
 
+	if (ASC->TryBufferAttackInputForActiveCombo(AbilityInputID))
+	{
+		return;
+	}
+
+	ASC->CancelActiveAbilitiesInterruptedByInput(AbilityInputID);
 	ASC->AbilityLocalInputPressed(static_cast<int32>(AbilityInputID));
 }
 
@@ -166,14 +164,6 @@ void ABasePlayerController::HandleLookInput(const FInputActionValue& InputAction
 	AddYawInput(LookValue.X);
 	// Rotate around Y axis
 	AddPitchInput(LookValue.Y);
-}
-
-void ABasePlayerController::HandleSwichInput()
-{
-	APlayerCharacter* PlayerCharacter = GetPawn<APlayerCharacter>();
-	if (!PlayerCharacter) return;
-
-	PlayerCharacter->ToggleWalkRun();
 }
 
 void ABasePlayerController::HandleMoveCompleted()

@@ -1,8 +1,14 @@
 #include "Animation/Notify/AnimNotifyState_WeaponTraceWindow.h"
-
-#include "AbilitySystemBlueprintLibrary.h"
-#include "Components/SkeletalMeshComponent.h"
 #include "GameplayTags/RiftGameplayTags.h"
+#include "Tools/GameTools.h"
+
+UAnimNotifyState_WeaponTraceWindow::UAnimNotifyState_WeaponTraceWindow()
+{
+	const FRiftGameplayTags& Tags = FRiftGameplayTags::Get();
+	BeginEventTag = Tags.Event_TwinSword_Combo_WeaponTrace_Begin;
+	TickEventTag = Tags.Event_TwinSword_Combo_WeaponTrace_Tick;
+	EndEventTag = Tags.Event_TwinSword_Combo_WeaponTrace_End;
+}
 
 void UAnimNotifyState_WeaponTraceWindow::NotifyBegin(
 	USkeletalMeshComponent* MeshComp,
@@ -10,8 +16,8 @@ void UAnimNotifyState_WeaponTraceWindow::NotifyBegin(
 	float TotalDuration,
 	const FAnimNotifyEventReference& EventReference)
 {
-	Super::NotifyBegin(MeshComp, Animation, TotalDuration, EventReference);
-	SendGameplayEvent(MeshComp, FRiftGameplayTags::Get().Event_Ability_TwinSword_Combo_WeaponTraceBegin);
+	UAnimNotifyState::NotifyBegin(MeshComp, Animation, TotalDuration, EventReference);
+	GameTools::SendGameplayEvent(MeshComp, BeginEventTag, static_cast<float>(WeaponIndex));
 }
 
 void UAnimNotifyState_WeaponTraceWindow::NotifyTick(
@@ -20,8 +26,8 @@ void UAnimNotifyState_WeaponTraceWindow::NotifyTick(
 	float FrameDeltaTime,
 	const FAnimNotifyEventReference& EventReference)
 {
-	Super::NotifyTick(MeshComp, Animation, FrameDeltaTime, EventReference);
-	SendGameplayEvent(MeshComp, FRiftGameplayTags::Get().Event_Ability_TwinSword_Combo_WeaponTraceTick);
+	UAnimNotifyState::NotifyTick(MeshComp, Animation, FrameDeltaTime, EventReference);
+	GameTools::SendGameplayEvent(MeshComp, TickEventTag, static_cast<float>(WeaponIndex));
 }
 
 void UAnimNotifyState_WeaponTraceWindow::NotifyEnd(
@@ -29,23 +35,6 @@ void UAnimNotifyState_WeaponTraceWindow::NotifyEnd(
 	UAnimSequenceBase* Animation,
 	const FAnimNotifyEventReference& EventReference)
 {
-	Super::NotifyEnd(MeshComp, Animation, EventReference);
-	SendGameplayEvent(MeshComp, FRiftGameplayTags::Get().Event_Ability_TwinSword_Combo_WeaponTraceEnd);
-}
-
-void UAnimNotifyState_WeaponTraceWindow::SendGameplayEvent(
-	USkeletalMeshComponent* MeshComp,
-	const FGameplayTag& EventTag)
-{
-	if (!MeshComp || !EventTag.IsValid()) return;
-
-	AActor* Owner = MeshComp->GetOwner();
-	if (!Owner) return;
-
-	FGameplayEventData EventData;
-	EventData.EventTag = EventTag;
-	EventData.Instigator = Owner;
-	EventData.Target = Owner;
-
-	UAbilitySystemBlueprintLibrary::SendGameplayEventToActor(Owner, EventTag, EventData);
+	UAnimNotifyState::NotifyEnd(MeshComp, Animation, EventReference);
+	GameTools::SendGameplayEvent(MeshComp, EndEventTag, static_cast<float>(WeaponIndex));
 }

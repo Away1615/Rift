@@ -60,9 +60,6 @@ public:
 	float GroundFriction = 8;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Locomotion|Movement")
-	float WalkSpeed = 180.0f;
-
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Locomotion|Movement")
 	float RunSpeed = 600.0f;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Locomotion|Turn")

@@ -3,6 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Character/PlayerCharacter.h"
 #include "GameFramework/PlayerController.h"
 #include "Data/Player/Input/PlayerInputConfig.h"
 #include "BasePlayerController.generated.h"
@@ -23,6 +24,7 @@ protected:
 	virtual void SetupInputComponent() override;
 
 	UBaseAbilitySystemComponent* GetBaseAbilitySystemComponent() const;
+	APlayerCharacter* GetPlayerCharacter() const;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Input")
 	TObjectPtr<UPlayerInputConfig> DefaultInputConfig;
@@ -33,6 +35,5 @@ protected:
 private:
 	void HandleMoveInput(const FInputActionValue& InputActionValue);
 	void HandleLookInput(const FInputActionValue& InputActionValue);
-	void HandleSwichInput();
 	void HandleMoveCompleted();
 };

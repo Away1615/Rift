@@ -16,7 +16,7 @@ class UBaseGameplayAbility;
 class UParticleSystem;
 class USoundBase;
 struct FPlayerWeaponPartConfig;
-struct FPlayerAbilityEntry;
+struct FPlayerAbilityGrant;
 
 /**
  *
@@ -30,8 +30,6 @@ public:
 	APlayerCharacter();
 
 	void HandleMove(const FVector2D& InputValue);
-	void ToggleWalkRun();
-	bool IsRunning() const;
 	// Whether Player press WASD
 	bool HasMovementInput() const;
 	// Whether Player is Moving
@@ -80,9 +78,6 @@ protected:
 	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category="Locomotion")
 	FVector2D MovementInputVector = FVector2D::ZeroVector;
 
-	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category="Locomotion")
-	bool bWantsToRun = true;
-
 	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category="Locomotion|Turn")
 	float CurrentTurnRate = 600.0f;
 
@@ -128,13 +123,12 @@ private:
 
 	void GiveConfiguredAbilityEntry(
 		UAbilitySystemComponent* ASC,
-		const FPlayerAbilityEntry& AbilityEntry
+		const FPlayerAbilityGrant& AbilityGrant
 	);
 
 	void GiveAbilityFromClass(
 		UAbilitySystemComponent* ASC,
 		TSubclassOf<UBaseGameplayAbility> AbilityClass,
-		int32 AbilityLevel,
 		int32 InputID,
 		FGameplayTag AbilityID,
 		UObject* SourceObject

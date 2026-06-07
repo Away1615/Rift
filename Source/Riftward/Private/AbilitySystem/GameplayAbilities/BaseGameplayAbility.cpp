@@ -3,10 +3,14 @@
 
 #include "AbilitySystem/GameplayAbilities/BaseGameplayAbility.h"
 #include "AbilitySystemComponent.h"
+#include "AbilitySystem/GameplayEffects/GE_DurationTag.h"
+#include "AbilitySystem/GameplayEffects/GE_InfiniteTag.h"
 #include "AbilitySystem/Attributes/ResourceAttributeSet.h"
 #include "AbilitySystem/GameplayEffects/GE_ResourceCost.h"
-#include "Data/Player/Input/AbilityInputID.h"
+#include "Data/Player/Ability/AbilityDefinitionConfig.h"
+#include "Data/Player/Ability/Fragments/AbilityResourceCostFragment.h"
 #include "Data/Player/Ability/PlayerAbilitySetConfig.h"
+#include "Data/Player/Input/AbilityInputID.h"
 #include "GameplayTags/RiftGameplayTags.h"
 
 bool UBaseGameplayAbility::CanActivateAbility(
@@ -31,20 +35,20 @@ bool UBaseGameplayAbility::CanActivateAbility(
 		return false;
 	}
 
-	const FPlayerAbilityEntry* AbilityEntry = GetAbilityEntryFromSpec(Handle, ActorInfo);
-	if (!AbilityEntry)
+	const UAbilityDefinitionConfig* AbilityDefinition = GetAbilityDefinitionFromSpec(Handle, ActorInfo);
+	if (!AbilityDefinition)
 	{
 		return true;
 	}
 
-	if (!AbilityEntry->RequiredTags.IsEmpty()
-		&& !AbilitySystemComponent->HasAllMatchingGameplayTags(AbilityEntry->RequiredTags))
+	if (!AbilityDefinition->RequiredTags.IsEmpty()
+		&& !AbilitySystemComponent->HasAllMatchingGameplayTags(AbilityDefinition->RequiredTags))
 	{
 		return false;
 	}
 
-	if (!AbilityEntry->BlockedTags.IsEmpty()
-		&& AbilitySystemComponent->HasAnyMatchingGameplayTags(AbilityEntry->BlockedTags))
+	if (!AbilityDefinition->BlockedTags.IsEmpty()
+		&& AbilitySystemComponent->HasAnyMatchingGameplayTags(AbilityDefinition->BlockedTags))
 	{
 		return false;
 	}
@@ -63,8 +67,8 @@ bool UBaseGameplayAbility::CheckCost(
 		return false;
 	}
 
-	const FPlayerAbilityEntry* AbilityEntry = GetAbilityEntryFromSpec(Handle, ActorInfo);
-	if (!AbilityEntry)
+	const UAbilityDefinitionConfig* AbilityDefinition = GetAbilityDefinitionFromSpec(Handle, ActorInfo);
+	if (!AbilityDefinition)
 	{
 		return true;
 	}
@@ -78,7 +82,7 @@ bool UBaseGameplayAbility::CheckCost(
 		return false;
 	}
 
-	const URiftAbilityCostFragment* Cost = AbilityEntry->FindFragment<URiftAbilityCostFragment>();
+	const UAbilityResourceCostFragment* Cost = AbilityDefinition->FindFragment<UAbilityResourceCostFragment>();
 	if (!Cost)
 	{
 		return true;
@@ -104,16 +108,17 @@ void UBaseGameplayAbility::ApplyCost(
 	const FGameplayAbilityActorInfo* ActorInfo,
 	const FGameplayAbilityActivationInfo ActivationInfo) const
 {
-	const FPlayerAbilityEntry* AbilityEntry = GetAbilityEntryFromSpec(Handle, ActorInfo);
-	if (!AbilityEntry)
+	const UAbilityDefinitionConfig* AbilityDefinition = GetAbilityDefinitionFromSpec(Handle, ActorInfo);
+	if (!AbilityDefinition)
 	{
 		Super::ApplyCost(Handle, ActorInfo, ActivationInfo);
 		return;
 	}
 
-	const URiftAbilityCostFragment* Cost = AbilityEntry->FindFragment<URiftAbilityCostFragment>();
+	const UAbilityResourceCostFragment* Cost = AbilityDefinition->FindFragment<UAbilityResourceCostFragment>();
 	if (!Cost || (Cost->Stamina <= 0.0f && Cost->Mana <= 0.0f))
 	{
+		Super::ApplyCost(Handle, ActorInfo, ActivationInfo);
 		return;
 	}
 
@@ -149,17 +154,108 @@ void UBaseGameplayAbility::ApplyCost(
 	ApplyGameplayEffectSpecToOwner(Handle, ActorInfo, ActivationInfo, SpecHandle);
 }
 
+FActiveGameplayEffectHandle UBaseGameplayAbility::ApplyInfiniteStateTagEffect(
+	const FGameplayAbilitySpecHandle Handle,
+	const FGameplayAbilityActorInfo* ActorInfo,
+	const FGameplayAbilityActivationInfo ActivationInfo,
+	const FGameplayTag StateTag) const
+{
+	return ApplyStateTagEffect(
+		Handle,
+		ActorInfo,
+		ActivationInfo,
+		UGE_InfiniteTag::StaticClass(),
+		StateTag
+	);
+}
+
+FActiveGameplayEffectHandle UBaseGameplayAbility::ApplyDurationStateTagEffect(
+	const FGameplayAbilitySpecHandle Handle,
+	const FGameplayAbilityActorInfo* ActorInfo,
+	const FGameplayAbilityActivationInfo ActivationInfo,
+	const FGameplayTag StateTag,
+	const float Duration) const
+{
+	if (Duration <= 0.0f)
+	{
+		return FActiveGameplayEffectHandle();
+	}
+
+	return ApplyStateTagEffect(
+		Handle,
+		ActorInfo,
+		ActivationInfo,
+		UGE_DurationTag::StaticClass(),
+		StateTag,
+		Duration
+	);
+}
+
+void UBaseGameplayAbility::RemoveGrantedStateTagEffect(FActiveGameplayEffectHandle& EffectHandle) const
+{
+	if (!EffectHandle.IsValid())
+	{
+		return;
+	}
+
+	if (UAbilitySystemComponent* AbilitySystemComponent = GetAbilitySystemComponentFromActorInfo())
+	{
+		AbilitySystemComponent->RemoveActiveGameplayEffect(EffectHandle);
+	}
+
+	EffectHandle.Invalidate();
+}
+
+FActiveGameplayEffectHandle UBaseGameplayAbility::ApplyStateTagEffect(
+	const FGameplayAbilitySpecHandle Handle,
+	const FGameplayAbilityActorInfo* ActorInfo,
+	const FGameplayAbilityActivationInfo ActivationInfo,
+	const TSubclassOf<UGameplayEffect> EffectClass,
+	const FGameplayTag StateTag,
+	const float Duration) const
+{
+	if (!EffectClass || !StateTag.IsValid())
+	{
+		return FActiveGameplayEffectHandle();
+	}
+
+	FGameplayEffectSpecHandle SpecHandle = MakeOutgoingGameplayEffectSpec(
+		Handle,
+		ActorInfo,
+		ActivationInfo,
+		EffectClass,
+		GetAbilityLevel(Handle, ActorInfo)
+	);
+
+	if (!SpecHandle.IsValid())
+	{
+		return FActiveGameplayEffectHandle();
+	}
+
+	if (Duration > 0.0f)
+	{
+		SpecHandle.Data->SetSetByCallerMagnitude(
+			FRiftGameplayTags::Get().Data_Duration,
+			Duration
+		);
+	}
+
+	SpecHandle.Data->DynamicGrantedTags.AddTag(StateTag);
+	return ApplyGameplayEffectSpecToOwner(Handle, ActorInfo, ActivationInfo, SpecHandle);
+}
+
 FGameplayTag UBaseGameplayAbility::GetAbilityActiveStateTag() const
 {
-	return FGameplayTag();
+	const UAbilityDefinitionConfig* AbilityDefinition = GetAbilityDefinition();
+	return AbilityDefinition ? AbilityDefinition->ActiveStateTag : FGameplayTag();
 }
 
-const FPlayerAbilityEntry* UBaseGameplayAbility::GetAbilityEntry() const
+const UAbilityDefinitionConfig* UBaseGameplayAbility::GetAbilityDefinition() const
 {
-	return GetAbilityEntryFromSpec(CurrentSpecHandle, CurrentActorInfo);
+	return GetAbilityDefinitionFromSpec(CurrentSpecHandle, CurrentActorInfo);
 }
 
-const FPlayerAbilityEntry* UBaseGameplayAbility::GetAbilityEntryFromSpec(
+const UAbilityDefinitionConfig* UBaseGameplayAbility::GetAbilityDefinitionFromSpec(
 	const FGameplayAbilitySpecHandle Handle,
 	const FGameplayAbilityActorInfo* ActorInfo) const
 {
@@ -171,8 +267,18 @@ const FPlayerAbilityEntry* UBaseGameplayAbility::GetAbilityEntryFromSpec(
 		? AbilitySystemComponent->FindAbilitySpecFromHandle(Handle)
 		: nullptr;
 
+	if (!Spec)
+	{
+		return nullptr;
+	}
+
+	if (const UAbilityDefinitionConfig* AbilityDefinition = Cast<UAbilityDefinitionConfig>(Spec->SourceObject.Get()))
+	{
+		return AbilityDefinition;
+	}
+
 	const UPlayerAbilitySetConfig* AbilitySetConfig = GetAbilitySetConfigFromSpec(Handle, ActorInfo);
-	if (!Spec || !AbilitySetConfig)
+	if (!AbilitySetConfig)
 	{
 		return nullptr;
 	}
@@ -181,9 +287,9 @@ const FPlayerAbilityEntry* UBaseGameplayAbility::GetAbilityEntryFromSpec(
 	Spec->GetDynamicSpecSourceTags().GetGameplayTagArray(DynamicTags);
 	for (const FGameplayTag& DynamicTag : DynamicTags)
 	{
-		if (const FPlayerAbilityEntry* AbilityEntry = AbilitySetConfig->FindAbilityByID(DynamicTag))
+		if (const UAbilityDefinitionConfig* AbilityDefinition = AbilitySetConfig->FindAbilityByID(DynamicTag))
 		{
-			return AbilityEntry;
+			return AbilityDefinition;
 		}
 	}
 

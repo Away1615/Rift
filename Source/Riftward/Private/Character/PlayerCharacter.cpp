@@ -135,17 +135,6 @@ void APlayerCharacter::HandleMove(const FVector2D& InputValue)
     }
 }
 
-void APlayerCharacter::ToggleWalkRun()
-{
-    bWantsToRun = !bWantsToRun;
-    ApplyMovementSettings();
-}
-
-bool APlayerCharacter::IsRunning() const
-{
-    return bWantsToRun;
-}
-
 void APlayerCharacter::InitPlayerProperties()
 {
     // Network
@@ -458,9 +447,7 @@ void APlayerCharacter::ApplyMovementSettings() const
     const UPlayerCommonConfig* CommonConfig = PlayerClassConfig ? PlayerClassConfig->PlayerCommonConfig : nullptr;
 
     if (!CommonConfig) return;
-    const float ConfigWalkSpeed = CommonConfig->WalkSpeed;
-    const float ConfigRunSpeed = CommonConfig->RunSpeed;
-    MovementComponent->MaxWalkSpeed = bWantsToRun ? ConfigRunSpeed : ConfigWalkSpeed;
+    MovementComponent->MaxWalkSpeed = CommonConfig->RunSpeed;
 
     const float InitialTurnRate = CommonConfig
         ? (CommonConfig->MinTurnRate + CommonConfig->MaxTurnRate) / 2.0f
@@ -517,6 +504,7 @@ void APlayerCharacter::UpdateMovementRotationRate(const float DeltaTime)
     MovementComponent->RotationRate = FRotator(0.0f, CurrentTurnRate, 0.0f);
 }
 
+
 void APlayerCharacter::GrantClassAbilities()
 {
     if (!HasAuthority()) return;
@@ -527,9 +515,12 @@ void APlayerCharacter::GrantClassAbilities()
     const UPlayerAbilitySetConfig* AbilityConfig = PlayerClassConfig->PlayerAbilityConfig;
     if (!AbilityConfig) return;
 
-    for (const FPlayerAbilityEntry& AbilityEntry : AbilityConfig->Abilities)
+    TArray<FPlayerAbilityGrant> AbilityGrants;
+    AbilityConfig->GetGrantableAbilities(AbilityGrants);
+
+    for (const FPlayerAbilityGrant& AbilityGrant : AbilityGrants)
     {
-        GiveConfiguredAbilityEntry(ASC, AbilityEntry);
+        GiveConfiguredAbilityEntry(ASC, AbilityGrant);
     }
 }
 
@@ -546,28 +537,25 @@ void APlayerCharacter::ClearClassAbilities()
     GrantedClassAbilityHandles.Empty();
 }
 
-void APlayerCharacter::GiveConfiguredAbilityEntry(UAbilitySystemComponent* ASC, const FPlayerAbilityEntry& AbilityEntry)
+void APlayerCharacter::GiveConfiguredAbilityEntry(UAbilitySystemComponent* ASC, const FPlayerAbilityGrant& AbilityGrant)
 {
     if (!ASC || !PlayerClassConfig || !PlayerClassConfig->PlayerAbilityConfig) return;
-    if (!AbilityEntry.bAutoGrant) return;
+    if (!AbilityGrant.bAutoGrant || !AbilityGrant.Ability) return;
 
-    const TSubclassOf<UBaseGameplayAbility> AbilityClass =
-        PlayerClassConfig->PlayerAbilityConfig->ResolveAbilityClass(AbilityEntry);
+    const EAbilityInputID InputID = UPlayerAbilitySetConfig::GetInputIDForSlot(AbilityGrant.Slot);
 
     GiveAbilityFromClass(
         ASC,
-        AbilityClass,
-        AbilityEntry.Level,
-        static_cast<int32>(AbilityEntry.InputID),
-        AbilityEntry.AbilityID,
-        PlayerClassConfig->PlayerAbilityConfig
+        AbilityGrant.Ability->AbilityClass,
+        static_cast<int32>(InputID),
+        AbilityGrant.Ability->AbilityID,
+        AbilityGrant.Ability
     );
 }
 
 void APlayerCharacter::GiveAbilityFromClass(
     UAbilitySystemComponent* ASC,
     TSubclassOf<UBaseGameplayAbility> AbilityClass,
-    const int32 AbilityLevel,
     const int32 InputID,
     const FGameplayTag AbilityID,
     UObject* SourceObject)
@@ -576,7 +564,7 @@ void APlayerCharacter::GiveAbilityFromClass(
 
     FGameplayAbilitySpec AbilitySpec(
         AbilityClass,
-        AbilityLevel,
+        1,
         InputID,
         SourceObject
     );

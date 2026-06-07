@@ -12,10 +12,12 @@ enum class EAbilityInputID : uint8
 
 	Primary		= 1 UMETA(DisplayName="Primary"),
 	Secondary	= 2 UMETA(DisplayName="Secondary"),
-	Signature	= 3 UMETA(DisplayName="Signature"),
-	Enhance		= 4 UMETA(DisplayName="Enhance"),
-	Ultimate	= 5 UMETA(DisplayName="Ultimate"),
-	Interact	= 6 UMETA(DisplayName="Interact"),
-	Core		= 7 UMETA(DisplayName="Core"),
-	Switch		= 8 UMETA(DisplayName="Switch")
+	PrimaryHeavy	= 3 UMETA(DisplayName="Primary Heavy"),
+	SecondaryHeavy	= 4 UMETA(DisplayName="Secondary Heavy"),
+	Enhance		= 5 UMETA(DisplayName="Enhance"),
+	Ultimate	= 6 UMETA(DisplayName="Ultimate"),
+	Interact	= 7 UMETA(DisplayName="Interact"),
+	Core		= 8 UMETA(DisplayName="Core"),
+	Special		= 9 UMETA(DisplayName="Special"),
+	Signature	= 10 UMETA(Hidden, DisplayName="Deprecated Signature")
 };

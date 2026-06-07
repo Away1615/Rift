@@ -1,34 +1,34 @@
-﻿// Fill out your copyright notice in the Description page of Project Settings.
+// Fill out your copyright notice in the Description page of Project Settings.
 
 #pragma once
 
 #include "CoreMinimal.h"
 #include "GameplayTagContainer.h"
+#include "Data/Player/Ability/AbilityDefinitionConfig.h"
 #include "Data/Player/Input/AbilityInputID.h"
 #include "Engine/DataAsset.h"
 #include "PlayerAbilitySetConfig.generated.h"
 
-class UBaseGameplayAbility;
 class UBaseAbilityConfig;
-class UAnimMontage;
-class UGameplayEffect;
-class UParticleSystem;
-class USoundBase;
+class UBaseGameplayAbility;
 
 UENUM(BlueprintType)
-enum class ERiftAbilitySlot : uint8
+enum class EAbilitySlot : uint8
 {
-	Passive		UMETA(DisplayName="Passive"),
-	Primary		UMETA(DisplayName="Primary"),
-	Secondary	UMETA(DisplayName="Secondary"),
-	Core		UMETA(DisplayName="Core"),
-	Signature	UMETA(DisplayName="Signature"),
-	Enhance		UMETA(DisplayName="Enhance"),
-	Ultimate	UMETA(DisplayName="Ultimate")
+	Passive			UMETA(DisplayName="Passive"),
+	Primary			UMETA(DisplayName="Primary"),
+	PrimaryHeavy	UMETA(DisplayName="Primary Heavy"),
+	Secondary		UMETA(DisplayName="Secondary"),
+	SecondaryHeavy	UMETA(DisplayName="Secondary Heavy"),
+	Core			UMETA(DisplayName="Core"),
+	Special			UMETA(DisplayName="Special"),
+	Enhance			UMETA(DisplayName="Enhance"),
+	Ultimate		UMETA(DisplayName="Ultimate"),
+	Signature		UMETA(Hidden, DisplayName="Deprecated Signature")
 };
 
 UENUM(BlueprintType)
-enum class ERiftAbilityType : uint8
+enum class EAbilityType : uint8
 {
 	None				UMETA(DisplayName="None"),
 	TwinSwordCombo		UMETA(DisplayName="Twin Sword Combo"),
@@ -38,212 +38,71 @@ enum class ERiftAbilityType : uint8
 };
 
 USTRUCT(BlueprintType)
-struct FRiftComboStepSpec
+struct FPlayerAbilitySlotConfig
 {
 	GENERATED_BODY()
 
-	FRiftComboStepSpec() = default;
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Ability")
+	TObjectPtr<UAbilityDefinitionConfig> Ability;
 
-	FRiftComboStepSpec(FName InSectionName, float InDamage)
-		: SectionName(InSectionName)
-		, Damage(InDamage)
-	{
-	}
-
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Combo")
-	FName SectionName = NAME_None;
-
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Combo", meta=(ClampMin="0.0"))
-	float Damage = 0.0f;
-};
-
-UCLASS(Abstract, BlueprintType, EditInlineNew, DefaultToInstanced)
-class RIFTWARD_API URiftAbilityFragment : public UObject
-{
-	GENERATED_BODY()
-};
-
-UCLASS(BlueprintType, EditInlineNew, DefaultToInstanced)
-class RIFTWARD_API URiftAbilityCostFragment : public URiftAbilityFragment
-{
-	GENERATED_BODY()
-
-public:
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Cost", meta=(ClampMin="0.0"))
-	float Stamina = 0.0f;
-
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Cost", meta=(ClampMin="0.0"))
-	float Mana = 0.0f;
-
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Cost")
-	TSubclassOf<UGameplayEffect> CostEffectClass;
-};
-
-UCLASS(BlueprintType, EditInlineNew, DefaultToInstanced)
-class RIFTWARD_API URiftAbilityMontageFragment : public URiftAbilityFragment
-{
-	GENERATED_BODY()
-
-public:
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Animation")
-	TObjectPtr<UAnimMontage> Montage;
-
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Animation")
-	TObjectPtr<UAnimMontage> EmpoweredMontage;
-
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Animation")
-	FName StartSection = NAME_None;
-
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Animation", meta=(ClampMin="0.01"))
-	float PlayRate = 1.0f;
-};
-
-UCLASS(BlueprintType, EditInlineNew, DefaultToInstanced)
-class RIFTWARD_API URiftAbilityHitFragment : public URiftAbilityFragment
-{
-	GENERATED_BODY()
-
-public:
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Hit", meta=(ClampMin="0.0"))
-	float Damage = 0.0f;
-
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Hit", meta=(ClampMin="0.0"))
-	float Range = 450.0f;
-
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Hit", meta=(ClampMin="1.0"))
-	float Radius = 80.0f;
-
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Hit", meta=(ClampMin="0.01"))
-	float EnhancedRadiusMultiplier = 1.0f;
-
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Hit")
-	bool bDrawDebug = false;
-};
-
-UCLASS(BlueprintType, EditInlineNew, DefaultToInstanced)
-class RIFTWARD_API URiftAbilityComboFragment : public URiftAbilityFragment
-{
-	GENERATED_BODY()
-
-public:
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Combo")
-	TArray<FRiftComboStepSpec> Steps;
-
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Combo", meta=(ClampMin="0.0"))
-	float EmpoweredDamageMultiplier = 1.0f;
-};
-
-UCLASS(BlueprintType, EditInlineNew, DefaultToInstanced)
-class RIFTWARD_API URiftAbilityBuffFragment : public URiftAbilityFragment
-{
-	GENERATED_BODY()
-
-public:
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Buff")
-	FGameplayTag ActiveStateTag;
-
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Buff", meta=(ClampMin="0.0"))
-	float Duration = 0.0f;
-};
-
-UCLASS(BlueprintType, EditInlineNew, DefaultToInstanced)
-class RIFTWARD_API URiftAbilityDodgeFragment : public URiftAbilityFragment
-{
-	GENERATED_BODY()
-
-public:
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Perfect Dodge", meta=(ClampMin="0.0"))
-	float PerfectWindowDuration = 0.25f;
-
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Perfect Dodge")
-	TObjectPtr<UAnimMontage> PerfectSuccessMontage;
-
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Perfect Dodge")
-	FName PerfectSuccessSection = NAME_None;
-
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Perfect Dodge", meta=(ClampMin="0.01"))
-	float PerfectSuccessPlayRate = 1.0f;
-
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Perfect Dodge|Cue")
-	TObjectPtr<UParticleSystem> PerfectSuccessEffect;
-
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Perfect Dodge|Cue")
-	TObjectPtr<USoundBase> PerfectSuccessSound;
-
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Perfect Dodge|Cue")
-	FName CueSocketName = NAME_None;
-
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Perfect Dodge|Cue")
-	FVector CueLocationOffset = FVector::ZeroVector;
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Ability", meta=(AdvancedDisplay))
+	bool bAutoGrant = true;
 };
 
 USTRUCT(BlueprintType)
-struct FPlayerAbilityEntry
+struct FPlayerAbilityGrant
 {
 	GENERATED_BODY()
 
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Ability")
+	UPROPERTY(BlueprintReadOnly, Category="Ability")
+	EAbilitySlot Slot = EAbilitySlot::Passive;
+
+	UPROPERTY(BlueprintReadOnly, Category="Ability")
+	TObjectPtr<UAbilityDefinitionConfig> Ability;
+
+	UPROPERTY(BlueprintReadOnly, Category="Ability")
+	bool bAutoGrant = true;
+};
+
+USTRUCT()
+struct FDeprecatedPlayerAbilityEntry
+{
+	GENERATED_BODY()
+
+	UPROPERTY()
 	FGameplayTag AbilityID;
 
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Ability")
-	ERiftAbilitySlot Slot = ERiftAbilitySlot::Passive;
+	UPROPERTY()
+	EAbilitySlot Slot = EAbilitySlot::Passive;
 
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Ability")
-	ERiftAbilityType AbilityType = ERiftAbilityType::None;
+	UPROPERTY()
+	EAbilityType AbilityType = EAbilityType::None;
 
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Ability")
+	UPROPERTY()
 	EAbilityInputID InputID = EAbilityInputID::None;
 
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Ability")
+	UPROPERTY()
 	TSubclassOf<UBaseGameplayAbility> AbilityClass;
 
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Ability", meta=(ClampMin="1"))
-	int32 Level = 1;
-
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Ability")
+	UPROPERTY()
 	bool bAutoGrant = true;
 
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Tags")
+	UPROPERTY()
 	FGameplayTagContainer RequiredTags;
 
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Tags")
+	UPROPERTY()
 	FGameplayTagContainer BlockedTags;
 
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Tags")
+	UPROPERTY()
 	FGameplayTag ActiveStateTag;
 
-	UPROPERTY(EditDefaultsOnly, Instanced, BlueprintReadOnly, Category="Fragments")
-	TArray<TObjectPtr<URiftAbilityFragment>> Fragments;
-
-	template <typename FragmentType>
-	const FragmentType* FindFragment() const
-	{
-		for (const TObjectPtr<URiftAbilityFragment>& Fragment : Fragments)
-		{
-			if (const FragmentType* TypedFragment = Cast<FragmentType>(Fragment))
-			{
-				return TypedFragment;
-			}
-		}
-		return nullptr;
-	}
-
-	template <typename FragmentType>
-	FragmentType* FindMutableFragment()
-	{
-		for (const TObjectPtr<URiftAbilityFragment>& Fragment : Fragments)
-		{
-			if (FragmentType* TypedFragment = Cast<FragmentType>(Fragment))
-			{
-				return TypedFragment;
-			}
-		}
-		return nullptr;
-	}
+	UPROPERTY(Instanced)
+	TArray<TObjectPtr<UAbilityConfigFragment>> Fragments;
 };
 
 /**
- *
+ * Per-class ability loadout. This asset owns only slot bindings; concrete skill
+ * identity, class, tags, and fragments live on UAbilityDefinitionConfig.
  */
 UCLASS(BlueprintType)
 class RIFTWARD_API UPlayerAbilitySetConfig : public UPrimaryDataAsset
@@ -254,52 +113,101 @@ public:
 	UPlayerAbilitySetConfig();
 	virtual void PostLoad() override;
 
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Ability")
-	TArray<FPlayerAbilityEntry> Abilities;
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Ability|Slots")
+	FPlayerAbilitySlotConfig PassiveAbility;
 
-	const FPlayerAbilityEntry* FindAbilityByID(FGameplayTag AbilityID) const;
-	const FPlayerAbilityEntry* FindAbilityByInputID(EAbilityInputID InputID) const;
-	TSubclassOf<UBaseGameplayAbility> ResolveAbilityClass(const FPlayerAbilityEntry& AbilityEntry) const;
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Ability|Slots")
+	FPlayerAbilitySlotConfig PrimaryAbility;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Ability|Slots")
+	FPlayerAbilitySlotConfig PrimaryHeavyAbility;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Ability|Slots")
+	FPlayerAbilitySlotConfig SecondaryAbility;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Ability|Slots")
+	FPlayerAbilitySlotConfig SecondaryHeavyAbility;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Ability|Slots")
+	FPlayerAbilitySlotConfig CoreAbility;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Ability|Slots")
+	FPlayerAbilitySlotConfig SpecialAbility;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Ability|Slots")
+	FPlayerAbilitySlotConfig EnhanceAbility;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Ability|Slots")
+	FPlayerAbilitySlotConfig UltimateAbility;
+
+	void GetGrantableAbilities(TArray<FPlayerAbilityGrant>& OutAbilities) const;
+
+	const UAbilityDefinitionConfig* FindAbilityByID(FGameplayTag AbilityID) const;
+	const UAbilityDefinitionConfig* FindAbilityByInputID(EAbilityInputID InputID) const;
+	const UAbilityDefinitionConfig* FindAbilityBySlot(EAbilitySlot Slot) const;
+
+	static EAbilityInputID GetInputIDForSlot(EAbilitySlot Slot);
+	static EAbilitySlot GetSlotForInputID(EAbilityInputID InputID);
 
 private:
-	UPROPERTY()
+	UPROPERTY(meta=(DeprecatedProperty))
+	FPlayerAbilitySlotConfig SignatureAbility;
+
+	UPROPERTY(meta=(DeprecatedProperty))
+	TArray<FDeprecatedPlayerAbilityEntry> Abilities;
+
+	UPROPERTY(meta=(DeprecatedProperty))
 	TArray<TSubclassOf<UBaseGameplayAbility>> PassiveAbilities;
 
-	UPROPERTY()
+	UPROPERTY(meta=(DeprecatedProperty))
 	TObjectPtr<UBaseAbilityConfig> CoreAbilityConfig;
 
-	UPROPERTY()
+	UPROPERTY(meta=(DeprecatedProperty))
 	TObjectPtr<UBaseAbilityConfig> PrimaryAbilityConfig;
 
-	UPROPERTY()
+	UPROPERTY(meta=(DeprecatedProperty))
 	TObjectPtr<UBaseAbilityConfig> SecondaryAbilityConfig;
 
-	UPROPERTY()
+	UPROPERTY(meta=(DeprecatedProperty))
 	TObjectPtr<UBaseAbilityConfig> SignatureAbilityConfig;
 
-	UPROPERTY()
+	UPROPERTY(meta=(DeprecatedProperty))
 	TObjectPtr<UBaseAbilityConfig> EnhanceAbilityConfig;
 
-	UPROPERTY()
+	UPROPERTY(meta=(DeprecatedProperty))
 	TObjectPtr<UBaseAbilityConfig> UltimateAbilityConfig;
 
-	FPlayerAbilityEntry* FindMutableAbilityBySlot(ERiftAbilitySlot Slot);
-	template <typename FragmentType>
-	FragmentType* FindOrAddFragment(FPlayerAbilityEntry& AbilityEntry);
-	void EnsureDefaultTwinSwordEntries();
-	void ApplyDeprecatedConfigData();
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<UAbilityDefinitionConfig>> GeneratedAbilityDefinitions;
 
+	bool HasAnyConfiguredAbility() const;
+	const FPlayerAbilitySlotConfig* FindSlotConfig(EAbilitySlot Slot) const;
+	FPlayerAbilitySlotConfig* FindMutableSlotConfig(EAbilitySlot Slot);
+
+	UAbilityDefinitionConfig* CreateGeneratedDefinition(FName BaseName);
+	UAbilityDefinitionConfig* FindOrCreateGeneratedDefinition(EAbilitySlot Slot, FName BaseName);
+	void AssignAbilityToSlot(
+		EAbilitySlot Slot,
+		UAbilityDefinitionConfig* AbilityDefinition,
+		bool bAutoGrant = true
+	);
+
+	template <typename FragmentType>
+	FragmentType* FindOrAddFragment(UAbilityDefinitionConfig& AbilityDefinition);
+
+	void ApplyDeprecatedAbilityEntries();
+	void ApplyDeprecatedConfigData();
 };
 
 template <typename FragmentType>
-FragmentType* UPlayerAbilitySetConfig::FindOrAddFragment(FPlayerAbilityEntry& AbilityEntry)
+FragmentType* UPlayerAbilitySetConfig::FindOrAddFragment(UAbilityDefinitionConfig& AbilityDefinition)
 {
-	if (FragmentType* Fragment = AbilityEntry.FindMutableFragment<FragmentType>())
+	if (FragmentType* Fragment = AbilityDefinition.FindMutableFragment<FragmentType>())
 	{
 		return Fragment;
 	}
 
-	FragmentType* Fragment = NewObject<FragmentType>(this, FragmentType::StaticClass(), NAME_None, RF_Transactional);
-	AbilityEntry.Fragments.Add(Fragment);
+	FragmentType* Fragment = NewObject<FragmentType>(&AbilityDefinition, FragmentType::StaticClass(), NAME_None, RF_Transactional);
+	AbilityDefinition.Fragments.Add(Fragment);
 	return Fragment;
 }

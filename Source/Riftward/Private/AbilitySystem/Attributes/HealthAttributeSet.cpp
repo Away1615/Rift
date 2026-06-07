@@ -5,6 +5,7 @@
 
 #include "GameplayEffectExtension.h"
 #include "Net/UnrealNetwork.h"
+#include "GameplayTags/RiftGameplayTags.h"
 
 UHealthAttributeSet::UHealthAttributeSet()
 {
@@ -34,7 +35,24 @@ void UHealthAttributeSet::PostGameplayEffectExecute(const FGameplayEffectModCall
 {
 	Super::PostGameplayEffectExecute(Data);
 
-	if (Data.EvaluatedData.Attribute == GetHealthAttribute() || Data.EvaluatedData.Attribute == GetMaxHealthAttribute())
+	if (Data.EvaluatedData.Attribute == GetHealthAttribute())
+	{
+		const float Magnitude = Data.EvaluatedData.Magnitude;
+
+		// 闪避无敌帧：闪避激活期间受到的伤害全部取消，并触发完美闪避事件（由 GA_TwinSword_Dodge 监听）
+		if (Magnitude < 0.0f &&
+			Data.Target.HasMatchingGameplayTag(FRiftGameplayTags::Get().State_TwinSword_Dodge_Active))
+		{
+			SetHealth(GetHealth() - Magnitude); // 还原伤害（Magnitude 为负，减负 = 加回）
+			FGameplayEventData EventPayload;
+			EventPayload.EventTag = FRiftGameplayTags::Get().Event_TwinSword_Dodge_PerfectSuccess;
+			Data.Target.HandleGameplayEvent(EventPayload.EventTag, &EventPayload);
+			return;
+		}
+
+		SetHealth(FMath::Clamp(GetHealth(), 0.0f, GetMaxHealth()));
+	}
+	else if (Data.EvaluatedData.Attribute == GetMaxHealthAttribute())
 	{
 		SetHealth(FMath::Clamp(GetHealth(), 0.0f, GetMaxHealth()));
 	}

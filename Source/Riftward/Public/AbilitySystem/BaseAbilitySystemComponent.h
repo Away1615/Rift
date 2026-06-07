@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "AbilitySystemComponent.h"
+#include "Data/Player/Input/AbilityInputID.h"
 #include "BaseAbilitySystemComponent.generated.h"
 
 /**
@@ -14,4 +15,14 @@ class RIFTWARD_API UBaseAbilitySystemComponent : public UAbilitySystemComponent
 {
 	GENERATED_BODY()
 
+public:
+	bool TryBufferAttackInputForActiveCombo(EAbilityInputID NewInputID);
+	void CancelActiveAbilitiesInterruptedByInput(EAbilityInputID NewInputID);
+
+private:
+	UFUNCTION(Server, Reliable)
+	void ServerBufferAttackInputForActiveCombo(EAbilityInputID NewInputID);
+
+	bool BufferAttackInputForActiveCombo(EAbilityInputID NewInputID);
+	bool HasActiveAbilityForInput(EAbilityInputID InputID);
 };

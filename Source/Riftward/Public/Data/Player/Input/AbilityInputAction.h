@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "AbilityInputID.h"
+#include "InputTriggers.h"
 #include "UObject/Object.h"
 #include "AbilityInputAction.generated.h"
 
@@ -21,4 +22,7 @@ struct FAbilityInputAction
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly)
 	EAbilityInputID InputID = EAbilityInputID::None;
+
+	UPROPERTY(EditAnywhere)
+	ETriggerEvent TriggerEvent = ETriggerEvent::Started;
 };

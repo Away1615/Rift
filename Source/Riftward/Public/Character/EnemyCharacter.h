@@ -7,6 +7,8 @@
 #include "EnemyCharacter.generated.h"
 
 class UHealthAttributeSet;
+class UEnemyAttributeSet;
+class UEnemyCharacterConfig;
 /**
  *
  */
@@ -23,9 +25,17 @@ public:
 	virtual UAbilitySystemComponent* GetAbilitySystemComponent() const override;
 
 protected:
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Config")
+	TObjectPtr<UEnemyCharacterConfig> EnemyCharacterConfig;
+
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Abilities")
 	TObjectPtr<UBaseAbilitySystemComponent> AbilitySystemComponent;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Abilities")
 	TObjectPtr<UHealthAttributeSet> HealthAttributeSet;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Abilities")
+	TObjectPtr<UEnemyAttributeSet> EnemyAttributeSet;
+
+	void ApplyEnemyConfig() const;
 };
