@@ -7,17 +7,17 @@ public class Riftward : ModuleRules
 	public Riftward(ReadOnlyTargetRules Target) : base(Target)
 	{
 		PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
-	
+
 		PublicDependencyModuleNames.AddRange(new string[] {
-			"Core", "CoreUObject", "Engine", "InputCore", "EnhancedInput",
-			"GameplayTags", "UMG",
+			"Core", "CoreUObject", "Engine", "InputCore", "EnhancedInput", "UMG",
+			"GameplayAbilities", "GameplayTags", "GameplayTasks"
 			});
 
 		PrivateDependencyModuleNames.AddRange(new string[] {  });
 
 		// Uncomment if you are using Slate UI
 		// PrivateDependencyModuleNames.AddRange(new string[] { "Slate", "SlateCore" });
-		
+
 		// Uncomment if you are using online features
 		// PrivateDependencyModuleNames.Add("OnlineSubsystem");
 

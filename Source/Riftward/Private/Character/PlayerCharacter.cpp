@@ -170,14 +170,14 @@ void APlayerCharacter::ApplyWeaponsFromConfig()
 
     if (!PlayerClassConfig)
     {
-        Logger::Error(this, TEXT("EquipWeapons failed: PlayerClassConfig is missing"));
+        FLogger::Error(this, TEXT("EquipWeapons failed: PlayerClassConfig is missing"), ELogSystem::Weapon);
         return;
     }
 
     const UPlayerWeaponConfig* WeaponConfig = PlayerClassConfig->PlayerWeaponConfig;
     if (!WeaponConfig)
     {
-        Logger::Error(this, TEXT("EquipWeapons failed: PlayerWeaponConfig is missing"));
+        FLogger::Error(this, TEXT("EquipWeapons failed: PlayerWeaponConfig is missing"), ELogSystem::Weapon);
         return;
     }
 
@@ -209,26 +209,26 @@ APlayerWeapon* APlayerCharacter::SpawnAndAttachWeapon(const FPlayerWeaponPartCon
     USkeletalMeshComponent* CharacterMesh = GetMesh();
     if (!CharacterMesh)
     {
-        Logger::Error(this, TEXT("EquipWeapons failed: Character mesh is missing"));
+        FLogger::Error(this, TEXT("EquipWeapons failed: Character mesh is missing"), ELogSystem::Weapon);
         return nullptr;
     }
 
     if (!WeaponPartConfig.WeaponActorClass)
     {
-        Logger::Error(this, TEXT("EquipWeapons skipped: WeaponActorClass is missing"));
+        FLogger::Error(this, TEXT("EquipWeapons skipped: WeaponActorClass is missing"), ELogSystem::Weapon);
         return nullptr;
     }
 
     const FName SocketName = WeaponPartConfig.AttachSocket;
     if (SocketName.IsNone())
     {
-        Logger::Error(this, TEXT("EquipWeapons skipped: AttachSocket is None"));
+        FLogger::Error(this, TEXT("EquipWeapons skipped: AttachSocket is None"), ELogSystem::Weapon);
         return nullptr;
     }
 
     if (!CharacterMesh->DoesSocketExist(SocketName))
     {
-        Logger::Error(this, FString::Printf(TEXT("EquipWeapons skipped: socket %s does not exist"), *SocketName.ToString()));
+        FLogger::Error(this, FString::Printf(TEXT("EquipWeapons skipped: socket %s does not exist"), *SocketName.ToString()), ELogSystem::Weapon);
         return nullptr;
     }
 
@@ -245,7 +245,7 @@ APlayerWeapon* APlayerCharacter::SpawnAndAttachWeapon(const FPlayerWeaponPartCon
 
     if (!WeaponActor)
     {
-        Logger::Error(this, TEXT("EquipWeapons failed: SpawnActor returned null"));
+        FLogger::Error(this, TEXT("EquipWeapons failed: SpawnActor returned null"), ELogSystem::Weapon);
         return nullptr;
     }
 
@@ -255,11 +255,11 @@ APlayerWeapon* APlayerCharacter::SpawnAndAttachWeapon(const FPlayerWeaponPartCon
         SocketName
     );
 
-    Logger::Log(this, FString::Printf(
+    FLogger::Log(this, FString::Printf(
         TEXT("Equipped %s on %s"),
         *GetNameSafe(WeaponActor),
         *SocketName.ToString()
-    ));
+    ), ELogSystem::Weapon);
 
     return WeaponActor;
 }

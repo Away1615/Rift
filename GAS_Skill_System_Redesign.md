@@ -1340,3 +1340,148 @@ Melee 命中 -> Payload OnHit -> EffectExecutor -> GameplayEffect
 ```
 
 这个闭环成立后，再逐步接入 Projectile、AoE、Buff、InputContext 和 CameraMode。
+
+## 30. 实现约定与决策记录
+
+这一节用来沉淀"一旦定下来就很难改、过段时间又容易忘记原因"的基础设施决策。后续每做一个类似的决定，都在这里追加一条。
+
+### 30.1 GameplayTag 管理规则
+
+结论：
+
+```text
+声明来源：DefaultGameplayTags.ini / Project Settings -> GameplayTags
+C++ 角色：FRiftGameplayTags 作为访问缓存层，不做主声明
+第一阶段：不使用 Native Tag
+```
+
+原因：
+
+新系统里大量字段本质是配置数据：
+
+```text
+RequiredTags
+BlockedTags
+ActiveStateTag
+GrantedTags
+RequiredOwnerTags
+RequiredTargetTags
+CueTag
+SetByCallerTag
+```
+
+随着内容增长，会频繁新增类似这样的标签：
+
+```text
+Ability.Mage.FireBolt
+State.Mage.SpellWeaving.Active
+Buff.TwinSword.PerfectDodge
+Cue.Hit.TwinSword.Light
+```
+
+如果继续纯 C++ 原生注册，每加一个配置用的标签都要改代码、重新编译，和数据驱动的方向相悖。
+
+边界划分：
+
+```text
+声明在 ini（Project Settings 面板编辑，ini 是落盘格式，不建议手改）
+使用在 C++（FRiftGameplayTags 统一 RequestGameplayTag 并缓存）
+```
+
+概念示意：
+
+```cpp
+Data_Damage = RequestGameplayTag("Data.Damage");
+State_Dead  = RequestGameplayTag("State.Dead");
+```
+
+只有极少数系统级、几乎永不由配置侧新增、且必须被 C++ 强依赖的标签，才考虑用 Native Tag。第一阶段建议完全不用，保持声明来源单一。
+
+推荐 taxonomy：
+
+```text
+Ability.*
+State.*
+Buff.*
+Event.*
+Data.*
+Cue.*
+Cooldown.*
+InputContext.*
+Delivery.*
+```
+
+示例：
+
+```text
+Ability.TwinSword.LightCombo
+Ability.TwinSword.HeavyAttack
+Ability.Mage.SpellWeaving
+
+State.Dead
+State.Stunned
+State.TwinSword.LightCombo.Active
+State.Mage.SpellWeaving.Active
+State.Archer.Aiming
+
+Buff.TwinSword.PerfectDodge
+Buff.Mage.ComboStep
+
+Event.Combo.ChainWindow
+Event.Montage.SpawnDelivery
+
+Data.Damage
+Data.Heal
+Data.Duration
+Data.StaminaCost
+Data.ManaCost
+
+Cue.Hit.TwinSword.Light
+Cue.Ability.Mage.FireBolt.Hit
+```
+
+### 30.2 落实这条规则时要一并定下来的细节
+
+这些是"从纯原生注册切换到字符串请求"之后才会出现的新坑，原来的纯 C++ 注册方式不会遇到，必须主动补偿。
+
+**1. 初始化时机**
+
+```text
+RequestGameplayTag 必须在 GameplayTagsManager 完成 ini 加载之后调用
+调用太早会静默返回 invalid tag，且不会报错
+需要明确 FRiftGameplayTags 在哪个生命周期节点统一初始化并缓存
+不要依赖"第一次被访问时惰性请求"
+```
+
+**2. 容错策略**
+
+```text
+纯原生注册时代：标签名拼错 = 编译失败，问题立刻暴露
+切到字符串请求后：标签名拼错 = 运行时静默返回空 tag
+建议：缓存层统一使用 ErrorIfNotFound = true
+把"编译期保证"替换成"启动期报错 / 断言保证"
+不要彻底放弃这层保证
+```
+
+**3. ini 是存储格式，不是编辑界面**
+
+```text
+日常增删标签走 Project Settings -> GameplayTags 面板
+ini 文件只是面板落盘的格式，不建议手改
+善用面板的 DevComment 字段
+为语义不直观的标签写清楚用途
+例如 Event.Combo.ChainWindow、Data.StaminaCost
+```
+
+**4. 标签层级匹配语义**
+
+```text
+RequiredTags / BlockedTags / RequiredOwnerTags / RequiredTargetTags
+全部依赖 FGameplayTagContainer 的层级匹配行为
+
+在正式大量填写标签前，先用一两个例子验证清楚：
+State.Stunned 的容器是否匹配 State.Stunned.Heavy
+
+确认后把结论写成 taxonomy 的一条约定
+避免出现"明明加了 BlockedTags 为什么技能还能放"这类问题
+```
