@@ -101,5 +101,5 @@ void ABasePlayerController::HandleMoveCompleted()
 	APlayerCharacter* PlayerCharacter = GetPawn<APlayerCharacter>();
 	if (!PlayerCharacter) return;
 
-	PlayerCharacter->HandleMove(FVector2D::ZeroVector);
+	PlayerCharacter->ClearMovementInputCache();
 }

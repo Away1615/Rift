@@ -13,6 +13,13 @@ class UPlayerAnimationConfig;
 class UPlayerClassConfig;
 struct FPlayerWeaponPartConfig;
 
+UENUM(BlueprintType)
+enum class ERiftCharacterFacingMode : uint8
+{
+	Movement UMETA(DisplayName="Movement"),
+	CombatAssist UMETA(DisplayName="Combat Assist")
+};
+
 /**
  *
  */
@@ -25,6 +32,30 @@ public:
 	APlayerCharacter();
 
 	void HandleMove(const FVector2D& InputValue);
+	// Only call from combat state paths that execute on both server and owning client,
+	// such as a future LocalPredicted GameplayAbility ActivateAbility/EndAbility.
+	// Do not call from purely local input callbacks.
+	UFUNCTION(BlueprintCallable, Category="Locomotion|Facing")
+	void SetFacingMode(ERiftCharacterFacingMode NewFacingMode);
+
+	UFUNCTION(BlueprintPure, Category="Locomotion|Facing")
+	ERiftCharacterFacingMode GetFacingMode() const;
+
+	// Only call from combat state paths that execute on both server and owning client,
+	// such as a future LocalPredicted GameplayAbility ActivateAbility/EndAbility.
+	// Do not call from purely local input callbacks.
+	UFUNCTION(BlueprintCallable, Category="Locomotion|Facing")
+	void StartAssistedFacing(const FRotator& TargetRotation, float Duration, float RotationSpeed);
+
+	// Only call from combat state paths that execute on both server and owning client,
+	// such as a future LocalPredicted GameplayAbility ActivateAbility/EndAbility.
+	// Do not call from purely local input callbacks.
+	UFUNCTION(BlueprintCallable, Category="Locomotion|Facing")
+	void StopAssistedFacing();
+
+	UFUNCTION(BlueprintCallable, Category="Locomotion")
+	void ClearMovementInputCache();
+
 	// Whether Player press WASD
 	bool HasMovementInput() const;
 	// Whether Player is Moving
@@ -33,6 +64,8 @@ public:
 	virtual void Tick(float DeltaTime) override;
 	virtual void PostInitializeComponents() override;
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
+	virtual void UnPossessed() override;
+	virtual void PawnClientRestart() override;
 
 	// On the server, called when this Pawn is controlled by the Controller
 	virtual void PossessedBy(AController* NewController) override;
@@ -65,6 +98,21 @@ protected:
 	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category="Locomotion|Turn")
 	float CurrentTurnRate = 600.0f;
 
+	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category="Locomotion|Facing")
+	ERiftCharacterFacingMode FacingMode = ERiftCharacterFacingMode::Movement;
+
+	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category="Locomotion|Facing")
+	bool bIsAssistedFacing = false;
+
+	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category="Locomotion|Facing")
+	FRotator AssistedFacingTargetRotation = FRotator::ZeroRotator;
+
+	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category="Locomotion|Facing")
+	float AssistedFacingTimeRemaining = 0.0f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Locomotion|Facing")
+	float AssistedFacingRotationSpeed = 1200.0f;
+
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, ReplicatedUsing=OnRep_PlayerClassConfig, Category="Class")
 	TObjectPtr<UPlayerClassConfig> PlayerClassConfig;
 
@@ -88,7 +136,8 @@ private:
 	/* Movement and Camera Control */
 	void InitMovementSettings();
 	void ApplyCameraRelativeMovementInput();
-	void ClearMovementInput();
+	void ApplyFacingModeToMovement();
 	void ApplyMovementSettings() const;
 	void UpdateMovementRotationRate(float DeltaTime);
+	void UpdateAssistedFacing(float DeltaTime);
 };

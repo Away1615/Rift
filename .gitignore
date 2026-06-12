@@ -3,18 +3,7 @@ Binaries/
 DerivedDataCache/
 Intermediate/
 Saved/
-Content/Biomes/*
-Content/EnemyWarriorAnimPack/*
-Content/EssentialMagicAnimationPack/*
-Content/Frank_RPG_Dual/*
-Content/LevelPrototyping/*
-Content/ModularCharacters/*
-Content/PolygonDungeons/*
-Content/PolygonFantasyRivals/*
-Content/PolygonParticleFX/*
-Content/RPG_Hero_Character/*
-Content/Synty/*
-Content/WMAnimation/*
+Content/*
 Content/__ExternalActors__/*
 Content/__ExternalObjects__/*
 

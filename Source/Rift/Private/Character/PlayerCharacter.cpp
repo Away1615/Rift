@@ -24,7 +24,12 @@ void APlayerCharacter::Tick(float DeltaTime)
 {
     Super::Tick(DeltaTime);
     ApplyCameraRelativeMovementInput();
-    UpdateMovementRotationRate(DeltaTime);
+    UpdateAssistedFacing(DeltaTime);
+
+    if (FacingMode == ERiftCharacterFacingMode::Movement)
+    {
+        UpdateMovementRotationRate(DeltaTime);
+    }
 }
 
 void APlayerCharacter::PostInitializeComponents()
@@ -88,6 +93,22 @@ void APlayerCharacter::OnRep_PlayerState()
     Super::OnRep_PlayerState();
 }
 
+void APlayerCharacter::UnPossessed()
+{
+    Super::UnPossessed();
+    ClearMovementInputCache();
+    StopAssistedFacing();
+    SetFacingMode(ERiftCharacterFacingMode::Movement);
+}
+
+void APlayerCharacter::PawnClientRestart()
+{
+    Super::PawnClientRestart();
+    ClearMovementInputCache();
+    StopAssistedFacing();
+    SetFacingMode(ERiftCharacterFacingMode::Movement);
+}
+
 bool APlayerCharacter::HasMovementInput() const
 {
     return !MovementInputVector.IsNearlyZero();
@@ -105,8 +126,60 @@ void APlayerCharacter::HandleMove(const FVector2D& InputValue)
 
     if (InputValue.IsNearlyZero())
     {
-        ClearMovementInput();
+        ClearMovementInputCache();
     }
+}
+
+void APlayerCharacter::SetFacingMode(const ERiftCharacterFacingMode NewFacingMode)
+{
+    if (FacingMode == NewFacingMode) return;
+
+    FacingMode = NewFacingMode;
+    ApplyFacingModeToMovement();
+}
+
+ERiftCharacterFacingMode APlayerCharacter::GetFacingMode() const
+{
+    return FacingMode;
+}
+
+void APlayerCharacter::StartAssistedFacing(const FRotator& TargetRotation, const float Duration, const float RotationSpeed)
+{
+    if (FacingMode != ERiftCharacterFacingMode::CombatAssist)
+    {
+        FLogger::Log(
+            this,
+            TEXT("Warning: StartAssistedFacing ignored because FacingMode is not CombatAssist"),
+            ELogSystem::Character,
+            ELogOutputType::LogOnly
+        );
+        return;
+    }
+
+    AssistedFacingTargetRotation = FRotator(0.0f, TargetRotation.Yaw, 0.0f);
+    AssistedFacingRotationSpeed = RotationSpeed > 0.0f ? RotationSpeed : 1200.0f;
+
+    if (Duration <= 0.0f)
+    {
+        const FRotator CurrentRotation = GetActorRotation();
+        SetActorRotation(FRotator(CurrentRotation.Pitch, AssistedFacingTargetRotation.Yaw, CurrentRotation.Roll));
+        StopAssistedFacing();
+        return;
+    }
+
+    AssistedFacingTimeRemaining = Duration;
+    bIsAssistedFacing = true;
+}
+
+void APlayerCharacter::StopAssistedFacing()
+{
+    bIsAssistedFacing = false;
+    AssistedFacingTimeRemaining = 0.0f;
+}
+
+void APlayerCharacter::ClearMovementInputCache()
+{
+    MovementInputVector = FVector2D::ZeroVector;
 }
 
 void APlayerCharacter::InitPlayerProperties()
@@ -270,13 +343,9 @@ void APlayerCharacter::InitMovementSettings()
     if (!MovementComponent) return;
 
     bUseControllerRotationPitch = false;
-    bUseControllerRotationYaw = false;
     bUseControllerRotationRoll = false;
 
-    // Always face to move direction
-    MovementComponent->bOrientRotationToMovement = true;
-    // Turn character to controller desired direction
-    MovementComponent->bUseControllerDesiredRotation = false;
+    ApplyFacingModeToMovement();
 }
 
 void APlayerCharacter::ApplyCameraRelativeMovementInput()
@@ -300,9 +369,24 @@ void APlayerCharacter::ApplyCameraRelativeMovementInput()
     AddMovementInput(MoveDirection, MoveVector.Size());
 }
 
-void APlayerCharacter::ClearMovementInput()
+void APlayerCharacter::ApplyFacingModeToMovement()
 {
-    MovementInputVector = FVector2D::ZeroVector;
+    UCharacterMovementComponent* MovementComponent = GetCharacterMovement();
+    if (!MovementComponent) return;
+
+    bUseControllerRotationYaw = false;
+    MovementComponent->bUseControllerDesiredRotation = false;
+
+    switch (FacingMode)
+    {
+    case ERiftCharacterFacingMode::CombatAssist:
+        MovementComponent->bOrientRotationToMovement = false;
+        break;
+    case ERiftCharacterFacingMode::Movement:
+    default:
+        MovementComponent->bOrientRotationToMovement = true;
+        break;
+    }
 }
 
 void APlayerCharacter::ApplyMovementSettings() const
@@ -315,20 +399,21 @@ void APlayerCharacter::ApplyMovementSettings() const
     if (!CommonConfig) return;
     MovementComponent->MaxWalkSpeed = CommonConfig->RunSpeed;
 
-    const float InitialTurnRate = CommonConfig
-        ? (CommonConfig->MinTurnRate + CommonConfig->MaxTurnRate) / 2.0f
-        : CurrentTurnRate;
+    const float InitialTurnRate = (CommonConfig->MinTurnRate + CommonConfig->MaxTurnRate) / 2.0f;
     MovementComponent->RotationRate = FRotator(0.0f, InitialTurnRate, 0.0f);
 
     MovementComponent->MaxAcceleration = CommonConfig->MaxAcceleration;
     MovementComponent->BrakingDecelerationWalking = CommonConfig->BrakingDecelerationWalking;
-    MovementComponent->BrakingFriction = 2;
-    MovementComponent->BrakingFrictionFactor = 1;
-    MovementComponent->GroundFriction = 8;
+    MovementComponent->bUseSeparateBrakingFriction = true;
+    MovementComponent->BrakingFriction = CommonConfig->BrakingFriction;
+    MovementComponent->BrakingFrictionFactor = CommonConfig->BrakingFrictionFactor;
+    MovementComponent->GroundFriction = CommonConfig->GroundFriction;
 }
 
 void APlayerCharacter::UpdateMovementRotationRate(const float DeltaTime)
 {
+    if (FacingMode != ERiftCharacterFacingMode::Movement) return;
+
     UCharacterMovementComponent* MovementComponent = GetCharacterMovement();
     if (!MovementComponent) return;
 
@@ -368,4 +453,29 @@ void APlayerCharacter::UpdateMovementRotationRate(const float DeltaTime)
     );
 
     MovementComponent->RotationRate = FRotator(0.0f, CurrentTurnRate, 0.0f);
+}
+
+void APlayerCharacter::UpdateAssistedFacing(const float DeltaTime)
+{
+    if (FacingMode != ERiftCharacterFacingMode::CombatAssist) return;
+    if (!bIsAssistedFacing) return;
+
+    const FRotator CurrentRotation = GetActorRotation();
+    const float NewYaw = FMath::FixedTurn(
+        CurrentRotation.Yaw,
+        AssistedFacingTargetRotation.Yaw,
+        AssistedFacingRotationSpeed * DeltaTime
+    );
+
+    SetActorRotation(FRotator(CurrentRotation.Pitch, NewYaw, CurrentRotation.Roll));
+
+    AssistedFacingTimeRemaining -= DeltaTime;
+    const float YawDelta = FMath::Abs(
+        FMath::FindDeltaAngleDegrees(NewYaw, AssistedFacingTargetRotation.Yaw)
+    );
+    if (AssistedFacingTimeRemaining <= 0.0f ||
+        YawDelta < 0.1f)
+    {
+        StopAssistedFacing();
+    }
 }
