@@ -24,6 +24,9 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Attribute|Poise")
 	float MaxPoise = 100.0f;
 
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Attribute|Poise")
+	float PoiseRegenDelay = 2.5f;
+
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Attribute|Rage")
 	float Rage = 0.0f;
 

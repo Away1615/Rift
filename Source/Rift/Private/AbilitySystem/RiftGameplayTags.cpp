@@ -15,6 +15,7 @@ namespace RiftGameplayTags
 	UE_DEFINE_GAMEPLAY_TAG(InputTag_Attack_Secondary, "InputTag.Attack.Secondary");
 
 	UE_DEFINE_GAMEPLAY_TAG(SetByCaller_Damage, "SetByCaller.Damage");
+	UE_DEFINE_GAMEPLAY_TAG(SetByCaller_PoiseDamage, "SetByCaller.PoiseDamage");
 
 	UE_DEFINE_GAMEPLAY_TAG(GameplayCue_Combat_MeleeHit, "GameplayCue.Combat.MeleeHit");
 }

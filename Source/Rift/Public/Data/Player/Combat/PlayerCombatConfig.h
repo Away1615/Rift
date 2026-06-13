@@ -28,6 +28,9 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Attack")
 	TArray<float> PrimaryAttackSectionDamage;
 
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Attack")
+	TArray<float> PrimaryAttackSectionPoiseDamage;
+
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Attack|HitStop")
 	float HitStopDuration = 0.05f;
 

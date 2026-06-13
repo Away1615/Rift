@@ -5,12 +5,23 @@
 #include "CoreMinimal.h"
 #include "AbilitySystemInterface.h"
 #include "Character/BaseCharacter.h"
+#include "TimerManager.h"
 #include "EnemyCharacter.generated.h"
 
 class UEnemyCharacterConfig;
 class UAbilitySystemComponent;
 class URiftAbilitySystemComponent;
 class URiftEnemyAttributeSet;
+
+UENUM(BlueprintType)
+enum class ERiftHitReactDirection : uint8
+{
+	Front UMETA(DisplayName="Front"),
+	Back UMETA(DisplayName="Back"),
+	Left UMETA(DisplayName="Left"),
+	Right UMETA(DisplayName="Right")
+};
+
 /**
  *
  */
@@ -23,7 +34,13 @@ public:
 	AEnemyCharacter();
 
 	virtual void BeginPlay() override;
+	virtual void PostInitializeComponents() override;
 	virtual UAbilitySystemComponent* GetAbilitySystemComponent() const override;
+
+	void HandlePoiseHit(bool bPoiseBroken, const FVector& InstigatorLocation);
+
+	UFUNCTION(NetMulticast, Unreliable)
+	void Multicast_PlayHitReact(ERiftHitReactDirection Direction, bool bPoiseBroken);
 
 protected:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Config")
@@ -34,4 +51,12 @@ protected:
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="AbilitySystem")
 	TObjectPtr<URiftEnemyAttributeSet> AttributeSet;
+
+private:
+	void ApplyAnimationConfig() const;
+	void RestorePoise();
+	ERiftHitReactDirection CalculateHitReactDirection(const FVector& InstigatorLocation) const;
+	static FName GetHitReactSectionName(ERiftHitReactDirection Direction);
+
+	FTimerHandle PoiseRegenTimerHandle;
 };

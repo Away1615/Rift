@@ -20,9 +20,10 @@ URiftWeaponTraceComponent::URiftWeaponTraceComponent()
 	SetComponentTickEnabled(false);
 }
 
-void URiftWeaponTraceComponent::SetIncomingHitParams(const float Damage)
+void URiftWeaponTraceComponent::SetIncomingHitParams(const float Damage, const float PoiseDamage)
 {
 	IncomingDamage = FMath::Max(0.0f, Damage);
+	IncomingPoiseDamage = FMath::Max(0.0f, PoiseDamage);
 }
 
 void URiftWeaponTraceComponent::StartHitWindow(const ERiftWeaponSlot Slot)
@@ -212,6 +213,7 @@ void URiftWeaponTraceComponent::ProcessHit(const ERiftWeaponSlot Slot, const flo
 	HitActorsThisWindow.Add(HitActorKey);
 
 	DamageSpecHandle.Data->SetSetByCallerMagnitude(RiftGameplayTags::SetByCaller_Damage, IncomingDamage);
+	DamageSpecHandle.Data->SetSetByCallerMagnitude(RiftGameplayTags::SetByCaller_PoiseDamage, IncomingPoiseDamage);
 	SourceAbilitySystemComponent->ApplyGameplayEffectSpecToTarget(
 		*DamageSpecHandle.Data.Get(),
 		TargetAbilitySystemComponent

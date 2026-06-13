@@ -6,6 +6,7 @@
 #include "Engine/DataAsset.h"
 #include "EnemyCharacterConfig.generated.h"
 
+class UEnemyAnimationConfig;
 class UEnemyCommonConfig;
 
 UCLASS(BlueprintType)
@@ -16,4 +17,7 @@ class RIFT_API UEnemyCharacterConfig : public UPrimaryDataAsset
 public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Common")
 	TObjectPtr<UEnemyCommonConfig> EnemyCommonConfig;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Animation")
+	TObjectPtr<UEnemyAnimationConfig> EnemyAnimationConfig;
 };

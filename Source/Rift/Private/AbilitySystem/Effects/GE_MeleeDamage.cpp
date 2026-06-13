@@ -18,4 +18,14 @@ UGE_MeleeDamage::UGE_MeleeDamage()
 	DamageModifier.ModifierMagnitude = FGameplayEffectModifierMagnitude(DamageMagnitude);
 
 	Modifiers.Add(DamageModifier);
+
+	FSetByCallerFloat PoiseDamageMagnitude;
+	PoiseDamageMagnitude.DataTag = RiftGameplayTags::SetByCaller_PoiseDamage;
+
+	FGameplayModifierInfo PoiseDamageModifier;
+	PoiseDamageModifier.Attribute = URiftEnemyAttributeSet::GetPoiseDamageAttribute();
+	PoiseDamageModifier.ModifierOp = EGameplayModOp::Additive;
+	PoiseDamageModifier.ModifierMagnitude = FGameplayEffectModifierMagnitude(PoiseDamageMagnitude);
+
+	Modifiers.Add(PoiseDamageModifier);
 }

@@ -30,7 +30,7 @@ class RIFT_API URiftWeaponTraceComponent : public UActorComponent
 public:
 	URiftWeaponTraceComponent();
 
-	void SetIncomingHitParams(float Damage);
+	void SetIncomingHitParams(float Damage, float PoiseDamage);
 	void StartHitWindow(ERiftWeaponSlot Slot);
 	void EndHitWindow(ERiftWeaponSlot Slot);
 
@@ -58,6 +58,7 @@ private:
 	static FName GetSocketNameForSlot(ERiftWeaponTraceSocket Socket);
 
 	float IncomingDamage = 0.0f;
+	float IncomingPoiseDamage = 0.0f;
 	TMap<ERiftWeaponSlot, int32> HitWindowRefCounts;
 	TArray<FWeaponTraceCache> WeaponTraceCaches;
 	TMap<ERiftWeaponSlot, TSet<TObjectKey<AActor>>> HitActorsBySlot;

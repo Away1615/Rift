@@ -17,6 +17,7 @@ namespace RiftGameplayTags
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(InputTag_Attack_Secondary);
 
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(SetByCaller_Damage);
+	UE_DECLARE_GAMEPLAY_TAG_EXTERN(SetByCaller_PoiseDamage);
 
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(GameplayCue_Combat_MeleeHit);
 }

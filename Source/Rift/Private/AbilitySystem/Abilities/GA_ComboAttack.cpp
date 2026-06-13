@@ -311,8 +311,21 @@ void UGA_ComboAttack::UpdateWeaponTraceDamage()
 
 	const UPlayerClassConfig* PlayerClassConfig = PlayerCharacter->GetPlayerClassConfig();
 	const UPlayerCombatConfig* PlayerCombatConfig = PlayerClassConfig ? PlayerClassConfig->PlayerCombatConfig : nullptr;
-	if (!PlayerCombatConfig || PlayerCombatConfig->PrimaryAttackSectionDamage.Num() < 1) return;
+	if (!PlayerCombatConfig) return;
 
-	const int32 DamageIndex = FMath::Clamp(CurrentComboIndex, 0, PlayerCombatConfig->PrimaryAttackSectionDamage.Num() - 1);
-	WeaponTraceComponent->SetIncomingHitParams(PlayerCombatConfig->PrimaryAttackSectionDamage[DamageIndex]);
+	float Damage = 0.0f;
+	if (PlayerCombatConfig->PrimaryAttackSectionDamage.Num() > 0)
+	{
+		const int32 DamageIndex = FMath::Clamp(CurrentComboIndex, 0, PlayerCombatConfig->PrimaryAttackSectionDamage.Num() - 1);
+		Damage = PlayerCombatConfig->PrimaryAttackSectionDamage[DamageIndex];
+	}
+
+	float PoiseDamage = 0.0f;
+	if (PlayerCombatConfig->PrimaryAttackSectionPoiseDamage.Num() > 0)
+	{
+		const int32 PoiseDamageIndex = FMath::Clamp(CurrentComboIndex, 0, PlayerCombatConfig->PrimaryAttackSectionPoiseDamage.Num() - 1);
+		PoiseDamage = PlayerCombatConfig->PrimaryAttackSectionPoiseDamage[PoiseDamageIndex];
+	}
+
+	WeaponTraceComponent->SetIncomingHitParams(Damage, PoiseDamage);
 }

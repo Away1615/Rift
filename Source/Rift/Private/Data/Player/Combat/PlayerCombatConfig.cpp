@@ -17,4 +17,11 @@ UPlayerCombatConfig::UPlayerCombatConfig()
 		12.0f,
 		18.0f
 	};
+
+	PrimaryAttackSectionPoiseDamage = {
+		10.0f,
+		10.0f,
+		12.0f,
+		18.0f
+	};
 }
