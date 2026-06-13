@@ -7,6 +7,7 @@
 #include "PlayerCombatConfig.generated.h"
 
 class UAnimMontage;
+class UCameraShakeBase;
 
 UCLASS(BlueprintType)
 class RIFT_API UPlayerCombatConfig : public UPrimaryDataAsset
@@ -36,6 +37,12 @@ public:
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Attack|HitStop")
 	float HitStopTimeDilation = 0.1f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Attack|CameraShake")
+	TArray<TSubclassOf<UCameraShakeBase>> PrimaryAttackSectionCameraShake;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Attack|CameraShake")
+	TArray<FVector2D> PrimaryAttackSectionShakeDir;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="TargetAssist")
 	float TargetAssistMaxRange = 800.0f;

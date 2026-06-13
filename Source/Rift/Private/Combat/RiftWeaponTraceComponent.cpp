@@ -225,7 +225,7 @@ void URiftWeaponTraceComponent::ProcessHit(const ERiftWeaponSlot Slot, const flo
 	CueParameters.Instigator = PlayerCharacter;
 	CueParameters.EffectCauser = PlayerCharacter;
 	TargetAbilitySystemComponent->ExecuteGameplayCue(RiftGameplayTags::GameplayCue_Combat_MeleeHit, CueParameters);
-	PlayerCharacter->Multicast_PlayMeleeHitStop(EnemyCharacter);
+	PlayerCharacter->Multicast_PlayMeleeHitFeedback(EnemyCharacter);
 
 	if (RiftDebugCVars::IsCombatDebugEnabled())
 	{

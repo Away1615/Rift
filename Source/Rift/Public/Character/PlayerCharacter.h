@@ -103,7 +103,7 @@ public:
 	URiftWeaponTraceComponent* GetWeaponTraceComponent() const { return WeaponTraceComponent; }
 
 	UFUNCTION(NetMulticast, Unreliable)
-	void Multicast_PlayMeleeHitStop(AActor* HitEnemy);
+	void Multicast_PlayMeleeHitFeedback(AActor* HitEnemy);
 
 protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Camera")

@@ -40,6 +40,7 @@ public:
 	void CommitComboChainPoint();
 
 	static UGA_ComboAttack* FindActiveComboInstance(AActor* AvatarActor);
+	int32 GetCurrentComboIndex() const { return CurrentComboIndex; }
 
 protected:
 	UFUNCTION()

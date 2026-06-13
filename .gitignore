@@ -3,7 +3,8 @@ Binaries/
 DerivedDataCache/
 Intermediate/
 Saved/
-Content/*
+Content/Vendor/*
+Content/WMAnimation/*
 Content/__ExternalActors__/*
 Content/__ExternalObjects__/*
 

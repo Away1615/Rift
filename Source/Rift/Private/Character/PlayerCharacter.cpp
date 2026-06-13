@@ -4,7 +4,10 @@
 #include "Character/PlayerCharacter.h"
 
 #include "AbilitySystemComponent.h"
+#include "AbilitySystem/Abilities/GA_ComboAttack.h"
 #include "Abilities/GameplayAbility.h"
+#include "Camera/PlayerCameraManager.h"
+#include "Camera/RiftHitCameraShake.h"
 #include "Combat/RiftTargetAssistComponent.h"
 #include "Combat/RiftWeaponTraceComponent.h"
 #include "Components/SkeletalMeshComponent.h"
@@ -17,6 +20,7 @@
 #include "Debug/Logger.h"
 #include "Engine/World.h"
 #include "GameFramework/CharacterMovementComponent.h"
+#include "GameFramework/PlayerController.h"
 #include "Net/UnrealNetwork.h"
 #include "Player/BasePlayerState.h"
 #include "TimerManager.h"
@@ -60,20 +64,55 @@ UPlayerAnimationConfig* APlayerCharacter::GetPlayerAnimationConfig() const
     return PlayerClassConfig ? PlayerClassConfig->PlayerAnimationConfig : nullptr;
 }
 
-void APlayerCharacter::Multicast_PlayMeleeHitStop_Implementation(AActor* HitEnemy)
+void APlayerCharacter::Multicast_PlayMeleeHitFeedback_Implementation(AActor* HitEnemy)
 {
     const UPlayerCombatConfig* CombatConfig = PlayerClassConfig ? PlayerClassConfig->PlayerCombatConfig : nullptr;
     if (!CombatConfig) return;
 
     const float TimeDilation = FMath::Clamp(CombatConfig->HitStopTimeDilation, 0.01f, 1.0f);
     const float Duration = FMath::Max(0.0f, CombatConfig->HitStopDuration);
-    if (Duration <= 0.0f) return;
-
-    ApplyHitStopToActor(this, TimeDilation, Duration);
-
-    if (HitEnemy)
+    if (Duration > 0.0f)
     {
-        ApplyHitStopToActor(HitEnemy, TimeDilation, Duration);
+        ApplyHitStopToActor(this, TimeDilation, Duration);
+
+        if (HitEnemy)
+        {
+            ApplyHitStopToActor(HitEnemy, TimeDilation, Duration);
+        }
+    }
+
+    if (!IsLocallyControlled()) return;
+
+    APlayerController* PlayerController = Cast<APlayerController>(GetController());
+    if (!PlayerController || !PlayerController->PlayerCameraManager) return;
+
+    int32 SectionIndex = 0;
+    if (UGA_ComboAttack* ComboAttack = UGA_ComboAttack::FindActiveComboInstance(this))
+    {
+        SectionIndex = ComboAttack->GetCurrentComboIndex();
+    }
+
+    const TArray<TSubclassOf<UCameraShakeBase>>& CameraShakes = CombatConfig->PrimaryAttackSectionCameraShake;
+    if (CameraShakes.Num() == 0) return;
+
+    const int32 ShakeIndex = FMath::Clamp(SectionIndex, 0, CameraShakes.Num() - 1);
+    const TSubclassOf<UCameraShakeBase> CameraShakeClass = CameraShakes[ShakeIndex];
+    if (!CameraShakeClass) return;
+
+    FVector2D ShakeDirection(1.0f, 0.0f);
+    const TArray<FVector2D>& ShakeDirections = CombatConfig->PrimaryAttackSectionShakeDir;
+    if (ShakeDirections.IsValidIndex(ShakeIndex))
+    {
+        ShakeDirection = ShakeDirections[ShakeIndex];
+    }
+
+    UCameraShakeBase* CameraShake = PlayerController->PlayerCameraManager->StartCameraShake(CameraShakeClass, 1.0f);
+    if (CameraShake)
+    {
+        if (URiftHitCameraShakePattern* Pattern = Cast<URiftHitCameraShakePattern>(CameraShake->GetRootShakePattern()))
+        {
+            Pattern->SetShakeDirection(ShakeDirection);
+        }
     }
 }
 
