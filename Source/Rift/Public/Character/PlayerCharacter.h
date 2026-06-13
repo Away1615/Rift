@@ -14,6 +14,7 @@ class APlayerWeapon;
 class UPlayerAnimationConfig;
 class UPlayerClassConfig;
 class UAbilitySystemComponent;
+class URiftTargetAssistComponent;
 struct FPlayerWeaponPartConfig;
 
 UENUM(BlueprintType)
@@ -89,12 +90,18 @@ public:
 	UFUNCTION(BlueprintPure, Category="Weapon")
 	TArray<APlayerWeapon*> GetEquippedWeapons() const;
 
+	UFUNCTION(BlueprintPure, Category="Combat")
+	URiftTargetAssistComponent* GetTargetAssistComponent() const { return TargetAssistComponent; }
+
 protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Camera")
 	TObjectPtr<USpringArmComponent> SpringArmComponent;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Camera")
 	TObjectPtr<UCameraComponent> CameraComponent;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Combat")
+	TObjectPtr<URiftTargetAssistComponent> TargetAssistComponent;
 
 	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category="Locomotion")
 	FVector2D MovementInputVector = FVector2D::ZeroVector;

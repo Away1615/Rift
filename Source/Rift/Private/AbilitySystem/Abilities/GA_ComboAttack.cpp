@@ -7,6 +7,7 @@
 #include "Abilities/Tasks/AbilityTask_PlayMontageAndWait.h"
 #include "Animation/AnimInstance.h"
 #include "Character/PlayerCharacter.h"
+#include "Combat/RiftTargetAssistComponent.h"
 #include "Data/Player/PlayerClassConfig.h"
 #include "Data/Player/Combat/PlayerCombatConfig.h"
 
@@ -75,6 +76,7 @@ void UGA_ComboAttack::ActivateAbility(
 	}
 
 	PlayerCharacter->SetFacingMode(ERiftCharacterFacingMode::CombatAssist);
+	ApplyTargetAssistFacing();
 
 	UAbilityTask_PlayMontageAndWait* MontageTask = UAbilityTask_PlayMontageAndWait::CreatePlayMontageAndWaitProxy(
 		this,
@@ -185,6 +187,7 @@ void UGA_ComboAttack::CommitComboChainPoint()
 			AbilitySystemComponent->CurrentMontageJumpToSection(NextSection);
 		}
 
+		ApplyTargetAssistFacing();
 		return;
 	}
 
@@ -195,6 +198,8 @@ void UGA_ComboAttack::CommitComboChainPoint()
 			AnimInstance->Montage_JumpToSection(NextSection, ActiveAttackMontage);
 		}
 	}
+
+	ApplyTargetAssistFacing();
 }
 
 UGA_ComboAttack* UGA_ComboAttack::FindActiveComboInstance(AActor* AvatarActor)
@@ -264,4 +269,28 @@ void UGA_ComboAttack::ClearComboState()
 	ComboInputBufferDuration = 0.25f;
 	ActiveComboSections.Empty();
 	ActiveAttackMontage = nullptr;
+}
+
+void UGA_ComboAttack::ApplyTargetAssistFacing()
+{
+	if (!CurrentActorInfo) return;
+
+	APlayerCharacter* PlayerCharacter = Cast<APlayerCharacter>(CurrentActorInfo->AvatarActor.Get());
+	if (!PlayerCharacter) return;
+
+	URiftTargetAssistComponent* TargetAssistComponent = PlayerCharacter->GetTargetAssistComponent();
+	if (!TargetAssistComponent) return;
+
+	FRotator DesiredFacing = FRotator::ZeroRotator;
+	if (!TargetAssistComponent->GetDesiredFacing(DesiredFacing)) return;
+
+	const UPlayerClassConfig* PlayerClassConfig = PlayerCharacter->GetPlayerClassConfig();
+	const UPlayerCombatConfig* PlayerCombatConfig = PlayerClassConfig ? PlayerClassConfig->PlayerCombatConfig : nullptr;
+	if (!PlayerCombatConfig) return;
+
+	PlayerCharacter->StartAssistedFacing(
+		DesiredFacing,
+		PlayerCombatConfig->AssistFacingDuration,
+		PlayerCombatConfig->AssistFacingRotationSpeed
+	);
 }

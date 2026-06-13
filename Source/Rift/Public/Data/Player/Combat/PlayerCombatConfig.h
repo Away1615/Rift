@@ -24,4 +24,22 @@ public:
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Attack")
 	float ComboInputBufferDuration = 0.25f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="TargetAssist")
+	float TargetAssistMaxRange = 800.0f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="TargetAssist")
+	float TargetAssistMaxAngleDegrees = 75.0f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="TargetAssist")
+	float TargetAssistAngleWeight = 0.7f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="TargetAssist")
+	float TargetAssistDistanceWeight = 0.3f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="TargetAssist")
+	float AssistFacingDuration = 0.12f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="TargetAssist")
+	float AssistFacingRotationSpeed = 1200.0f;
 };

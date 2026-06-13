@@ -58,6 +58,7 @@ protected:
 
 private:
 	void ClearComboState();
+	void ApplyTargetAssistFacing();
 
 	bool bIsFinishingAttack = false;
 	int32 CurrentComboIndex = 0;

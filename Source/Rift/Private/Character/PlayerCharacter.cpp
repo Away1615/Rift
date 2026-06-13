@@ -5,6 +5,7 @@
 
 #include "AbilitySystemComponent.h"
 #include "Abilities/GameplayAbility.h"
+#include "Combat/RiftTargetAssistComponent.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Data/Player/PlayerClassConfig.h"
 #include "Data/Player/Animation/PlayerAnimationConfig.h"
@@ -20,6 +21,7 @@ APlayerCharacter::APlayerCharacter()
 {
     InitPlayerProperties();
     InitMovementSettings();
+    TargetAssistComponent = CreateDefaultSubobject<URiftTargetAssistComponent>(TEXT("TargetAssistComponent"));
     InitCameraComponents();
 }
 
