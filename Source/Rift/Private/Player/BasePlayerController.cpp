@@ -2,6 +2,8 @@
 
 #include "Player/BasePlayerController.h"
 
+#include "AbilitySystemComponent.h"
+#include "AbilitySystem/RiftGameplayTags.h"
 #include "InputActionValue.h"
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
@@ -70,6 +72,16 @@ void ABasePlayerController::SetupInputComponent()
 			&ABasePlayerController::HandleLookInput
 		);
 	}
+
+	if (DefaultInputConfig->PrimaryAttackAction)
+	{
+		EnhancedInputComponent->BindAction(
+			DefaultInputConfig->PrimaryAttackAction,
+			ETriggerEvent::Started,
+			this,
+			&ABasePlayerController::HandlePrimaryAttackInput
+		);
+	}
 }
 
 APlayerCharacter* ABasePlayerController::GetPlayerCharacter() const
@@ -94,6 +106,23 @@ void ABasePlayerController::HandleLookInput(const FInputActionValue& InputAction
 	AddYawInput(LookValue.X);
 	// Rotate around Y axis
 	AddPitchInput(LookValue.Y);
+}
+
+void ABasePlayerController::HandlePrimaryAttackInput(const FInputActionValue& InputActionValue)
+{
+	static_cast<void>(InputActionValue);
+
+	if (!IsLocalController()) return;
+
+	APlayerCharacter* PlayerCharacter = GetPawn<APlayerCharacter>();
+	if (!PlayerCharacter) return;
+
+	UAbilitySystemComponent* AbilitySystemComponent = PlayerCharacter->GetAbilitySystemComponent();
+	if (!AbilitySystemComponent) return;
+
+	FGameplayTagContainer ActivationTags;
+	ActivationTags.AddTag(RiftGameplayTags::InputTag_Attack_Primary);
+	AbilitySystemComponent->TryActivateAbilitiesByTag(ActivationTags);
 }
 
 void ABasePlayerController::HandleMoveCompleted()

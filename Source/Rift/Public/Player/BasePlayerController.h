@@ -30,5 +30,6 @@ protected:
 private:
 	void HandleMoveInput(const FInputActionValue& InputActionValue);
 	void HandleLookInput(const FInputActionValue& InputActionValue);
+	void HandlePrimaryAttackInput(const FInputActionValue& InputActionValue);
 	void HandleMoveCompleted();
 };

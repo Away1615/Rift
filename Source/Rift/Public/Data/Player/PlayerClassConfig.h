@@ -10,6 +10,7 @@
 class UPlayerCommonConfig;
 class UPlayerAnimationConfig;
 class UPlayerWeaponConfig;
+class UPlayerCombatConfig;
 /**
  *
  */
@@ -27,6 +28,9 @@ public:
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Animation")
 	TObjectPtr<UPlayerAnimationConfig> PlayerAnimationConfig;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Combat")
+	TObjectPtr<UPlayerCombatConfig> PlayerCombatConfig;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Ability")
 	TArray<TSubclassOf<UGameplayAbility>> GrantedAbilities;
