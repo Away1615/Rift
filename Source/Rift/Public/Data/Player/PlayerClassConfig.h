@@ -3,6 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Abilities/GameplayAbility.h"
 #include "Engine/DataAsset.h"
 #include "PlayerClassConfig.generated.h"
 
@@ -26,5 +27,8 @@ public:
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Animation")
 	TObjectPtr<UPlayerAnimationConfig> PlayerAnimationConfig;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Ability")
+	TArray<TSubclassOf<UGameplayAbility>> GrantedAbilities;
 
 };

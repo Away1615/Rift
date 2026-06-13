@@ -3,6 +3,8 @@
 
 #include "Character/PlayerCharacter.h"
 
+#include "AbilitySystemComponent.h"
+#include "Abilities/GameplayAbility.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Data/Player/PlayerClassConfig.h"
 #include "Data/Player/Animation/PlayerAnimationConfig.h"
@@ -12,6 +14,7 @@
 #include "Equipment/PlayerWeapon.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Net/UnrealNetwork.h"
+#include "Player/BasePlayerState.h"
 
 APlayerCharacter::APlayerCharacter()
 {
@@ -85,12 +88,22 @@ void APlayerCharacter::PossessedBy(AController* NewController)
             EVisibilityBasedAnimTickOption::AlwaysTickPoseAndRefreshBones;
     }
 
+    if (UAbilitySystemComponent* AbilitySystemComponent = GetAbilitySystemComponent())
+    {
+        AbilitySystemComponent->InitAbilityActorInfo(GetPlayerState(), this);
+    }
+
     AssemblePlayerClass();
 }
 
 void APlayerCharacter::OnRep_PlayerState()
 {
     Super::OnRep_PlayerState();
+
+    if (UAbilitySystemComponent* AbilitySystemComponent = GetAbilitySystemComponent())
+    {
+        AbilitySystemComponent->InitAbilityActorInfo(GetPlayerState(), this);
+    }
 }
 
 void APlayerCharacter::UnPossessed()
@@ -118,6 +131,12 @@ bool APlayerCharacter::IsMovementAccelerating() const
 {
     const UCharacterMovementComponent* MovementComponent = GetCharacterMovement();
     return MovementComponent && !MovementComponent->GetCurrentAcceleration().IsNearlyZero();
+}
+
+UAbilitySystemComponent* APlayerCharacter::GetAbilitySystemComponent() const
+{
+    const ABasePlayerState* RiftPlayerState = GetPlayerState<ABasePlayerState>();
+    return RiftPlayerState ? RiftPlayerState->GetAbilitySystemComponent() : nullptr;
 }
 
 void APlayerCharacter::HandleMove(const FVector2D& InputValue)
@@ -207,6 +226,7 @@ void APlayerCharacter::AssemblePlayerClass()
 
     if (!HasAuthority()) return;
 
+    GrantAbilitiesFromClassConfig();
     ApplyWeaponsFromConfig();
 }
 
@@ -275,6 +295,81 @@ void APlayerCharacter::ClearEquippedWeapons()
     }
 
     EquippedWeapons.Empty();
+}
+
+void APlayerCharacter::ClearGrantedAbilities()
+{
+    if (!HasAuthority()) return;
+
+    UAbilitySystemComponent* AbilitySystemComponent = GetAbilitySystemComponent();
+    if (!AbilitySystemComponent)
+    {
+        GrantedAbilityHandles.Empty();
+        return;
+    }
+
+    for (const FGameplayAbilitySpecHandle& AbilityHandle : GrantedAbilityHandles)
+    {
+        if (AbilityHandle.IsValid())
+        {
+            AbilitySystemComponent->ClearAbility(AbilityHandle);
+        }
+    }
+
+    GrantedAbilityHandles.Empty();
+}
+
+void APlayerCharacter::GrantAbilitiesFromClassConfig()
+{
+    if (!HasAuthority()) return;
+
+    ClearGrantedAbilities();
+
+    FLogger::Log(
+        this,
+        FString::Printf(TEXT("GrantAbilitiesFromClassConfig: PlayerClassConfig=%s"), *GetNameSafe(PlayerClassConfig)),
+        ELogSystem::Ability,
+        ELogOutputType::LogOnly
+    );
+
+    if (!PlayerClassConfig) return;
+
+    FLogger::Log(
+        this,
+        FString::Printf(TEXT("GrantAbilitiesFromClassConfig: GrantedAbilities.Num=%d"), PlayerClassConfig->GrantedAbilities.Num()),
+        ELogSystem::Ability,
+        ELogOutputType::LogOnly
+    );
+
+    UAbilitySystemComponent* AbilitySystemComponent = GetAbilitySystemComponent();
+    if (!AbilitySystemComponent) return;
+
+    for (const TSubclassOf<UGameplayAbility>& AbilityClass : PlayerClassConfig->GrantedAbilities)
+    {
+        FLogger::Log(
+            this,
+            FString::Printf(TEXT("GrantAbilitiesFromClassConfig: AbilityClass=%s"), *GetNameSafe(AbilityClass.Get())),
+            ELogSystem::Ability,
+            ELogOutputType::LogOnly
+        );
+
+        if (!AbilityClass) continue;
+
+        const FGameplayAbilitySpec AbilitySpec(AbilityClass, 1, INDEX_NONE, this);
+        const FGameplayAbilitySpecHandle AbilityHandle = AbilitySystemComponent->GiveAbility(AbilitySpec);
+        GrantedAbilityHandles.Add(AbilityHandle);
+
+        FLogger::Log(
+            this,
+            FString::Printf(
+                TEXT("GrantAbilitiesFromClassConfig: GiveAbility HandleValid=%s ActivatableAbilities.Num=%d"),
+                AbilityHandle.IsValid() ? TEXT("true") : TEXT("false"),
+                AbilitySystemComponent->GetActivatableAbilities().Num()
+            ),
+            ELogSystem::Ability,
+            ELogOutputType::LogOnly
+        );
+    }
 }
 
 APlayerWeapon* APlayerCharacter::SpawnAndAttachWeapon(const FPlayerWeaponPartConfig& WeaponPartConfig)

@@ -3,14 +3,17 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "AbilitySystemInterface.h"
 #include "Camera/CameraComponent.h"
 #include "Character/BaseCharacter.h"
 #include "GameFramework/SpringArmComponent.h"
+#include "GameplayAbilitySpec.h"
 #include "PlayerCharacter.generated.h"
 
 class APlayerWeapon;
 class UPlayerAnimationConfig;
 class UPlayerClassConfig;
+class UAbilitySystemComponent;
 struct FPlayerWeaponPartConfig;
 
 UENUM(BlueprintType)
@@ -24,7 +27,7 @@ enum class ERiftCharacterFacingMode : uint8
  *
  */
 UCLASS()
-class RIFT_API APlayerCharacter : public ABaseCharacter
+class RIFT_API APlayerCharacter : public ABaseCharacter, public IAbilitySystemInterface
 {
 	GENERATED_BODY()
 
@@ -66,6 +69,7 @@ public:
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 	virtual void UnPossessed() override;
 	virtual void PawnClientRestart() override;
+	virtual UAbilitySystemComponent* GetAbilitySystemComponent() const override;
 
 	// On the server, called when this Pawn is controlled by the Controller
 	virtual void PossessedBy(AController* NewController) override;
@@ -119,6 +123,8 @@ protected:
 	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category="Weapon")
 	TArray<TObjectPtr<APlayerWeapon>> EquippedWeapons;
 
+	TArray<FGameplayAbilitySpecHandle> GrantedAbilityHandles;
+
 private:
 	// Set up network replication
 	void InitPlayerProperties();
@@ -128,6 +134,8 @@ private:
 	void ApplyAnimationConfig() const;
 	void ApplyWeaponsFromConfig();
 	void ClearEquippedWeapons();
+	void ClearGrantedAbilities();
+	void GrantAbilitiesFromClassConfig();
 	APlayerWeapon* SpawnAndAttachWeapon(const FPlayerWeaponPartConfig& WeaponPartConfig);
 
 	UFUNCTION()
