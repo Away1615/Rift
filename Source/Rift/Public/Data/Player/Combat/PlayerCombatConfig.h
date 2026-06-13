@@ -25,6 +25,15 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Attack")
 	float ComboInputBufferDuration = 0.25f;
 
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Attack")
+	TArray<float> PrimaryAttackSectionDamage;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Attack|HitStop")
+	float HitStopDuration = 0.05f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Attack|HitStop")
+	float HitStopTimeDilation = 0.1f;
+
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="TargetAssist")
 	float TargetAssistMaxRange = 800.0f;
 

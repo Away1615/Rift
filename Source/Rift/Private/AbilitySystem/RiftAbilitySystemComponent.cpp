@@ -2,6 +2,11 @@
 
 #include "AbilitySystem/RiftAbilitySystemComponent.h"
 
+URiftAbilitySystemComponent::URiftAbilitySystemComponent()
+{
+	SetIsReplicatedByDefault(true);
+}
+
 void URiftAbilitySystemComponent::AbilityInputTagPressed(const FGameplayTag& InputTag)
 {
 	if (!InputTag.IsValid()) return;

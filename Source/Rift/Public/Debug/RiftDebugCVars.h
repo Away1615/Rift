@@ -7,4 +7,5 @@
 namespace RiftDebugCVars
 {
 	RIFT_API bool IsTargetAssistDebugEnabled();
+	RIFT_API bool IsCombatDebugEnabled();
 }

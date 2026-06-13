@@ -6,15 +6,18 @@
 #include "AbilitySystemInterface.h"
 #include "Camera/CameraComponent.h"
 #include "Character/BaseCharacter.h"
+#include "Combat/RiftWeaponTraceComponent.h"
 #include "GameFramework/SpringArmComponent.h"
 #include "GameplayAbilitySpec.h"
+#include "TimerManager.h"
 #include "PlayerCharacter.generated.h"
 
-class APlayerWeapon;
 class UPlayerAnimationConfig;
 class UPlayerClassConfig;
 class UAbilitySystemComponent;
 class URiftTargetAssistComponent;
+class URiftWeaponTraceComponent;
+class UStaticMeshComponent;
 struct FPlayerWeaponPartConfig;
 
 UENUM(BlueprintType)
@@ -88,10 +91,19 @@ public:
 	UPlayerAnimationConfig* GetPlayerAnimationConfig() const;
 
 	UFUNCTION(BlueprintPure, Category="Weapon")
-	TArray<APlayerWeapon*> GetEquippedWeapons() const;
+	UStaticMeshComponent* GetWeaponMeshComponent(ERiftWeaponSlot Slot) const;
+
+	UFUNCTION(BlueprintPure, Category="Weapon")
+	float GetWeaponTraceRadius(ERiftWeaponSlot Slot) const;
 
 	UFUNCTION(BlueprintPure, Category="Combat")
 	URiftTargetAssistComponent* GetTargetAssistComponent() const { return TargetAssistComponent; }
+
+	UFUNCTION(BlueprintPure, Category="Combat")
+	URiftWeaponTraceComponent* GetWeaponTraceComponent() const { return WeaponTraceComponent; }
+
+	UFUNCTION(NetMulticast, Unreliable)
+	void Multicast_PlayMeleeHitStop(AActor* HitEnemy);
 
 protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Camera")
@@ -102,6 +114,9 @@ protected:
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Combat")
 	TObjectPtr<URiftTargetAssistComponent> TargetAssistComponent;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Combat")
+	TObjectPtr<URiftWeaponTraceComponent> WeaponTraceComponent;
 
 	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category="Locomotion")
 	FVector2D MovementInputVector = FVector2D::ZeroVector;
@@ -128,7 +143,13 @@ protected:
 	TObjectPtr<UPlayerClassConfig> PlayerClassConfig;
 
 	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category="Weapon")
-	TArray<TObjectPtr<APlayerWeapon>> EquippedWeapons;
+	TObjectPtr<UStaticMeshComponent> LeftWeaponMesh;
+
+	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category="Weapon")
+	TObjectPtr<UStaticMeshComponent> RightWeaponMesh;
+
+	float LeftWeaponTraceRadius = 15.0f;
+	float RightWeaponTraceRadius = 15.0f;
 
 	TArray<FGameplayAbilitySpecHandle> GrantedAbilityHandles;
 
@@ -143,7 +164,14 @@ private:
 	void ClearEquippedWeapons();
 	void ClearGrantedAbilities();
 	void GrantAbilitiesFromClassConfig();
-	APlayerWeapon* SpawnAndAttachWeapon(const FPlayerWeaponPartConfig& WeaponPartConfig);
+	void CreateAndAttachWeaponMesh(const FPlayerWeaponPartConfig& WeaponPartConfig);
+	static FName GetWeaponAttachSocketName(ERiftWeaponSlot WeaponSlot);
+
+	// Applies hit stop to one actor and restores CustomTimeDilation with a world timer.
+	void ApplyHitStopToActor(AActor* TargetActor, float TimeDilation, float Duration);
+
+	// key=Actor, value=restore timer handle
+	TMap<TWeakObjectPtr<AActor>, FTimerHandle> HitStopTimerHandles;
 
 	UFUNCTION()
 	void OnRep_PlayerClassConfig();

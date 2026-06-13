@@ -12,5 +12,7 @@ class RIFT_API URiftAbilitySystemComponent : public UAbilitySystemComponent
 	GENERATED_BODY()
 
 public:
+	URiftAbilitySystemComponent();
+
 	void AbilityInputTagPressed(const FGameplayTag& InputTag);
 };

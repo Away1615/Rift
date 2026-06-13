@@ -3,10 +3,11 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Combat/RiftWeaponTraceComponent.h"
 #include "Engine/DataAsset.h"
 #include "PlayerWeaponConfig.generated.h"
 
-class APlayerWeapon;
+class UStaticMesh;
 
 USTRUCT(BlueprintType)
 struct FPlayerWeaponPartConfig
@@ -14,10 +15,13 @@ struct FPlayerWeaponPartConfig
 	GENERATED_BODY()
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Weapon")
-	TSubclassOf<APlayerWeapon> WeaponActorClass;
+	TObjectPtr<UStaticMesh> WeaponMesh;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Weapon")
-	FName AttachSocket = NAME_None;
+	ERiftWeaponSlot WeaponSlot = ERiftWeaponSlot::Left;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Weapon")
+	float TraceRadius = 15.0f;
 };
 
 UCLASS(BlueprintType)

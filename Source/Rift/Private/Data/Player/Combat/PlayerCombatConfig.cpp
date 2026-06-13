@@ -10,4 +10,11 @@ UPlayerCombatConfig::UPlayerCombatConfig()
 		TEXT("Attack_3"),
 		TEXT("Attack_4")
 	};
+
+	PrimaryAttackSectionDamage = {
+		10.0f,
+		10.0f,
+		12.0f,
+		18.0f
+	};
 }

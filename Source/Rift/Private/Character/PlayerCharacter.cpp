@@ -6,22 +6,27 @@
 #include "AbilitySystemComponent.h"
 #include "Abilities/GameplayAbility.h"
 #include "Combat/RiftTargetAssistComponent.h"
+#include "Combat/RiftWeaponTraceComponent.h"
 #include "Components/SkeletalMeshComponent.h"
+#include "Components/StaticMeshComponent.h"
 #include "Data/Player/PlayerClassConfig.h"
 #include "Data/Player/Animation/PlayerAnimationConfig.h"
 #include "Data/Player/Common/PlayerCommonConfig.h"
+#include "Data/Player/Combat/PlayerCombatConfig.h"
 #include "Data/Player/Weapon/PlayerWeaponConfig.h"
 #include "Debug/Logger.h"
-#include "Equipment/PlayerWeapon.h"
+#include "Engine/World.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Net/UnrealNetwork.h"
 #include "Player/BasePlayerState.h"
+#include "TimerManager.h"
 
 APlayerCharacter::APlayerCharacter()
 {
     InitPlayerProperties();
     InitMovementSettings();
     TargetAssistComponent = CreateDefaultSubobject<URiftTargetAssistComponent>(TEXT("TargetAssistComponent"));
+    WeaponTraceComponent = CreateDefaultSubobject<URiftWeaponTraceComponent>(TEXT("WeaponTraceComponent"));
     InitCameraComponents();
 }
 
@@ -55,6 +60,23 @@ UPlayerAnimationConfig* APlayerCharacter::GetPlayerAnimationConfig() const
     return PlayerClassConfig ? PlayerClassConfig->PlayerAnimationConfig : nullptr;
 }
 
+void APlayerCharacter::Multicast_PlayMeleeHitStop_Implementation(AActor* HitEnemy)
+{
+    const UPlayerCombatConfig* CombatConfig = PlayerClassConfig ? PlayerClassConfig->PlayerCombatConfig : nullptr;
+    if (!CombatConfig) return;
+
+    const float TimeDilation = FMath::Clamp(CombatConfig->HitStopTimeDilation, 0.01f, 1.0f);
+    const float Duration = FMath::Max(0.0f, CombatConfig->HitStopDuration);
+    if (Duration <= 0.0f) return;
+
+    ApplyHitStopToActor(this, TimeDilation, Duration);
+
+    if (HitEnemy)
+    {
+        ApplyHitStopToActor(HitEnemy, TimeDilation, Duration);
+    }
+}
+
 void APlayerCharacter::SelectPlayerClass_Implementation(UPlayerClassConfig* NewPlayerClassConfig)
 {
     if (!NewPlayerClassConfig || PlayerClassConfig == NewPlayerClassConfig) return;
@@ -62,22 +84,6 @@ void APlayerCharacter::SelectPlayerClass_Implementation(UPlayerClassConfig* NewP
     PlayerClassConfig = NewPlayerClassConfig;
     AssemblePlayerClass();
     ForceNetUpdate();
-}
-
-TArray<APlayerWeapon*> APlayerCharacter::GetEquippedWeapons() const
-{
-    TArray<APlayerWeapon*> Weapons;
-    Weapons.Reserve(EquippedWeapons.Num());
-
-    for (const TObjectPtr<APlayerWeapon>& Weapon : EquippedWeapons)
-    {
-        if (Weapon)
-        {
-            Weapons.Add(Weapon.Get());
-        }
-    }
-
-    return Weapons;
 }
 
 void APlayerCharacter::PossessedBy(AController* NewController)
@@ -114,6 +120,7 @@ void APlayerCharacter::UnPossessed()
     ClearMovementInputCache();
     StopAssistedFacing();
     SetFacingMode(ERiftCharacterFacingMode::Movement);
+    CustomTimeDilation = 1.0f;
 }
 
 void APlayerCharacter::PawnClientRestart()
@@ -139,6 +146,32 @@ UAbilitySystemComponent* APlayerCharacter::GetAbilitySystemComponent() const
 {
     const ABasePlayerState* RiftPlayerState = GetPlayerState<ABasePlayerState>();
     return RiftPlayerState ? RiftPlayerState->GetAbilitySystemComponent() : nullptr;
+}
+
+UStaticMeshComponent* APlayerCharacter::GetWeaponMeshComponent(const ERiftWeaponSlot Slot) const
+{
+    switch (Slot)
+    {
+    case ERiftWeaponSlot::Left:
+        return LeftWeaponMesh;
+    case ERiftWeaponSlot::Right:
+        return RightWeaponMesh;
+    default:
+        return nullptr;
+    }
+}
+
+float APlayerCharacter::GetWeaponTraceRadius(const ERiftWeaponSlot Slot) const
+{
+    switch (Slot)
+    {
+    case ERiftWeaponSlot::Left:
+        return LeftWeaponTraceRadius;
+    case ERiftWeaponSlot::Right:
+        return RightWeaponTraceRadius;
+    default:
+        return 15.0f;
+    }
 }
 
 void APlayerCharacter::HandleMove(const FVector2D& InputValue)
@@ -236,6 +269,7 @@ void APlayerCharacter::OnRep_PlayerClassConfig()
 {
     ApplyAnimationConfig();
     ApplyMovementSettings();
+    ApplyWeaponsFromConfig();
 }
 
 void APlayerCharacter::ApplyAnimationConfig() const
@@ -259,8 +293,6 @@ void APlayerCharacter::ApplyAnimationConfig() const
 
 void APlayerCharacter::ApplyWeaponsFromConfig()
 {
-    if (!HasAuthority()) return;
-
     ClearEquippedWeapons();
 
     if (!PlayerClassConfig)
@@ -278,25 +310,26 @@ void APlayerCharacter::ApplyWeaponsFromConfig()
 
     for (const FPlayerWeaponPartConfig& WeaponPartConfig : WeaponConfig->EquippedWeapons)
     {
-        APlayerWeapon* WeaponActor = SpawnAndAttachWeapon(WeaponPartConfig);
-        if (WeaponActor)
-        {
-            EquippedWeapons.Add(WeaponActor);
-        }
+        CreateAndAttachWeaponMesh(WeaponPartConfig);
     }
 }
 
 void APlayerCharacter::ClearEquippedWeapons()
 {
-    for (const TObjectPtr<APlayerWeapon>& EquippedWeapon : EquippedWeapons)
+    if (LeftWeaponMesh)
     {
-        if (EquippedWeapon)
-        {
-            EquippedWeapon->Destroy();
-        }
+        LeftWeaponMesh->DestroyComponent();
+        LeftWeaponMesh = nullptr;
     }
 
-    EquippedWeapons.Empty();
+    if (RightWeaponMesh)
+    {
+        RightWeaponMesh->DestroyComponent();
+        RightWeaponMesh = nullptr;
+    }
+
+    LeftWeaponTraceRadius = 15.0f;
+    RightWeaponTraceRadius = 15.0f;
 }
 
 void APlayerCharacter::ClearGrantedAbilities()
@@ -319,6 +352,35 @@ void APlayerCharacter::ClearGrantedAbilities()
     }
 
     GrantedAbilityHandles.Empty();
+}
+
+void APlayerCharacter::ApplyHitStopToActor(AActor* TargetActor, const float TimeDilation, const float Duration)
+{
+    if (!TargetActor) return;
+
+    UWorld* World = GetWorld();
+    if (!World) return;
+
+    TWeakObjectPtr<AActor> WeakTarget(TargetActor);
+
+    if (FTimerHandle* ExistingHandle = HitStopTimerHandles.Find(WeakTarget))
+    {
+        World->GetTimerManager().ClearTimer(*ExistingHandle);
+    }
+
+    TargetActor->CustomTimeDilation = TimeDilation;
+
+    FTimerDelegate TimerDelegate;
+    TimerDelegate.BindLambda([WeakTarget]()
+    {
+        if (AActor* RestoredActor = WeakTarget.Get())
+        {
+            RestoredActor->CustomTimeDilation = 1.0f;
+        }
+    });
+
+    FTimerHandle& TimerHandle = HitStopTimerHandles.FindOrAdd(WeakTarget);
+    World->GetTimerManager().SetTimer(TimerHandle, TimerDelegate, Duration, false);
 }
 
 void APlayerCharacter::GrantAbilitiesFromClassConfig()
@@ -374,64 +436,76 @@ void APlayerCharacter::GrantAbilitiesFromClassConfig()
     }
 }
 
-APlayerWeapon* APlayerCharacter::SpawnAndAttachWeapon(const FPlayerWeaponPartConfig& WeaponPartConfig)
+void APlayerCharacter::CreateAndAttachWeaponMesh(const FPlayerWeaponPartConfig& WeaponPartConfig)
 {
     USkeletalMeshComponent* CharacterMesh = GetMesh();
     if (!CharacterMesh)
     {
         FLogger::Error(this, TEXT("EquipWeapons failed: Character mesh is missing"), ELogSystem::Weapon);
-        return nullptr;
+        return;
     }
 
-    if (!WeaponPartConfig.WeaponActorClass)
+    if (!WeaponPartConfig.WeaponMesh)
     {
-        FLogger::Error(this, TEXT("EquipWeapons skipped: WeaponActorClass is missing"), ELogSystem::Weapon);
-        return nullptr;
+        FLogger::Error(this, TEXT("EquipWeapons skipped: WeaponMesh is missing"), ELogSystem::Weapon);
+        return;
     }
 
-    const FName SocketName = WeaponPartConfig.AttachSocket;
+    const FName SocketName = GetWeaponAttachSocketName(WeaponPartConfig.WeaponSlot);
     if (SocketName.IsNone())
     {
-        FLogger::Error(this, TEXT("EquipWeapons skipped: AttachSocket is None"), ELogSystem::Weapon);
-        return nullptr;
+        FLogger::Error(this, TEXT("EquipWeapons skipped: WeaponSlot has no mapped socket"), ELogSystem::Weapon);
+        return;
     }
 
     if (!CharacterMesh->DoesSocketExist(SocketName))
     {
         FLogger::Error(this, FString::Printf(TEXT("EquipWeapons skipped: socket %s does not exist"), *SocketName.ToString()), ELogSystem::Weapon);
-        return nullptr;
+        return;
     }
 
-    FActorSpawnParameters SpawnParams;
-    SpawnParams.Owner = this;
-    SpawnParams.Instigator = this;
-    SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+    UStaticMeshComponent* WeaponMeshComponent = NewObject<UStaticMeshComponent>(this);
+    if (!WeaponMeshComponent) return;
 
-    APlayerWeapon* WeaponActor = GetWorld()->SpawnActor<APlayerWeapon>(
-        WeaponPartConfig.WeaponActorClass,
-        FTransform::Identity,
-        SpawnParams
-    );
-
-    if (!WeaponActor)
-    {
-        FLogger::Error(this, TEXT("EquipWeapons failed: SpawnActor returned null"), ELogSystem::Weapon);
-        return nullptr;
-    }
-
-    WeaponActor->AttachToComponent(
+    WeaponMeshComponent->SetStaticMesh(WeaponPartConfig.WeaponMesh);
+    WeaponMeshComponent->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+    WeaponMeshComponent->SetGenerateOverlapEvents(false);
+    WeaponMeshComponent->AttachToComponent(
         CharacterMesh,
-        FAttachmentTransformRules::SnapToTargetNotIncludingScale,
+        FAttachmentTransformRules::SnapToTargetIncludingScale,
         SocketName
     );
+    WeaponMeshComponent->RegisterComponent();
+
+    if (WeaponPartConfig.WeaponSlot == ERiftWeaponSlot::Left)
+    {
+        LeftWeaponMesh = WeaponMeshComponent;
+        LeftWeaponTraceRadius = WeaponPartConfig.TraceRadius;
+    }
+    else if (WeaponPartConfig.WeaponSlot == ERiftWeaponSlot::Right)
+    {
+        RightWeaponMesh = WeaponMeshComponent;
+        RightWeaponTraceRadius = WeaponPartConfig.TraceRadius;
+    }
 
     FLogger::Log(this, FString::Printf(
-        TEXT("Equipped %s on %s"),
-        *GetNameSafe(WeaponActor),
+        TEXT("Equipped weapon mesh %s on %s"),
+        *GetNameSafe(WeaponPartConfig.WeaponMesh),
         *SocketName.ToString()
     ), ELogSystem::Weapon);
+}
 
-    return WeaponActor;
+FName APlayerCharacter::GetWeaponAttachSocketName(const ERiftWeaponSlot WeaponSlot)
+{
+    switch (WeaponSlot)
+    {
+    case ERiftWeaponSlot::Left:
+        return TEXT("Weapon_L");
+    case ERiftWeaponSlot::Right:
+        return TEXT("Weapon_R");
+    default:
+        return NAME_None;
+    }
 }
 
 void APlayerCharacter::InitMovementSettings()

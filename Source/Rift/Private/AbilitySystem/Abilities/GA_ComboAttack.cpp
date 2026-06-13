@@ -8,6 +8,7 @@
 #include "Animation/AnimInstance.h"
 #include "Character/PlayerCharacter.h"
 #include "Combat/RiftTargetAssistComponent.h"
+#include "Combat/RiftWeaponTraceComponent.h"
 #include "Data/Player/PlayerClassConfig.h"
 #include "Data/Player/Combat/PlayerCombatConfig.h"
 
@@ -77,6 +78,7 @@ void UGA_ComboAttack::ActivateAbility(
 
 	PlayerCharacter->SetFacingMode(ERiftCharacterFacingMode::CombatAssist);
 	ApplyTargetAssistFacing();
+	UpdateWeaponTraceDamage();
 
 	UAbilityTask_PlayMontageAndWait* MontageTask = UAbilityTask_PlayMontageAndWait::CreatePlayMontageAndWaitProxy(
 		this,
@@ -188,6 +190,7 @@ void UGA_ComboAttack::CommitComboChainPoint()
 		}
 
 		ApplyTargetAssistFacing();
+		UpdateWeaponTraceDamage();
 		return;
 	}
 
@@ -200,6 +203,7 @@ void UGA_ComboAttack::CommitComboChainPoint()
 	}
 
 	ApplyTargetAssistFacing();
+	UpdateWeaponTraceDamage();
 }
 
 UGA_ComboAttack* UGA_ComboAttack::FindActiveComboInstance(AActor* AvatarActor)
@@ -293,4 +297,22 @@ void UGA_ComboAttack::ApplyTargetAssistFacing()
 		PlayerCombatConfig->AssistFacingDuration,
 		PlayerCombatConfig->AssistFacingRotationSpeed
 	);
+}
+
+void UGA_ComboAttack::UpdateWeaponTraceDamage()
+{
+	if (!CurrentActorInfo) return;
+
+	APlayerCharacter* PlayerCharacter = Cast<APlayerCharacter>(CurrentActorInfo->AvatarActor.Get());
+	if (!PlayerCharacter) return;
+
+	URiftWeaponTraceComponent* WeaponTraceComponent = PlayerCharacter->GetWeaponTraceComponent();
+	if (!WeaponTraceComponent) return;
+
+	const UPlayerClassConfig* PlayerClassConfig = PlayerCharacter->GetPlayerClassConfig();
+	const UPlayerCombatConfig* PlayerCombatConfig = PlayerClassConfig ? PlayerClassConfig->PlayerCombatConfig : nullptr;
+	if (!PlayerCombatConfig || PlayerCombatConfig->PrimaryAttackSectionDamage.Num() < 1) return;
+
+	const int32 DamageIndex = FMath::Clamp(CurrentComboIndex, 0, PlayerCombatConfig->PrimaryAttackSectionDamage.Num() - 1);
+	WeaponTraceComponent->SetIncomingHitParams(PlayerCombatConfig->PrimaryAttackSectionDamage[DamageIndex]);
 }

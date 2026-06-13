@@ -59,6 +59,7 @@ protected:
 private:
 	void ClearComboState();
 	void ApplyTargetAssistFacing();
+	void UpdateWeaponTraceDamage();
 
 	bool bIsFinishingAttack = false;
 	int32 CurrentComboIndex = 0;
