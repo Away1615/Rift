@@ -2,7 +2,7 @@
 
 #include "Player/BasePlayerController.h"
 
-#include "AbilitySystemComponent.h"
+#include "AbilitySystem/RiftAbilitySystemComponent.h"
 #include "AbilitySystem/RiftGameplayTags.h"
 #include "InputActionValue.h"
 #include "EnhancedInputComponent.h"
@@ -117,12 +117,11 @@ void ABasePlayerController::HandlePrimaryAttackInput(const FInputActionValue& In
 	APlayerCharacter* PlayerCharacter = GetPawn<APlayerCharacter>();
 	if (!PlayerCharacter) return;
 
-	UAbilitySystemComponent* AbilitySystemComponent = PlayerCharacter->GetAbilitySystemComponent();
+	URiftAbilitySystemComponent* AbilitySystemComponent =
+		Cast<URiftAbilitySystemComponent>(PlayerCharacter->GetAbilitySystemComponent());
 	if (!AbilitySystemComponent) return;
 
-	FGameplayTagContainer ActivationTags;
-	ActivationTags.AddTag(RiftGameplayTags::InputTag_Attack_Primary);
-	AbilitySystemComponent->TryActivateAbilitiesByTag(ActivationTags);
+	AbilitySystemComponent->AbilityInputTagPressed(RiftGameplayTags::InputTag_Attack_Primary);
 }
 
 void ABasePlayerController::HandleMoveCompleted()

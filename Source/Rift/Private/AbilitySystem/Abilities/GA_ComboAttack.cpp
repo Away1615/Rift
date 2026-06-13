@@ -2,8 +2,10 @@
 
 #include "AbilitySystem/Abilities/GA_ComboAttack.h"
 
+#include "AbilitySystemComponent.h"
 #include "AbilitySystem/RiftGameplayTags.h"
 #include "Abilities/Tasks/AbilityTask_PlayMontageAndWait.h"
+#include "Animation/AnimInstance.h"
 #include "Character/PlayerCharacter.h"
 #include "Data/Player/PlayerClassConfig.h"
 #include "Data/Player/Combat/PlayerCombatConfig.h"
@@ -20,6 +22,7 @@ UGA_ComboAttack::UGA_ComboAttack()
 
 	ActivationOwnedTags.AddTag(RiftGameplayTags::State_Attacking);
 	ActivationBlockedTags.AddTag(RiftGameplayTags::State_Attacking);
+	bReplicateInputDirectly = true;
 }
 
 void UGA_ComboAttack::ActivateAbility(
@@ -32,6 +35,7 @@ void UGA_ComboAttack::ActivateAbility(
 	Super::ActivateAbility(Handle, ActorInfo, ActivationInfo, TriggerEventData);
 
 	bIsFinishingAttack = false;
+	ClearComboState();
 
 	if (!CommitAbility(Handle, ActorInfo, ActivationInfo))
 	{
@@ -53,14 +57,18 @@ void UGA_ComboAttack::ActivateAbility(
 	}
 
 	const UPlayerClassConfig* PlayerClassConfig = PlayerCharacter->GetPlayerClassConfig();
-	if (!PlayerClassConfig || !PlayerClassConfig->PlayerCombatConfig)
+	const UPlayerCombatConfig* PlayerCombatConfig = PlayerClassConfig ? PlayerClassConfig->PlayerCombatConfig : nullptr;
+	if (!PlayerCombatConfig)
 	{
 		EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
 		return;
 	}
 
-	UAnimMontage* PrimaryAttackMontage = PlayerClassConfig->PlayerCombatConfig->PrimaryAttackMontage;
-	if (!PrimaryAttackMontage)
+	ActiveAttackMontage = PlayerCombatConfig->PrimaryAttackMontage;
+	ActiveComboSections = PlayerCombatConfig->PrimaryAttackSections;
+	ComboInputBufferDuration = FMath::Max(0.0f, PlayerCombatConfig->ComboInputBufferDuration);
+
+	if (!ActiveAttackMontage || ActiveComboSections.Num() < 1)
 	{
 		EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
 		return;
@@ -71,9 +79,9 @@ void UGA_ComboAttack::ActivateAbility(
 	UAbilityTask_PlayMontageAndWait* MontageTask = UAbilityTask_PlayMontageAndWait::CreatePlayMontageAndWaitProxy(
 		this,
 		NAME_None,
-		PrimaryAttackMontage,
+		ActiveAttackMontage,
 		1.0f,
-		NAME_None,
+		ActiveComboSections[0],
 		true
 	);
 
@@ -88,6 +96,29 @@ void UGA_ComboAttack::ActivateAbility(
 	MontageTask->OnInterrupted.AddDynamic(this, &UGA_ComboAttack::HandleMontageInterrupted);
 	MontageTask->OnCancelled.AddDynamic(this, &UGA_ComboAttack::HandleMontageCancelled);
 	MontageTask->ReadyForActivation();
+}
+
+void UGA_ComboAttack::InputPressed(
+	const FGameplayAbilitySpecHandle Handle,
+	const FGameplayAbilityActorInfo* ActorInfo,
+	const FGameplayAbilityActivationInfo ActivationInfo
+)
+{
+	Super::InputPressed(Handle, ActorInfo, ActivationInfo);
+
+	if (CurrentComboIndex + 1 >= ActiveComboSections.Num()) return;
+
+	if (bComboInputWindowOpen)
+	{
+		bPendingComboInput = true;
+		return;
+	}
+
+	bPreBufferedComboInput = true;
+
+	UWorld* World = GetWorld();
+	const float CurrentTime = World ? World->GetTimeSeconds() : 0.0f;
+	PreBufferedInputExpireTime = CurrentTime + ComboInputBufferDuration;
 }
 
 void UGA_ComboAttack::EndAbility(
@@ -107,7 +138,92 @@ void UGA_ComboAttack::EndAbility(
 		}
 	}
 
+	ClearComboState();
 	Super::EndAbility(Handle, ActorInfo, ActivationInfo, bReplicateEndAbility, bWasCancelled);
+}
+
+void UGA_ComboAttack::OpenComboInputWindow()
+{
+	bComboInputWindowOpen = true;
+
+	if (bPreBufferedComboInput)
+	{
+		UWorld* World = GetWorld();
+		const float CurrentTime = World ? World->GetTimeSeconds() : 0.0f;
+		if (CurrentTime <= PreBufferedInputExpireTime)
+		{
+			bPendingComboInput = true;
+		}
+	}
+
+	bPreBufferedComboInput = false;
+	PreBufferedInputExpireTime = 0.0f;
+}
+
+void UGA_ComboAttack::CloseComboInputWindow()
+{
+	bComboInputWindowOpen = false;
+}
+
+void UGA_ComboAttack::CommitComboChainPoint()
+{
+	if (!bPendingComboInput) return;
+	if (CurrentComboIndex + 1 >= ActiveComboSections.Num()) return;
+
+	CurrentComboIndex++;
+	const FName NextSection = ActiveComboSections[CurrentComboIndex];
+
+	bComboInputWindowOpen = false;
+	bPendingComboInput = false;
+	bPreBufferedComboInput = false;
+	PreBufferedInputExpireTime = 0.0f;
+
+	if (CurrentActorInfo && CurrentActorInfo->IsNetAuthority())
+	{
+		if (UAbilitySystemComponent* AbilitySystemComponent = CurrentActorInfo->AbilitySystemComponent.Get())
+		{
+			AbilitySystemComponent->CurrentMontageJumpToSection(NextSection);
+		}
+
+		return;
+	}
+
+	if (CurrentActorInfo && ActiveAttackMontage)
+	{
+		if (UAnimInstance* AnimInstance = CurrentActorInfo->GetAnimInstance())
+		{
+			AnimInstance->Montage_JumpToSection(NextSection, ActiveAttackMontage);
+		}
+	}
+}
+
+UGA_ComboAttack* UGA_ComboAttack::FindActiveComboInstance(AActor* AvatarActor)
+{
+	if (!AvatarActor) return nullptr;
+
+	APlayerCharacter* PlayerCharacter = Cast<APlayerCharacter>(AvatarActor);
+	if (!PlayerCharacter) return nullptr;
+
+	UAbilitySystemComponent* AbilitySystemComponent = PlayerCharacter->GetAbilitySystemComponent();
+	if (!AbilitySystemComponent) return nullptr;
+
+	FScopedAbilityListLock AbilityListLock(*AbilitySystemComponent);
+	for (FGameplayAbilitySpec& AbilitySpec : AbilitySystemComponent->GetActivatableAbilities())
+	{
+		if (!AbilitySpec.IsActive() || !AbilitySpec.Ability)
+		{
+			continue;
+		}
+
+		if (!AbilitySpec.Ability->GetAssetTags().HasTagExact(RiftGameplayTags::Ability_Attack_Primary))
+		{
+			continue;
+		}
+
+		return Cast<UGA_ComboAttack>(AbilitySpec.GetPrimaryInstance());
+	}
+
+	return nullptr;
 }
 
 void UGA_ComboAttack::HandleMontageCompleted()
@@ -136,4 +252,16 @@ void UGA_ComboAttack::FinishAttackAbility(const bool bWasCancelled)
 
 	bIsFinishingAttack = true;
 	EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, bWasCancelled);
+}
+
+void UGA_ComboAttack::ClearComboState()
+{
+	CurrentComboIndex = 0;
+	bComboInputWindowOpen = false;
+	bPendingComboInput = false;
+	bPreBufferedComboInput = false;
+	PreBufferedInputExpireTime = 0.0f;
+	ComboInputBufferDuration = 0.25f;
+	ActiveComboSections.Empty();
+	ActiveAttackMontage = nullptr;
 }

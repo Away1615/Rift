@@ -14,6 +14,14 @@ class RIFT_API UPlayerCombatConfig : public UPrimaryDataAsset
 	GENERATED_BODY()
 
 public:
+	UPlayerCombatConfig();
+
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Attack")
 	TObjectPtr<UAnimMontage> PrimaryAttackMontage;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Attack")
+	TArray<FName> PrimaryAttackSections;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Attack")
+	float ComboInputBufferDuration = 0.25f;
 };

@@ -29,6 +29,18 @@ public:
 		bool bWasCancelled
 	) override;
 
+	virtual void InputPressed(
+		const FGameplayAbilitySpecHandle Handle,
+		const FGameplayAbilityActorInfo* ActorInfo,
+		const FGameplayAbilityActivationInfo ActivationInfo
+	) override;
+
+	void OpenComboInputWindow();
+	void CloseComboInputWindow();
+	void CommitComboChainPoint();
+
+	static UGA_ComboAttack* FindActiveComboInstance(AActor* AvatarActor);
+
 protected:
 	UFUNCTION()
 	void HandleMontageCompleted();
@@ -45,5 +57,16 @@ protected:
 	void FinishAttackAbility(bool bWasCancelled);
 
 private:
+	void ClearComboState();
+
 	bool bIsFinishingAttack = false;
+	int32 CurrentComboIndex = 0;
+	bool bComboInputWindowOpen = false;
+	bool bPendingComboInput = false;
+	bool bPreBufferedComboInput = false;
+	float PreBufferedInputExpireTime = 0.0f;
+	float ComboInputBufferDuration = 0.25f;
+	TArray<FName> ActiveComboSections;
+	UPROPERTY(Transient)
+	TObjectPtr<UAnimMontage> ActiveAttackMontage;
 };
