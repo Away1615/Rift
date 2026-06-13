@@ -10,6 +10,7 @@
 #include "Data/Enemy/Animation/EnemyAnimationConfig.h"
 #include "Data/Enemy/EnemyCharacterConfig.h"
 #include "Data/Enemy/Common/EnemyCommonConfig.h"
+#include "Debug/Logger.h"
 #include "Engine/World.h"
 
 AEnemyCharacter::AEnemyCharacter()
@@ -35,8 +36,13 @@ void AEnemyCharacter::BeginPlay()
 	// The ASC is created in the constructor, so it must always exist on a properly
 	// instantiated actor. A null here means a stale level instance placed before the
 	// component was added to the class. Fix the asset by re-placing it.
-	if (!ensureMsgf(AbilitySystemComponent, TEXT("%s has no AbilitySystemComponent. Re-place this actor in the level."), *GetName()))
+	if (!AbilitySystemComponent)
 	{
+		FLogger::Error(
+			this,
+			FString::Printf(TEXT("%s has no AbilitySystemComponent. Re-place this actor in the level."), *GetName()),
+			ELogSystem::Ability
+		);
 		return;
 	}
 
@@ -94,8 +100,26 @@ void AEnemyCharacter::Multicast_PlayHitReact_Implementation(const ERiftHitReactD
 
 void AEnemyCharacter::ApplyAnimationConfig() const
 {
-	const UEnemyAnimationConfig* AnimationConfig = EnemyCharacterConfig ? EnemyCharacterConfig->EnemyAnimationConfig : nullptr;
-	if (!AnimationConfig) return;
+	if (!EnemyCharacterConfig)
+	{
+		FLogger::Error(
+			this,
+			FString::Printf(TEXT("%s has no EnemyCharacterConfig."), *GetName()),
+			ELogSystem::Character
+		);
+		return;
+	}
+
+	const UEnemyAnimationConfig* AnimationConfig = EnemyCharacterConfig->EnemyAnimationConfig;
+	if (!AnimationConfig)
+	{
+		FLogger::Error(
+			this,
+			FString::Printf(TEXT("%s has no EnemyAnimationConfig."), *GetName()),
+			ELogSystem::Animation
+		);
+		return;
+	}
 
 	USkeletalMeshComponent* CharacterMesh = GetMesh();
 	if (!CharacterMesh) return;
