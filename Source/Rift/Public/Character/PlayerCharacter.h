@@ -9,6 +9,7 @@
 #include "Combat/RiftWeaponTraceComponent.h"
 #include "GameFramework/SpringArmComponent.h"
 #include "GameplayAbilitySpec.h"
+#include "GameplayEffectTypes.h"
 #include "TimerManager.h"
 #include "PlayerCharacter.generated.h"
 
@@ -17,6 +18,7 @@ class UPlayerClassConfig;
 class UAbilitySystemComponent;
 class URiftTargetAssistComponent;
 class URiftWeaponTraceComponent;
+class URiftCombatFeedbackComponent;
 class UStaticMeshComponent;
 struct FPlayerWeaponPartConfig;
 
@@ -63,6 +65,12 @@ public:
 	UFUNCTION(BlueprintCallable, Category="Locomotion")
 	void ClearMovementInputCache();
 
+	FVector GetCameraRelativeMoveDirection() const;
+
+	void ActivatePerfectDodgeWindow(const FVector& Origin, float Duration);
+	bool IsPerfectDodgeWindowActive() const { return bPerfectDodgeWindowActive; }
+	FVector GetPerfectDodgeOrigin() const { return PerfectDodgeOrigin; }
+
 	// Whether Player press WASD
 	bool HasMovementInput() const;
 	// Whether Player is Moving
@@ -102,8 +110,8 @@ public:
 	UFUNCTION(BlueprintPure, Category="Combat")
 	URiftWeaponTraceComponent* GetWeaponTraceComponent() const { return WeaponTraceComponent; }
 
-	UFUNCTION(NetMulticast, Unreliable)
-	void Multicast_PlayMeleeHitFeedback(AActor* HitEnemy);
+	UFUNCTION(BlueprintPure, Category="Combat")
+	URiftCombatFeedbackComponent* GetCombatFeedbackComponent() const { return CombatFeedbackComponent; }
 
 protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Camera")
@@ -117,6 +125,9 @@ protected:
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Combat")
 	TObjectPtr<URiftWeaponTraceComponent> WeaponTraceComponent;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Combat")
+	TObjectPtr<URiftCombatFeedbackComponent> CombatFeedbackComponent;
 
 	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category="Locomotion")
 	FVector2D MovementInputVector = FVector2D::ZeroVector;
@@ -159,6 +170,7 @@ private:
 	void InitCameraComponents();
 
 	void AssemblePlayerClass();
+	void ApplyCommonAttributesFromConfig();
 	void ApplyAnimationConfig() const;
 	void ApplyWeaponsFromConfig();
 	void ClearEquippedWeapons();
@@ -167,14 +179,16 @@ private:
 	void CreateAndAttachWeaponMesh(const FPlayerWeaponPartConfig& WeaponPartConfig);
 	static FName GetWeaponAttachSocketName(ERiftWeaponSlot WeaponSlot);
 
-	// Applies hit stop to one actor and restores CustomTimeDilation with a world timer.
-	void ApplyHitStopToActor(AActor* TargetActor, float TimeDilation, float Duration);
+	FActiveGameplayEffectHandle StaminaRegenEffectHandle;
 
-	// key=Actor, value=restore timer handle
-	TMap<TWeakObjectPtr<AActor>, FTimerHandle> HitStopTimerHandles;
+	FVector PerfectDodgeOrigin = FVector::ZeroVector;
+	bool bPerfectDodgeWindowActive = false;
+	FTimerHandle PerfectDodgeWindowTimerHandle;
 
 	UFUNCTION()
 	void OnRep_PlayerClassConfig();
+
+	void DeactivatePerfectDodgeWindow();
 
 	/* Movement and Camera Control */
 	void InitMovementSettings();

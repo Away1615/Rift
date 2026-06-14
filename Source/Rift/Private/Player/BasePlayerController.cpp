@@ -82,6 +82,46 @@ void ABasePlayerController::SetupInputComponent()
 			&ABasePlayerController::HandlePrimaryAttackInput
 		);
 	}
+
+	if (DefaultInputConfig->SecondaryAttackAction)
+	{
+		EnhancedInputComponent->BindAction(
+			DefaultInputConfig->SecondaryAttackAction,
+			ETriggerEvent::Started,
+			this,
+			&ABasePlayerController::HandleSecondaryAttackInput
+		);
+	}
+
+	if (DefaultInputConfig->PrimaryHeavyAction)
+	{
+		EnhancedInputComponent->BindAction(
+			DefaultInputConfig->PrimaryHeavyAction,
+			ETriggerEvent::Triggered,
+			this,
+			&ABasePlayerController::HandlePrimaryHeavyInput
+		);
+	}
+
+	if (DefaultInputConfig->SecondaryHeavyAction)
+	{
+		EnhancedInputComponent->BindAction(
+			DefaultInputConfig->SecondaryHeavyAction,
+			ETriggerEvent::Triggered,
+			this,
+			&ABasePlayerController::HandleSecondaryHeavyInput
+		);
+	}
+
+	if (DefaultInputConfig->CoreAction)
+	{
+		EnhancedInputComponent->BindAction(
+			DefaultInputConfig->CoreAction,
+			ETriggerEvent::Started,
+			this,
+			&ABasePlayerController::HandleCoreInput
+		);
+	}
 }
 
 APlayerCharacter* ABasePlayerController::GetPlayerCharacter() const
@@ -91,7 +131,7 @@ APlayerCharacter* ABasePlayerController::GetPlayerCharacter() const
 
 void ABasePlayerController::HandleMoveInput(const FInputActionValue& InputActionValue)
 {
-	APlayerCharacter* PlayerCharacter = GetPawn<APlayerCharacter>();
+	APlayerCharacter* PlayerCharacter = GetPlayerCharacter();
 
 	if (!PlayerCharacter) return;
 
@@ -114,7 +154,7 @@ void ABasePlayerController::HandlePrimaryAttackInput(const FInputActionValue& In
 
 	if (!IsLocalController()) return;
 
-	APlayerCharacter* PlayerCharacter = GetPawn<APlayerCharacter>();
+	APlayerCharacter* PlayerCharacter = GetPlayerCharacter();
 	if (!PlayerCharacter) return;
 
 	URiftAbilitySystemComponent* AbilitySystemComponent =
@@ -124,9 +164,73 @@ void ABasePlayerController::HandlePrimaryAttackInput(const FInputActionValue& In
 	AbilitySystemComponent->AbilityInputTagPressed(RiftGameplayTags::InputTag_Attack_Primary);
 }
 
+void ABasePlayerController::HandleSecondaryAttackInput(const FInputActionValue& InputActionValue)
+{
+	static_cast<void>(InputActionValue);
+
+	if (!IsLocalController()) return;
+
+	APlayerCharacter* PlayerCharacter = GetPlayerCharacter();
+	if (!PlayerCharacter) return;
+
+	URiftAbilitySystemComponent* AbilitySystemComponent =
+		Cast<URiftAbilitySystemComponent>(PlayerCharacter->GetAbilitySystemComponent());
+	if (!AbilitySystemComponent) return;
+
+	AbilitySystemComponent->AbilityInputTagPressed(RiftGameplayTags::InputTag_Attack_Secondary);
+}
+
+void ABasePlayerController::HandlePrimaryHeavyInput(const FInputActionValue& InputActionValue)
+{
+	static_cast<void>(InputActionValue);
+
+	if (!IsLocalController()) return;
+
+	APlayerCharacter* PlayerCharacter = GetPlayerCharacter();
+	if (!PlayerCharacter) return;
+
+	URiftAbilitySystemComponent* AbilitySystemComponent =
+		Cast<URiftAbilitySystemComponent>(PlayerCharacter->GetAbilitySystemComponent());
+	if (!AbilitySystemComponent) return;
+
+	AbilitySystemComponent->AbilityInputTagPressed(RiftGameplayTags::InputTag_Attack_PrimaryHeavy);
+}
+
+void ABasePlayerController::HandleSecondaryHeavyInput(const FInputActionValue& InputActionValue)
+{
+	static_cast<void>(InputActionValue);
+
+	if (!IsLocalController()) return;
+
+	APlayerCharacter* PlayerCharacter = GetPlayerCharacter();
+	if (!PlayerCharacter) return;
+
+	URiftAbilitySystemComponent* AbilitySystemComponent =
+		Cast<URiftAbilitySystemComponent>(PlayerCharacter->GetAbilitySystemComponent());
+	if (!AbilitySystemComponent) return;
+
+	AbilitySystemComponent->AbilityInputTagPressed(RiftGameplayTags::InputTag_Attack_SecondaryHeavy);
+}
+
+void ABasePlayerController::HandleCoreInput(const FInputActionValue& InputActionValue)
+{
+	static_cast<void>(InputActionValue);
+
+	if (!IsLocalController()) return;
+
+	APlayerCharacter* PlayerCharacter = GetPlayerCharacter();
+	if (!PlayerCharacter) return;
+
+	URiftAbilitySystemComponent* AbilitySystemComponent =
+		Cast<URiftAbilitySystemComponent>(PlayerCharacter->GetAbilitySystemComponent());
+	if (!AbilitySystemComponent) return;
+
+	AbilitySystemComponent->AbilityInputTagPressed(RiftGameplayTags::InputTag_Core);
+}
+
 void ABasePlayerController::HandleMoveCompleted()
 {
-	APlayerCharacter* PlayerCharacter = GetPawn<APlayerCharacter>();
+	APlayerCharacter* PlayerCharacter = GetPlayerCharacter();
 	if (!PlayerCharacter) return;
 
 	PlayerCharacter->ClearMovementInputCache();

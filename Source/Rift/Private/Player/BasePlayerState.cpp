@@ -4,7 +4,8 @@
 #include "Player/BasePlayerState.h"
 
 #include "AbilitySystem/RiftAbilitySystemComponent.h"
-#include "AbilitySystem/RiftAttributeSet.h"
+#include "AbilitySystem/Attributes/RiftPlayerAttributeSet.h"
+#include "AbilitySystem/Attributes/RiftResourceAttributeSet.h"
 
 ABasePlayerState::ABasePlayerState()
 {
@@ -12,7 +13,8 @@ ABasePlayerState::ABasePlayerState()
 	AbilitySystemComponent->SetIsReplicated(true);
 	AbilitySystemComponent->SetReplicationMode(EGameplayEffectReplicationMode::Mixed);
 
-	AttributeSet = CreateDefaultSubobject<URiftAttributeSet>(TEXT("AttributeSet"));
+	AttributeSet = CreateDefaultSubobject<URiftPlayerAttributeSet>(TEXT("AttributeSet"));
+	ResourceAttributeSet = CreateDefaultSubobject<URiftResourceAttributeSet>(TEXT("ResourceAttributeSet"));
 
 	SetNetUpdateFrequency(100.0f);
 }

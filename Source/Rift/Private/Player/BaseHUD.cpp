@@ -18,7 +18,7 @@ void ABaseHUD::CreatePlayerInfoPanel()
 {
 	APlayerController* OwningPC = GetOwningPlayerController();
 
-	if (!OwningPC || !OwningPC->IsValidLowLevel()) return;
+	if (!OwningPC) return;
 
 	if (!PlayerInfoPanelClass)
 	{

@@ -1,16 +1,19 @@
-// Fill out your copyright notice in the Description page of Project Settings.
-
 #include "AbilitySystem/Abilities/GA_ComboAttack.h"
 
-#include "AbilitySystemComponent.h"
-#include "AbilitySystem/RiftGameplayTags.h"
 #include "Abilities/Tasks/AbilityTask_PlayMontageAndWait.h"
+#include "AbilitySystemComponent.h"
+#include "AbilitySystem/Attributes/RiftPlayerAttributeSet.h"
+#include "AbilitySystem/Effects/GE_StaminaCost.h"
+#include "AbilitySystem/RiftAbilitySystemComponent.h"
+#include "AbilitySystem/RiftGameplayTags.h"
 #include "Animation/AnimInstance.h"
 #include "Character/PlayerCharacter.h"
 #include "Combat/RiftTargetAssistComponent.h"
 #include "Combat/RiftWeaponTraceComponent.h"
-#include "Data/Player/PlayerClassConfig.h"
 #include "Data/Player/Combat/PlayerCombatConfig.h"
+#include "Data/Player/Combat/RiftComboGraph.h"
+#include "Data/Player/PlayerClassConfig.h"
+#include "GameFramework/CharacterMovementComponent.h"
 
 UGA_ComboAttack::UGA_ComboAttack()
 {
@@ -19,7 +22,10 @@ UGA_ComboAttack::UGA_ComboAttack()
 
 	FGameplayTagContainer ComboAttackAssetTags;
 	ComboAttackAssetTags.AddTag(RiftGameplayTags::Ability_Attack_Primary);
+	ComboAttackAssetTags.AddTag(RiftGameplayTags::Ability_Attack_Secondary);
+	ComboAttackAssetTags.AddTag(RiftGameplayTags::Ability_Attack_Combo);
 	ComboAttackAssetTags.AddTag(RiftGameplayTags::InputTag_Attack_Primary);
+	ComboAttackAssetTags.AddTag(RiftGameplayTags::InputTag_Attack_Secondary);
 	SetAssetTags(ComboAttackAssetTags);
 
 	ActivationOwnedTags.AddTag(RiftGameplayTags::State_Attacking);
@@ -39,13 +45,13 @@ void UGA_ComboAttack::ActivateAbility(
 	bIsFinishingAttack = false;
 	ClearComboState();
 
-	if (!CommitAbility(Handle, ActorInfo, ActivationInfo))
+	if (!ActorInfo)
 	{
 		EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
 		return;
 	}
 
-	if (!ActorInfo)
+	if (!CommitAbility(Handle, ActorInfo, ActivationInfo))
 	{
 		EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
 		return;
@@ -60,32 +66,61 @@ void UGA_ComboAttack::ActivateAbility(
 
 	const UPlayerClassConfig* PlayerClassConfig = PlayerCharacter->GetPlayerClassConfig();
 	const UPlayerCombatConfig* PlayerCombatConfig = PlayerClassConfig ? PlayerClassConfig->PlayerCombatConfig : nullptr;
-	if (!PlayerCombatConfig)
+	if (!PlayerCombatConfig || !PlayerCombatConfig->ComboGraph)
 	{
 		EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
 		return;
 	}
 
-	ActiveAttackMontage = PlayerCombatConfig->PrimaryAttackMontage;
-	ActiveComboSections = PlayerCombatConfig->PrimaryAttackSections;
+	ActiveComboGraph = PlayerCombatConfig->ComboGraph;
+	ActiveAttackMontage = ActiveComboGraph->Montage;
 	ComboInputBufferDuration = FMath::Max(0.0f, PlayerCombatConfig->ComboInputBufferDuration);
-
-	if (!ActiveAttackMontage || ActiveComboSections.Num() < 1)
+	if (!ActiveAttackMontage)
 	{
 		EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
 		return;
 	}
 
+	const URiftAbilitySystemComponent* RiftAbilitySystemComponent =
+		Cast<URiftAbilitySystemComponent>(ActorInfo->AbilitySystemComponent.Get());
+	FGameplayTag EntryInputTag = RiftAbilitySystemComponent
+		? RiftAbilitySystemComponent->PressedInputTagThisFrame
+		: FGameplayTag();
+	if (!EntryInputTag.IsValid())
+	{
+		EntryInputTag = RiftGameplayTags::InputTag_Attack_Primary;
+	}
+
+	const FName EntrySection = ActiveComboGraph->GetEntrySection(EntryInputTag);
+	if (EntrySection == NAME_None)
+	{
+		EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
+		return;
+	}
+
+	const FRiftComboNode* EntryNode = ActiveComboGraph->FindNode(EntrySection);
+	if (!EntryNode)
+	{
+		EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
+		return;
+	}
+
+	if (EntryNode->StaminaCost > 0.0f && !TryChargeStamina(EntryNode->StaminaCost))
+	{
+		EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
+		return;
+	}
+
+	CurrentSection = EntrySection;
 	PlayerCharacter->SetFacingMode(ERiftCharacterFacingMode::CombatAssist);
-	ApplyTargetAssistFacing();
-	UpdateWeaponTraceDamage();
+	EnterNode();
 
 	UAbilityTask_PlayMontageAndWait* MontageTask = UAbilityTask_PlayMontageAndWait::CreatePlayMontageAndWaitProxy(
 		this,
 		NAME_None,
 		ActiveAttackMontage,
 		1.0f,
-		ActiveComboSections[0],
+		CurrentSection,
 		true
 	);
 
@@ -110,19 +145,28 @@ void UGA_ComboAttack::InputPressed(
 {
 	Super::InputPressed(Handle, ActorInfo, ActivationInfo);
 
-	if (CurrentComboIndex + 1 >= ActiveComboSections.Num()) return;
+	const URiftAbilitySystemComponent* RiftAbilitySystemComponent = ActorInfo
+		? Cast<URiftAbilitySystemComponent>(ActorInfo->AbilitySystemComponent.Get())
+		: nullptr;
+	FGameplayTag InputTag = RiftAbilitySystemComponent
+		? RiftAbilitySystemComponent->PressedInputTagThisFrame
+		: FGameplayTag();
+	if (!InputTag.IsValid())
+	{
+		InputTag = RiftGameplayTags::InputTag_Attack_Primary;
+	}
 
 	if (bComboInputWindowOpen)
 	{
-		bPendingComboInput = true;
-		return;
+		PendingInputTag = InputTag;
 	}
-
-	bPreBufferedComboInput = true;
-
-	UWorld* World = GetWorld();
-	const float CurrentTime = World ? World->GetTimeSeconds() : 0.0f;
-	PreBufferedInputExpireTime = CurrentTime + ComboInputBufferDuration;
+	else
+	{
+		PreBufferedInputTag = InputTag;
+		const UWorld* World = GetWorld();
+		const float CurrentTime = World ? World->GetTimeSeconds() : 0.0f;
+		PreBufferedInputExpireTime = CurrentTime + ComboInputBufferDuration;
+	}
 }
 
 void UGA_ComboAttack::EndAbility(
@@ -139,6 +183,10 @@ void UGA_ComboAttack::EndAbility(
 		{
 			PlayerCharacter->StopAssistedFacing();
 			PlayerCharacter->SetFacingMode(ERiftCharacterFacingMode::Movement);
+			if (UCharacterMovementComponent* Movement = PlayerCharacter->GetCharacterMovement())
+			{
+				Movement->StopMovementImmediately();
+			}
 		}
 	}
 
@@ -150,17 +198,17 @@ void UGA_ComboAttack::OpenComboInputWindow()
 {
 	bComboInputWindowOpen = true;
 
-	if (bPreBufferedComboInput)
+	if (PreBufferedInputTag.IsValid())
 	{
-		UWorld* World = GetWorld();
+		const UWorld* World = GetWorld();
 		const float CurrentTime = World ? World->GetTimeSeconds() : 0.0f;
 		if (CurrentTime <= PreBufferedInputExpireTime)
 		{
-			bPendingComboInput = true;
+			PendingInputTag = PreBufferedInputTag;
 		}
 	}
 
-	bPreBufferedComboInput = false;
+	PreBufferedInputTag = FGameplayTag();
 	PreBufferedInputExpireTime = 0.0f;
 }
 
@@ -171,16 +219,44 @@ void UGA_ComboAttack::CloseComboInputWindow()
 
 void UGA_ComboAttack::CommitComboChainPoint()
 {
-	if (!bPendingComboInput) return;
-	if (CurrentComboIndex + 1 >= ActiveComboSections.Num()) return;
+	if (!PendingInputTag.IsValid()) return;
 
-	CurrentComboIndex++;
-	const FName NextSection = ActiveComboSections[CurrentComboIndex];
+	if (!ActiveComboGraph)
+	{
+		PendingInputTag = FGameplayTag();
+		return;
+	}
 
+	const FRiftComboNode* CurrentNode = GetCurrentNode();
+	if (!CurrentNode)
+	{
+		PendingInputTag = FGameplayTag();
+		return;
+	}
+
+	FName NextSection = NAME_None;
+	for (const FRiftComboTransition& Transition : CurrentNode->Transitions)
+	{
+		if (Transition.InputTag == PendingInputTag)
+		{
+			NextSection = Transition.ToSection;
+			break;
+		}
+	}
+
+	PendingInputTag = FGameplayTag();
 	bComboInputWindowOpen = false;
-	bPendingComboInput = false;
-	bPreBufferedComboInput = false;
+	PreBufferedInputTag = FGameplayTag();
 	PreBufferedInputExpireTime = 0.0f;
+
+	if (NextSection == NAME_None) return;
+
+	const FRiftComboNode* NextNode = ActiveComboGraph->FindNode(NextSection);
+	if (!NextNode) return;
+
+	if (NextNode->StaminaCost > 0.0f && !TryChargeStamina(NextNode->StaminaCost)) return;
+
+	CurrentSection = NextSection;
 
 	if (CurrentActorInfo && CurrentActorInfo->IsNetAuthority())
 	{
@@ -188,13 +264,8 @@ void UGA_ComboAttack::CommitComboChainPoint()
 		{
 			AbilitySystemComponent->CurrentMontageJumpToSection(NextSection);
 		}
-
-		ApplyTargetAssistFacing();
-		UpdateWeaponTraceDamage();
-		return;
 	}
-
-	if (CurrentActorInfo && ActiveAttackMontage)
+	else if (ActiveAttackMontage && CurrentActorInfo)
 	{
 		if (UAnimInstance* AnimInstance = CurrentActorInfo->GetAnimInstance())
 		{
@@ -202,8 +273,7 @@ void UGA_ComboAttack::CommitComboChainPoint()
 		}
 	}
 
-	ApplyTargetAssistFacing();
-	UpdateWeaponTraceDamage();
+	EnterNode();
 }
 
 UGA_ComboAttack* UGA_ComboAttack::FindActiveComboInstance(AActor* AvatarActor)
@@ -224,7 +294,7 @@ UGA_ComboAttack* UGA_ComboAttack::FindActiveComboInstance(AActor* AvatarActor)
 			continue;
 		}
 
-		if (!AbilitySpec.Ability->GetAssetTags().HasTagExact(RiftGameplayTags::Ability_Attack_Primary))
+		if (!AbilitySpec.Ability->GetAssetTags().HasTagExact(RiftGameplayTags::Ability_Attack_Combo))
 		{
 			continue;
 		}
@@ -265,13 +335,13 @@ void UGA_ComboAttack::FinishAttackAbility(const bool bWasCancelled)
 
 void UGA_ComboAttack::ClearComboState()
 {
-	CurrentComboIndex = 0;
-	bComboInputWindowOpen = false;
-	bPendingComboInput = false;
-	bPreBufferedComboInput = false;
+	CurrentSection = NAME_None;
+	PendingInputTag = FGameplayTag();
+	PreBufferedInputTag = FGameplayTag();
 	PreBufferedInputExpireTime = 0.0f;
+	bComboInputWindowOpen = false;
 	ComboInputBufferDuration = 0.25f;
-	ActiveComboSections.Empty();
+	ActiveComboGraph = nullptr;
 	ActiveAttackMontage = nullptr;
 }
 
@@ -309,23 +379,53 @@ void UGA_ComboAttack::UpdateWeaponTraceDamage()
 	URiftWeaponTraceComponent* WeaponTraceComponent = PlayerCharacter->GetWeaponTraceComponent();
 	if (!WeaponTraceComponent) return;
 
-	const UPlayerClassConfig* PlayerClassConfig = PlayerCharacter->GetPlayerClassConfig();
-	const UPlayerCombatConfig* PlayerCombatConfig = PlayerClassConfig ? PlayerClassConfig->PlayerCombatConfig : nullptr;
-	if (!PlayerCombatConfig) return;
+	const FRiftComboNode* Node = GetCurrentNode();
+	if (!Node) return;
 
-	float Damage = 0.0f;
-	if (PlayerCombatConfig->PrimaryAttackSectionDamage.Num() > 0)
+	WeaponTraceComponent->SetIncomingHitParams(
+		Node->Damage,
+		Node->PoiseDamage,
+		Node->SwordIntentOnHit,
+		Node->UltimateChargeOnHit
+	);
+	WeaponTraceComponent->SetIncomingCameraShake(Node->CameraShake, Node->CameraShakeDir);
+}
+
+void UGA_ComboAttack::EnterNode()
+{
+	ApplyTargetAssistFacing();
+	UpdateWeaponTraceDamage();
+}
+
+bool UGA_ComboAttack::TryChargeStamina(const float Cost)
+{
+	if (Cost <= 0.0f) return true;
+	if (!CurrentActorInfo) return false;
+
+	UAbilitySystemComponent* AbilitySystemComponent = CurrentActorInfo->AbilitySystemComponent.Get();
+	if (!AbilitySystemComponent) return false;
+
+	const float CurrentStamina = AbilitySystemComponent->GetNumericAttribute(
+		URiftPlayerAttributeSet::GetStaminaAttribute()
+	);
+	if (CurrentStamina < Cost) return false;
+
+	FGameplayEffectContextHandle EffectContext = AbilitySystemComponent->MakeEffectContext();
+	FGameplayEffectSpecHandle StaminaCostSpec = AbilitySystemComponent->MakeOutgoingSpec(
+		UGE_StaminaCost::StaticClass(),
+		1.0f,
+		EffectContext
+	);
+	if (StaminaCostSpec.IsValid())
 	{
-		const int32 DamageIndex = FMath::Clamp(CurrentComboIndex, 0, PlayerCombatConfig->PrimaryAttackSectionDamage.Num() - 1);
-		Damage = PlayerCombatConfig->PrimaryAttackSectionDamage[DamageIndex];
+		StaminaCostSpec.Data->SetSetByCallerMagnitude(RiftGameplayTags::SetByCaller_StaminaCost, -Cost);
+		AbilitySystemComponent->ApplyGameplayEffectSpecToSelf(*StaminaCostSpec.Data.Get());
 	}
 
-	float PoiseDamage = 0.0f;
-	if (PlayerCombatConfig->PrimaryAttackSectionPoiseDamage.Num() > 0)
-	{
-		const int32 PoiseDamageIndex = FMath::Clamp(CurrentComboIndex, 0, PlayerCombatConfig->PrimaryAttackSectionPoiseDamage.Num() - 1);
-		PoiseDamage = PlayerCombatConfig->PrimaryAttackSectionPoiseDamage[PoiseDamageIndex];
-	}
+	return true;
+}
 
-	WeaponTraceComponent->SetIncomingHitParams(Damage, PoiseDamage);
+const FRiftComboNode* UGA_ComboAttack::GetCurrentNode() const
+{
+	return ActiveComboGraph ? ActiveComboGraph->FindNode(CurrentSection) : nullptr;
 }

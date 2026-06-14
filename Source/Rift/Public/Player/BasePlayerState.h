@@ -8,7 +8,8 @@
 #include "BasePlayerState.generated.h"
 
 class URiftAbilitySystemComponent;
-class URiftAttributeSet;
+class URiftPlayerAttributeSet;
+class URiftResourceAttributeSet;
 
 /**
  *
@@ -28,5 +29,8 @@ protected:
 	TObjectPtr<URiftAbilitySystemComponent> AbilitySystemComponent;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="AbilitySystem")
-	TObjectPtr<URiftAttributeSet> AttributeSet;
+	TObjectPtr<URiftPlayerAttributeSet> AttributeSet;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="AbilitySystem")
+	TObjectPtr<URiftResourceAttributeSet> ResourceAttributeSet;
 };

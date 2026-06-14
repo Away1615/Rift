@@ -1,10 +1,13 @@
-// Fill out your copyright notice in the Description page of Project Settings.
-
 #pragma once
 
 #include "CoreMinimal.h"
 #include "Abilities/GameplayAbility.h"
+#include "GameplayTagContainer.h"
 #include "GA_ComboAttack.generated.h"
+
+class UAnimMontage;
+class URiftComboGraph;
+struct FRiftComboNode;
 
 UCLASS()
 class RIFT_API UGA_ComboAttack : public UGameplayAbility
@@ -15,24 +18,24 @@ public:
 	UGA_ComboAttack();
 
 	virtual void ActivateAbility(
-		const FGameplayAbilitySpecHandle Handle,
+		FGameplayAbilitySpecHandle Handle,
 		const FGameplayAbilityActorInfo* ActorInfo,
-		const FGameplayAbilityActivationInfo ActivationInfo,
+		FGameplayAbilityActivationInfo ActivationInfo,
 		const FGameplayEventData* TriggerEventData
 	) override;
 
 	virtual void EndAbility(
-		const FGameplayAbilitySpecHandle Handle,
+		FGameplayAbilitySpecHandle Handle,
 		const FGameplayAbilityActorInfo* ActorInfo,
-		const FGameplayAbilityActivationInfo ActivationInfo,
+		FGameplayAbilityActivationInfo ActivationInfo,
 		bool bReplicateEndAbility,
 		bool bWasCancelled
 	) override;
 
 	virtual void InputPressed(
-		const FGameplayAbilitySpecHandle Handle,
+		FGameplayAbilitySpecHandle Handle,
 		const FGameplayAbilityActorInfo* ActorInfo,
-		const FGameplayAbilityActivationInfo ActivationInfo
+		FGameplayAbilityActivationInfo ActivationInfo
 	) override;
 
 	void OpenComboInputWindow();
@@ -40,7 +43,6 @@ public:
 	void CommitComboChainPoint();
 
 	static UGA_ComboAttack* FindActiveComboInstance(AActor* AvatarActor);
-	int32 GetCurrentComboIndex() const { return CurrentComboIndex; }
 
 protected:
 	UFUNCTION()
@@ -61,15 +63,21 @@ private:
 	void ClearComboState();
 	void ApplyTargetAssistFacing();
 	void UpdateWeaponTraceDamage();
+	void EnterNode();
+	bool TryChargeStamina(float Cost);
+	const FRiftComboNode* GetCurrentNode() const;
 
 	bool bIsFinishingAttack = false;
-	int32 CurrentComboIndex = 0;
-	bool bComboInputWindowOpen = false;
-	bool bPendingComboInput = false;
-	bool bPreBufferedComboInput = false;
+	FName CurrentSection = NAME_None;
+	FGameplayTag PendingInputTag;
+	FGameplayTag PreBufferedInputTag;
 	float PreBufferedInputExpireTime = 0.0f;
+	bool bComboInputWindowOpen = false;
 	float ComboInputBufferDuration = 0.25f;
-	TArray<FName> ActiveComboSections;
+
 	UPROPERTY(Transient)
 	TObjectPtr<UAnimMontage> ActiveAttackMontage;
+
+	UPROPERTY(Transient)
+	TObjectPtr<URiftComboGraph> ActiveComboGraph;
 };

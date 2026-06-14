@@ -4,11 +4,6 @@
 
 #include "GameFramework/Pawn.h"
 
-void URiftEnemyAnimInstance::NativeInitializeAnimation()
-{
-	Super::NativeInitializeAnimation();
-}
-
 void URiftEnemyAnimInstance::NativeUpdateAnimation(float DeltaSeconds)
 {
 	Super::NativeUpdateAnimation(DeltaSeconds);

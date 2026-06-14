@@ -3,17 +3,8 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "AbilitySystemComponent.h"
-#include "AttributeSet.h"
+#include "AbilitySystem/Attributes/RiftAttributeMacros.h"
 #include "RiftEnemyAttributeSet.generated.h"
-
-#ifndef ATTRIBUTE_ACCESSORS
-#define ATTRIBUTE_ACCESSORS(ClassName, PropertyName) \
-	GAMEPLAYATTRIBUTE_PROPERTY_GETTER(ClassName, PropertyName) \
-	GAMEPLAYATTRIBUTE_VALUE_GETTER(PropertyName) \
-	GAMEPLAYATTRIBUTE_VALUE_SETTER(PropertyName) \
-	GAMEPLAYATTRIBUTE_VALUE_INITTER(PropertyName)
-#endif
 
 UCLASS()
 class RIFT_API URiftEnemyAttributeSet : public UAttributeSet

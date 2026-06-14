@@ -3,10 +3,12 @@
 #include "Combat/RiftWeaponTraceComponent.h"
 
 #include "AbilitySystemComponent.h"
+#include "AbilitySystem/Effects/GE_GainResource.h"
 #include "AbilitySystem/Effects/GE_MeleeDamage.h"
 #include "AbilitySystem/RiftGameplayTags.h"
 #include "Character/EnemyCharacter.h"
 #include "Character/PlayerCharacter.h"
+#include "Combat/RiftCombatFeedbackComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Debug/RiftDebugCVars.h"
 #include "DrawDebugHelpers.h"
@@ -20,10 +22,26 @@ URiftWeaponTraceComponent::URiftWeaponTraceComponent()
 	SetComponentTickEnabled(false);
 }
 
-void URiftWeaponTraceComponent::SetIncomingHitParams(const float Damage, const float PoiseDamage)
+void URiftWeaponTraceComponent::SetIncomingHitParams(
+	const float Damage,
+	const float PoiseDamage,
+	const float SwordIntentOnHit,
+	const float UltimateChargeOnHit
+)
 {
 	IncomingDamage = FMath::Max(0.0f, Damage);
 	IncomingPoiseDamage = FMath::Max(0.0f, PoiseDamage);
+	IncomingSwordIntent = FMath::Max(0.0f, SwordIntentOnHit);
+	IncomingUltimateCharge = FMath::Max(0.0f, UltimateChargeOnHit);
+}
+
+void URiftWeaponTraceComponent::SetIncomingCameraShake(
+	TSubclassOf<UCameraShakeBase> Shake,
+	const FVector2D Dir
+)
+{
+	IncomingCameraShake = Shake;
+	IncomingCameraShakeDir = Dir;
 }
 
 void URiftWeaponTraceComponent::StartHitWindow(const ERiftWeaponSlot Slot)
@@ -219,13 +237,41 @@ void URiftWeaponTraceComponent::ProcessHit(const ERiftWeaponSlot Slot, const flo
 		TargetAbilitySystemComponent
 	);
 
+	if (IncomingSwordIntent > 0.0f || IncomingUltimateCharge > 0.0f)
+	{
+		FGameplayEffectSpecHandle GainSpecHandle = SourceAbilitySystemComponent->MakeOutgoingSpec(
+			UGE_GainResource::StaticClass(),
+			1.0f,
+			EffectContext
+		);
+		if (GainSpecHandle.IsValid())
+		{
+			GainSpecHandle.Data->SetSetByCallerMagnitude(
+				RiftGameplayTags::SetByCaller_SwordIntent,
+				IncomingSwordIntent
+			);
+			GainSpecHandle.Data->SetSetByCallerMagnitude(
+				RiftGameplayTags::SetByCaller_UltimateCharge,
+				IncomingUltimateCharge
+			);
+			SourceAbilitySystemComponent->ApplyGameplayEffectSpecToTarget(
+				*GainSpecHandle.Data.Get(),
+				SourceAbilitySystemComponent
+			);
+		}
+	}
+
 	FGameplayCueParameters CueParameters;
 	CueParameters.Location = Hit.ImpactPoint.IsNearlyZero() ? Hit.Location : Hit.ImpactPoint;
 	CueParameters.Normal = Hit.ImpactNormal.GetSafeNormal();
 	CueParameters.Instigator = PlayerCharacter;
 	CueParameters.EffectCauser = PlayerCharacter;
 	TargetAbilitySystemComponent->ExecuteGameplayCue(RiftGameplayTags::GameplayCue_Combat_MeleeHit, CueParameters);
-	PlayerCharacter->Multicast_PlayMeleeHitFeedback(EnemyCharacter);
+
+	if (URiftCombatFeedbackComponent* FeedbackComponent = PlayerCharacter->GetCombatFeedbackComponent())
+	{
+		FeedbackComponent->Multicast_PlayMeleeHitFeedback(EnemyCharacter);
+	}
 
 	if (RiftDebugCVars::IsCombatDebugEnabled())
 	{

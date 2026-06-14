@@ -8,6 +8,40 @@
 
 class UAnimMontage;
 class UCameraShakeBase;
+class URiftComboGraph;
+
+USTRUCT(BlueprintType)
+struct FRiftHeavyAttackConfig
+{
+	GENERATED_BODY()
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly)
+	TObjectPtr<UAnimMontage> Montage;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly)
+	float Damage = 30.0f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly)
+	float PoiseDamage = 35.0f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly)
+	float StaminaCost = 25.0f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly)
+	float SwordIntentCost = 20.0f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly)
+	float SwordIntentOnHit = 0.0f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly)
+	float UltimateChargeOnHit = 4.0f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly)
+	TSubclassOf<UCameraShakeBase> CameraShake;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly)
+	FVector2D CameraShakeDir = FVector2D(0.0f, -1.0f);
+};
 
 UCLASS(BlueprintType)
 class RIFT_API UPlayerCombatConfig : public UPrimaryDataAsset
@@ -18,19 +52,16 @@ public:
 	UPlayerCombatConfig();
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Attack")
-	TObjectPtr<UAnimMontage> PrimaryAttackMontage;
-
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Attack")
-	TArray<FName> PrimaryAttackSections;
+	TObjectPtr<URiftComboGraph> ComboGraph;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Attack")
 	float ComboInputBufferDuration = 0.25f;
 
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Attack")
-	TArray<float> PrimaryAttackSectionDamage;
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Attack|Heavy")
+	FRiftHeavyAttackConfig PrimaryHeavy;
 
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Attack")
-	TArray<float> PrimaryAttackSectionPoiseDamage;
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Attack|Heavy")
+	FRiftHeavyAttackConfig SecondaryHeavy;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Attack|HitStop")
 	float HitStopDuration = 0.05f;
@@ -38,11 +69,20 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Attack|HitStop")
 	float HitStopTimeDilation = 0.1f;
 
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Attack|CameraShake")
-	TArray<TSubclassOf<UCameraShakeBase>> PrimaryAttackSectionCameraShake;
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Dodge")
+	TObjectPtr<UAnimMontage> DodgeMontage;
 
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Attack|CameraShake")
-	TArray<FVector2D> PrimaryAttackSectionShakeDir;
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Dodge")
+	float DodgeStaminaCost = 25.0f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Dodge")
+	float DodgeIFrameDelay = 0.05f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Dodge")
+	float DodgeIFrameDuration = 0.3f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Dodge")
+	float PerfectDodgeWindowDuration = 0.2f;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="TargetAssist")
 	float TargetAssistMaxRange = 800.0f;

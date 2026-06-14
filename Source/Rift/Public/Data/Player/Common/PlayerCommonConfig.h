@@ -23,20 +23,20 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Attribute|Health")
 	float MaxHealth = 100.0f;
 
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Attribute|Health")
-	float HealthRecoverRate = 1.0f;
-
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Attribute|Stamina")
 	float Stamina = 100.0f;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Attribute|Stamina")
 	float MaxStamina = 100.0f;
 
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Attribute|Mana")
-	float Mana = 100.0f;
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Attribute|Stamina")
+	float StaminaRegenRate = 20.0f;
 
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Attribute|Mana")
-	float MaxMana = 100.0f;
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Attribute|SwordIntent")
+	float SwordIntent = 30.0f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Attribute|SwordIntent")
+	float MaxSwordIntent = 100.0f;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Attribute|Ultimate")
 	float UltimateCharge = 0.0f;

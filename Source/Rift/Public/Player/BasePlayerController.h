@@ -31,5 +31,9 @@ private:
 	void HandleMoveInput(const FInputActionValue& InputActionValue);
 	void HandleLookInput(const FInputActionValue& InputActionValue);
 	void HandlePrimaryAttackInput(const FInputActionValue& InputActionValue);
+	void HandleSecondaryAttackInput(const FInputActionValue& InputActionValue);
+	void HandlePrimaryHeavyInput(const FInputActionValue& InputActionValue);
+	void HandleSecondaryHeavyInput(const FInputActionValue& InputActionValue);
+	void HandleCoreInput(const FInputActionValue& InputActionValue);
 	void HandleMoveCompleted();
 };

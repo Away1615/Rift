@@ -4,10 +4,12 @@
 #include "Character/PlayerCharacter.h"
 
 #include "AbilitySystemComponent.h"
-#include "AbilitySystem/Abilities/GA_ComboAttack.h"
+#include "AbilitySystem/Attributes/RiftPlayerAttributeSet.h"
+#include "AbilitySystem/Attributes/RiftResourceAttributeSet.h"
+#include "AbilitySystem/Effects/GE_StaminaRegen.h"
+#include "AbilitySystem/RiftGameplayTags.h"
 #include "Abilities/GameplayAbility.h"
-#include "Camera/PlayerCameraManager.h"
-#include "Camera/RiftHitCameraShake.h"
+#include "Combat/RiftCombatFeedbackComponent.h"
 #include "Combat/RiftTargetAssistComponent.h"
 #include "Combat/RiftWeaponTraceComponent.h"
 #include "Components/SkeletalMeshComponent.h"
@@ -20,17 +22,19 @@
 #include "Debug/Logger.h"
 #include "Engine/World.h"
 #include "GameFramework/CharacterMovementComponent.h"
-#include "GameFramework/PlayerController.h"
 #include "Net/UnrealNetwork.h"
 #include "Player/BasePlayerState.h"
 #include "TimerManager.h"
 
 APlayerCharacter::APlayerCharacter()
 {
+    PrimaryActorTick.bCanEverTick = true;
+    PrimaryActorTick.bStartWithTickEnabled = true;
     InitPlayerProperties();
     InitMovementSettings();
     TargetAssistComponent = CreateDefaultSubobject<URiftTargetAssistComponent>(TEXT("TargetAssistComponent"));
     WeaponTraceComponent = CreateDefaultSubobject<URiftWeaponTraceComponent>(TEXT("WeaponTraceComponent"));
+    CombatFeedbackComponent = CreateDefaultSubobject<URiftCombatFeedbackComponent>(TEXT("CombatFeedbackComponent"));
     InitCameraComponents();
 }
 
@@ -62,58 +66,6 @@ void APlayerCharacter::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& Out
 UPlayerAnimationConfig* APlayerCharacter::GetPlayerAnimationConfig() const
 {
     return PlayerClassConfig ? PlayerClassConfig->PlayerAnimationConfig : nullptr;
-}
-
-void APlayerCharacter::Multicast_PlayMeleeHitFeedback_Implementation(AActor* HitEnemy)
-{
-    const UPlayerCombatConfig* CombatConfig = PlayerClassConfig ? PlayerClassConfig->PlayerCombatConfig : nullptr;
-    if (!CombatConfig) return;
-
-    const float TimeDilation = FMath::Clamp(CombatConfig->HitStopTimeDilation, 0.01f, 1.0f);
-    const float Duration = FMath::Max(0.0f, CombatConfig->HitStopDuration);
-    if (Duration > 0.0f)
-    {
-        ApplyHitStopToActor(this, TimeDilation, Duration);
-
-        if (HitEnemy)
-        {
-            ApplyHitStopToActor(HitEnemy, TimeDilation, Duration);
-        }
-    }
-
-    if (!IsLocallyControlled()) return;
-
-    APlayerController* PlayerController = Cast<APlayerController>(GetController());
-    if (!PlayerController || !PlayerController->PlayerCameraManager) return;
-
-    int32 SectionIndex = 0;
-    if (UGA_ComboAttack* ComboAttack = UGA_ComboAttack::FindActiveComboInstance(this))
-    {
-        SectionIndex = ComboAttack->GetCurrentComboIndex();
-    }
-
-    const TArray<TSubclassOf<UCameraShakeBase>>& CameraShakes = CombatConfig->PrimaryAttackSectionCameraShake;
-    if (CameraShakes.Num() == 0) return;
-
-    const int32 ShakeIndex = FMath::Clamp(SectionIndex, 0, CameraShakes.Num() - 1);
-    const TSubclassOf<UCameraShakeBase> CameraShakeClass = CameraShakes[ShakeIndex];
-    if (!CameraShakeClass) return;
-
-    FVector2D ShakeDirection(1.0f, 0.0f);
-    const TArray<FVector2D>& ShakeDirections = CombatConfig->PrimaryAttackSectionShakeDir;
-    if (ShakeDirections.IsValidIndex(ShakeIndex))
-    {
-        ShakeDirection = ShakeDirections[ShakeIndex];
-    }
-
-    UCameraShakeBase* CameraShake = PlayerController->PlayerCameraManager->StartCameraShake(CameraShakeClass, 1.0f);
-    if (CameraShake)
-    {
-        if (URiftHitCameraShakePattern* Pattern = Cast<URiftHitCameraShakePattern>(CameraShake->GetRootShakePattern()))
-        {
-            Pattern->SetShakeDirection(ShakeDirection);
-        }
-    }
 }
 
 void APlayerCharacter::SelectPlayerClass_Implementation(UPlayerClassConfig* NewPlayerClassConfig)
@@ -275,6 +227,38 @@ void APlayerCharacter::ClearMovementInputCache()
     MovementInputVector = FVector2D::ZeroVector;
 }
 
+FVector APlayerCharacter::GetCameraRelativeMoveDirection() const
+{
+    if (MovementInputVector.IsNearlyZero()) return FVector::ZeroVector;
+
+    const AController* CurrentController = GetController();
+    if (!CurrentController) return GetActorForwardVector();
+
+    const FRotator YawRotation(0.0f, CurrentController->GetControlRotation().Yaw, 0.0f);
+    const FVector ForwardDirection = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::X);
+    const FVector RightDirection = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::Y);
+
+    return (ForwardDirection * MovementInputVector.Y + RightDirection * MovementInputVector.X).GetSafeNormal();
+}
+
+void APlayerCharacter::ActivatePerfectDodgeWindow(const FVector& Origin, const float Duration)
+{
+    PerfectDodgeOrigin = Origin;
+    bPerfectDodgeWindowActive = true;
+
+    UWorld* World = GetWorld();
+    if (!World) return;
+
+    World->GetTimerManager().ClearTimer(PerfectDodgeWindowTimerHandle);
+    World->GetTimerManager().SetTimer(
+        PerfectDodgeWindowTimerHandle,
+        this,
+        &APlayerCharacter::DeactivatePerfectDodgeWindow,
+        Duration,
+        false
+    );
+}
+
 void APlayerCharacter::InitPlayerProperties()
 {
     // Network
@@ -287,6 +271,9 @@ void APlayerCharacter::InitCameraComponents()
     SpringArmComponent = CreateDefaultSubobject<USpringArmComponent>(TEXT("SpringArmComponent"));
     SpringArmComponent->SetupAttachment(RootComponent);
     SpringArmComponent->bUsePawnControlRotation = true;
+    SpringArmComponent->bEnableCameraLag = true;
+    SpringArmComponent->CameraLagSpeed = 10.0f;
+    SpringArmComponent->CameraLagMaxDistance = 150.0f;
 
     CameraComponent = CreateDefaultSubobject<UCameraComponent>(TEXT("CameraComponent"));
     CameraComponent->SetupAttachment(SpringArmComponent);
@@ -300,6 +287,7 @@ void APlayerCharacter::AssemblePlayerClass()
 
     if (!HasAuthority()) return;
 
+    ApplyCommonAttributesFromConfig();
     GrantAbilitiesFromClassConfig();
     ApplyWeaponsFromConfig();
 }
@@ -328,6 +316,73 @@ void APlayerCharacter::ApplyAnimationConfig() const
     {
         CharacterMesh->SetAnimInstanceClass(AnimationConfig->AnimInstanceClass);
     }
+}
+
+void APlayerCharacter::ApplyCommonAttributesFromConfig()
+{
+    if (!HasAuthority()) return;
+
+    const UPlayerCommonConfig* CommonConfig = PlayerClassConfig ? PlayerClassConfig->PlayerCommonConfig : nullptr;
+    if (!CommonConfig) return;
+
+    UAbilitySystemComponent* AbilitySystemComponent = GetAbilitySystemComponent();
+    if (!AbilitySystemComponent) return;
+
+    AbilitySystemComponent->SetNumericAttributeBase(
+        URiftPlayerAttributeSet::GetMaxHealthAttribute(),
+        CommonConfig->MaxHealth
+    );
+    AbilitySystemComponent->SetNumericAttributeBase(
+        URiftPlayerAttributeSet::GetHealthAttribute(),
+        CommonConfig->Health
+    );
+    AbilitySystemComponent->SetNumericAttributeBase(
+        URiftPlayerAttributeSet::GetMaxStaminaAttribute(),
+        CommonConfig->MaxStamina
+    );
+    AbilitySystemComponent->SetNumericAttributeBase(
+        URiftPlayerAttributeSet::GetStaminaAttribute(),
+        CommonConfig->Stamina
+    );
+    AbilitySystemComponent->SetNumericAttributeBase(
+        URiftResourceAttributeSet::GetMaxSwordIntentAttribute(),
+        CommonConfig->MaxSwordIntent
+    );
+    AbilitySystemComponent->SetNumericAttributeBase(
+        URiftResourceAttributeSet::GetSwordIntentAttribute(),
+        CommonConfig->SwordIntent
+    );
+    AbilitySystemComponent->SetNumericAttributeBase(
+        URiftResourceAttributeSet::GetMaxUltimateChargeAttribute(),
+        CommonConfig->MaxUltimateCharge
+    );
+    AbilitySystemComponent->SetNumericAttributeBase(
+        URiftResourceAttributeSet::GetUltimateChargeAttribute(),
+        CommonConfig->UltimateCharge
+    );
+
+    if (StaminaRegenEffectHandle.IsValid())
+    {
+        AbilitySystemComponent->RemoveActiveGameplayEffect(StaminaRegenEffectHandle);
+        StaminaRegenEffectHandle = FActiveGameplayEffectHandle();
+    }
+
+    const float RegenPerTick = CommonConfig->StaminaRegenRate * 0.1f;
+    FGameplayEffectContextHandle EffectContext = AbilitySystemComponent->MakeEffectContext();
+    EffectContext.AddSourceObject(this);
+
+    FGameplayEffectSpecHandle StaminaRegenSpec = AbilitySystemComponent->MakeOutgoingSpec(
+        UGE_StaminaRegen::StaticClass(),
+        1.0f,
+        EffectContext
+    );
+    if (!StaminaRegenSpec.IsValid()) return;
+
+    StaminaRegenSpec.Data->SetSetByCallerMagnitude(
+        RiftGameplayTags::SetByCaller_StaminaRegen,
+        RegenPerTick
+    );
+    StaminaRegenEffectHandle = AbilitySystemComponent->ApplyGameplayEffectSpecToSelf(*StaminaRegenSpec.Data.Get());
 }
 
 void APlayerCharacter::ApplyWeaponsFromConfig()
@@ -393,33 +448,9 @@ void APlayerCharacter::ClearGrantedAbilities()
     GrantedAbilityHandles.Empty();
 }
 
-void APlayerCharacter::ApplyHitStopToActor(AActor* TargetActor, const float TimeDilation, const float Duration)
+void APlayerCharacter::DeactivatePerfectDodgeWindow()
 {
-    if (!TargetActor) return;
-
-    UWorld* World = GetWorld();
-    if (!World) return;
-
-    TWeakObjectPtr<AActor> WeakTarget(TargetActor);
-
-    if (FTimerHandle* ExistingHandle = HitStopTimerHandles.Find(WeakTarget))
-    {
-        World->GetTimerManager().ClearTimer(*ExistingHandle);
-    }
-
-    TargetActor->CustomTimeDilation = TimeDilation;
-
-    FTimerDelegate TimerDelegate;
-    TimerDelegate.BindLambda([WeakTarget]()
-    {
-        if (AActor* RestoredActor = WeakTarget.Get())
-        {
-            RestoredActor->CustomTimeDilation = 1.0f;
-        }
-    });
-
-    FTimerHandle& TimerHandle = HitStopTimerHandles.FindOrAdd(WeakTarget);
-    World->GetTimerManager().SetTimer(TimerHandle, TimerDelegate, Duration, false);
+    bPerfectDodgeWindowActive = false;
 }
 
 void APlayerCharacter::GrantAbilitiesFromClassConfig()
@@ -504,7 +535,6 @@ void APlayerCharacter::CreateAndAttachWeaponMesh(const FPlayerWeaponPartConfig& 
     }
 
     UStaticMeshComponent* WeaponMeshComponent = NewObject<UStaticMeshComponent>(this);
-    if (!WeaponMeshComponent) return;
 
     WeaponMeshComponent->SetStaticMesh(WeaponPartConfig.WeaponMesh);
     WeaponMeshComponent->SetCollisionEnabled(ECollisionEnabled::NoCollision);

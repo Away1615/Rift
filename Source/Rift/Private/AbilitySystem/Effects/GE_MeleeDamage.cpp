@@ -4,10 +4,16 @@
 
 #include "AbilitySystem/Attributes/RiftEnemyAttributeSet.h"
 #include "AbilitySystem/RiftGameplayTags.h"
+#include "GameplayEffectComponents/TargetTagRequirementsGameplayEffectComponent.h"
 
 UGE_MeleeDamage::UGE_MeleeDamage()
 {
 	DurationPolicy = EGameplayEffectDurationType::Instant;
+
+	UTargetTagRequirementsGameplayEffectComponent* TargetTagRequirementsComponent =
+		CreateDefaultSubobject<UTargetTagRequirementsGameplayEffectComponent>(TEXT("TargetTagRequirements"));
+	TargetTagRequirementsComponent->ApplicationTagRequirements.IgnoreTags.AddTag(RiftGameplayTags::State_Dodging);
+	GEComponents.Add(TargetTagRequirementsComponent);
 
 	FSetByCallerFloat DamageMagnitude;
 	DamageMagnitude.DataTag = RiftGameplayTags::SetByCaller_Damage;
