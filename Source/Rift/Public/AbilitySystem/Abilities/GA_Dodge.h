@@ -4,7 +4,6 @@
 
 #include "CoreMinimal.h"
 #include "Abilities/GameplayAbility.h"
-#include "TimerManager.h"
 #include "GA_Dodge.generated.h"
 
 UCLASS()
@@ -45,12 +44,8 @@ protected:
 
 private:
 	void FinishDodgeAbility(bool bWasCancelled);
-	void EnableDodgeIFrame();
-	void DisableDodgeIFrame();
 	void RestoreOrientToMovement();
 
 	bool bSavedOrientToMovement = true;
 	bool bIsFinishingDodge = false;
-	FTimerHandle IFrameStartTimer;
-	FTimerHandle IFrameEndTimer;
 };

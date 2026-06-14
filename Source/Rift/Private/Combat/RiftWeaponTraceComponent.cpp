@@ -46,8 +46,12 @@ void URiftWeaponTraceComponent::SetIncomingCameraShake(
 
 void URiftWeaponTraceComponent::StartHitWindow(const ERiftWeaponSlot Slot)
 {
+	if (Slot != ERiftWeaponSlot::HandLeft && Slot != ERiftWeaponSlot::HandRight) return;
+
 	AActor* OwnerActor = GetOwner();
 	if (!OwnerActor || !OwnerActor->HasAuthority()) return;
+	APlayerCharacter* PlayerCharacter = Cast<APlayerCharacter>(OwnerActor);
+	if (!PlayerCharacter) return;
 
 	// v1 uses server-authoritative melee traces only; client-predicted hit cosmetics can be added later.
 	int32& HitWindowRefCount = HitWindowRefCounts.FindOrAdd(Slot);
@@ -60,10 +64,7 @@ void URiftWeaponTraceComponent::StartHitWindow(const ERiftWeaponSlot Slot)
 	HitActorsBySlot.FindOrAdd(Slot).Empty();
 	RemoveTraceCacheForSlot(Slot);
 
-	const APlayerCharacter* PlayerCharacter = Cast<APlayerCharacter>(OwnerActor);
-	if (!PlayerCharacter) return;
-
-	UStaticMeshComponent* WeaponMesh = PlayerCharacter->GetWeaponMeshComponent(Slot);
+	UStaticMeshComponent* WeaponMesh = PlayerCharacter->GetWeaponMesh(Slot);
 	if (!WeaponMesh) return;
 
 	FVector TraceStart = FVector::ZeroVector;
@@ -73,7 +74,7 @@ void URiftWeaponTraceComponent::StartHitWindow(const ERiftWeaponSlot Slot)
 	FWeaponTraceCache TraceCache;
 	TraceCache.WeaponSlot = Slot;
 	TraceCache.WeaponMesh = WeaponMesh;
-	TraceCache.TraceRadius = PlayerCharacter->GetWeaponTraceRadius(Slot);
+	TraceCache.TraceRadius = WeaponTraceRadius;
 	TraceCache.PreviousStart = TraceStart;
 	TraceCache.PreviousEnd = TraceEnd;
 	WeaponTraceCaches.Add(TraceCache);
@@ -194,7 +195,7 @@ void URiftWeaponTraceComponent::TraceWeapon(FWeaponTraceCache& TraceCache)
 
 		for (const FHitResult& Hit : HitResults)
 		{
-			ProcessHit(TraceCache.WeaponSlot, TraceCache.TraceRadius, Hit);
+			ProcessPlayerHit(TraceCache.WeaponSlot, TraceCache.TraceRadius, Hit);
 		}
 	}
 
@@ -202,7 +203,7 @@ void URiftWeaponTraceComponent::TraceWeapon(FWeaponTraceCache& TraceCache)
 	TraceCache.PreviousEnd = CurrentEnd;
 }
 
-void URiftWeaponTraceComponent::ProcessHit(const ERiftWeaponSlot Slot, const float TraceRadius, const FHitResult& Hit)
+void URiftWeaponTraceComponent::ProcessPlayerHit(const ERiftWeaponSlot Slot, const float TraceRadius, const FHitResult& Hit)
 {
 	APlayerCharacter* PlayerCharacter = Cast<APlayerCharacter>(GetOwner());
 	AEnemyCharacter* EnemyCharacter = Cast<AEnemyCharacter>(Hit.GetActor());

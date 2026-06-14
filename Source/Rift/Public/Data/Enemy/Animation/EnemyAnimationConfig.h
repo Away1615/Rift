@@ -9,6 +9,7 @@
 class UAnimInstance;
 class UAnimMontage;
 class USkeletalMesh;
+class UStaticMesh;
 
 UCLASS(BlueprintType)
 class RIFT_API UEnemyAnimationConfig : public UPrimaryDataAsset
@@ -20,6 +21,9 @@ public:
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Appearance")
 	TObjectPtr<USkeletalMesh> SkeletalMesh;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Appearance")
+	TObjectPtr<UStaticMesh> HeadMesh;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Animation")
 	TSubclassOf<UAnimInstance> AnimInstanceClass;

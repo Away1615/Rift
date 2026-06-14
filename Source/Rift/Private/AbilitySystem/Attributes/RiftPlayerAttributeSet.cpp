@@ -11,6 +11,7 @@ URiftPlayerAttributeSet::URiftPlayerAttributeSet()
 	InitMaxHealth(100.0f);
 	InitStamina(100.0f);
 	InitMaxStamina(100.0f);
+	InitDamage(0.0f);
 }
 
 void URiftPlayerAttributeSet::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
@@ -30,6 +31,16 @@ void URiftPlayerAttributeSet::PostGameplayEffectExecute(const FGameplayEffectMod
 	if (Data.EvaluatedData.Attribute == GetHealthAttribute())
 	{
 		SetHealth(FMath::Clamp(GetHealth(), 0.0f, GetMaxHealth()));
+	}
+
+	if (Data.EvaluatedData.Attribute == GetDamageAttribute())
+	{
+		const float DamageValue = GetDamage();
+		SetDamage(0.0f);
+		if (DamageValue > 0.0f)
+		{
+			SetHealth(FMath::Clamp(GetHealth() - DamageValue, 0.0f, GetMaxHealth()));
+		}
 	}
 
 	if (Data.EvaluatedData.Attribute == GetStaminaAttribute())

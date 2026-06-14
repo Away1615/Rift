@@ -11,10 +11,10 @@ void URiftAbilitySystemComponent::AbilityInputTagPressed(const FGameplayTag& Inp
 {
 	if (!InputTag.IsValid()) return;
 
-	PressedInputTagThisFrame = InputTag;
+	LastPressedInputTag = InputTag;
 	if (!IsOwnerActorAuthoritative())
 	{
-		ServerSetPressedInputTag(InputTag);
+		ServerSetLastPressedInputTag(InputTag);
 	}
 
 	bool bFoundActiveMatchingAbility = false;
@@ -48,10 +48,10 @@ void URiftAbilitySystemComponent::AbilityInputTagPressed(const FGameplayTag& Inp
 		TryActivateAbilitiesByTag(ActivationTags);
 	}
 
-	PressedInputTagThisFrame = FGameplayTag();
+	LastPressedInputTag = FGameplayTag();
 }
 
-void URiftAbilitySystemComponent::ServerSetPressedInputTag_Implementation(FGameplayTag InputTag)
+void URiftAbilitySystemComponent::ServerSetLastPressedInputTag_Implementation(FGameplayTag InputTag)
 {
-	PressedInputTagThisFrame = InputTag;
+	LastPressedInputTag = InputTag;
 }

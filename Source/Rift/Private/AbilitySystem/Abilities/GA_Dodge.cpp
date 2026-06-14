@@ -23,6 +23,7 @@ UGA_Dodge::UGA_Dodge()
 	SetAssetTags(DodgeAssetTags);
 
 	ActivationOwnedTags.AddTag(RiftGameplayTags::Ability_Dodge);
+	ActivationOwnedTags.AddTag(RiftGameplayTags::State_Dodging);
 	ActivationBlockedTags.AddTag(RiftGameplayTags::Ability_Dodge);
 }
 
@@ -117,28 +118,6 @@ void UGA_Dodge::ActivateAbility(
 		CombatConfig->PerfectDodgeWindowDuration
 	);
 
-	UWorld* World = GetWorld();
-	if (!World)
-	{
-		EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
-		return;
-	}
-
-	World->GetTimerManager().SetTimer(
-		IFrameStartTimer,
-		this,
-		&UGA_Dodge::EnableDodgeIFrame,
-		CombatConfig->DodgeIFrameDelay,
-		false
-	);
-	World->GetTimerManager().SetTimer(
-		IFrameEndTimer,
-		this,
-		&UGA_Dodge::DisableDodgeIFrame,
-		CombatConfig->DodgeIFrameDelay + CombatConfig->DodgeIFrameDuration,
-		false
-	);
-
 	UAbilityTask_PlayMontageAndWait* MontageTask = UAbilityTask_PlayMontageAndWait::CreatePlayMontageAndWaitProxy(
 		this,
 		NAME_None,
@@ -168,13 +147,6 @@ void UGA_Dodge::EndAbility(
 	bool bWasCancelled
 )
 {
-	if (UWorld* World = GetWorld())
-	{
-		World->GetTimerManager().ClearTimer(IFrameStartTimer);
-		World->GetTimerManager().ClearTimer(IFrameEndTimer);
-	}
-
-	DisableDodgeIFrame();
 	RestoreOrientToMovement();
 
 	if (ActorInfo)
@@ -217,22 +189,6 @@ void UGA_Dodge::FinishDodgeAbility(const bool bWasCancelled)
 
 	bIsFinishingDodge = true;
 	EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, bWasCancelled);
-}
-
-void UGA_Dodge::EnableDodgeIFrame()
-{
-	UAbilitySystemComponent* AbilitySystemComponent = GetAbilitySystemComponentFromActorInfo();
-	if (!AbilitySystemComponent) return;
-
-	AbilitySystemComponent->AddLooseGameplayTag(RiftGameplayTags::State_Dodging);
-}
-
-void UGA_Dodge::DisableDodgeIFrame()
-{
-	UAbilitySystemComponent* AbilitySystemComponent = GetAbilitySystemComponentFromActorInfo();
-	if (!AbilitySystemComponent) return;
-
-	AbilitySystemComponent->RemoveLooseGameplayTag(RiftGameplayTags::State_Dodging);
 }
 
 void UGA_Dodge::RestoreOrientToMovement()

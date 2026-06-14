@@ -12,7 +12,7 @@ UGE_MeleeDamage::UGE_MeleeDamage()
 
 	UTargetTagRequirementsGameplayEffectComponent* TargetTagRequirementsComponent =
 		CreateDefaultSubobject<UTargetTagRequirementsGameplayEffectComponent>(TEXT("TargetTagRequirements"));
-	TargetTagRequirementsComponent->ApplicationTagRequirements.IgnoreTags.AddTag(RiftGameplayTags::State_Dodging);
+	TargetTagRequirementsComponent->ApplicationTagRequirements.IgnoreTags.AddTag(RiftGameplayTags::State_Invincible);
 	GEComponents.Add(TargetTagRequirementsComponent);
 
 	FSetByCallerFloat DamageMagnitude;

@@ -6,6 +6,7 @@
 #include "AbilitySystemComponent.h"
 #include "AbilitySystem/Attributes/RiftPlayerAttributeSet.h"
 #include "AbilitySystem/Attributes/RiftResourceAttributeSet.h"
+#include "AbilitySystem/Effects/GE_GainResource.h"
 #include "AbilitySystem/Effects/GE_StaminaRegen.h"
 #include "AbilitySystem/RiftGameplayTags.h"
 #include "Abilities/GameplayAbility.h"
@@ -13,12 +14,9 @@
 #include "Combat/RiftTargetAssistComponent.h"
 #include "Combat/RiftWeaponTraceComponent.h"
 #include "Components/SkeletalMeshComponent.h"
-#include "Components/StaticMeshComponent.h"
 #include "Data/Player/PlayerClassConfig.h"
 #include "Data/Player/Animation/PlayerAnimationConfig.h"
-#include "Data/Player/Common/PlayerCommonConfig.h"
 #include "Data/Player/Combat/PlayerCombatConfig.h"
-#include "Data/Player/Weapon/PlayerWeaponConfig.h"
 #include "Debug/Logger.h"
 #include "Engine/World.h"
 #include "GameFramework/CharacterMovementComponent.h"
@@ -53,8 +51,7 @@ void APlayerCharacter::Tick(float DeltaTime)
 void APlayerCharacter::PostInitializeComponents()
 {
     Super::PostInitializeComponents();
-    ApplyAnimationConfig();
-    ApplyMovementSettings();
+    ApplyClassConfigOnAllRoles();
 }
 
 void APlayerCharacter::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
@@ -137,32 +134,6 @@ UAbilitySystemComponent* APlayerCharacter::GetAbilitySystemComponent() const
 {
     const ABasePlayerState* RiftPlayerState = GetPlayerState<ABasePlayerState>();
     return RiftPlayerState ? RiftPlayerState->GetAbilitySystemComponent() : nullptr;
-}
-
-UStaticMeshComponent* APlayerCharacter::GetWeaponMeshComponent(const ERiftWeaponSlot Slot) const
-{
-    switch (Slot)
-    {
-    case ERiftWeaponSlot::Left:
-        return LeftWeaponMesh;
-    case ERiftWeaponSlot::Right:
-        return RightWeaponMesh;
-    default:
-        return nullptr;
-    }
-}
-
-float APlayerCharacter::GetWeaponTraceRadius(const ERiftWeaponSlot Slot) const
-{
-    switch (Slot)
-    {
-    case ERiftWeaponSlot::Left:
-        return LeftWeaponTraceRadius;
-    case ERiftWeaponSlot::Right:
-        return RightWeaponTraceRadius;
-    default:
-        return 15.0f;
-    }
 }
 
 void APlayerCharacter::HandleMove(const FVector2D& InputValue)
@@ -259,6 +230,44 @@ void APlayerCharacter::ActivatePerfectDodgeWindow(const FVector& Origin, const f
     );
 }
 
+void APlayerCharacter::HandlePerfectDodge(AActor* InstigatorEnemy)
+{
+    static_cast<void>(InstigatorEnemy);
+
+    FLogger::Log(this, TEXT("Perfect Dodge!"));
+
+    if (!HasAuthority()) return;
+
+    bPerfectDodgeWindowActive = false;
+    GetWorldTimerManager().ClearTimer(PerfectDodgeWindowTimerHandle);
+
+    const UPlayerClassConfig* ClassConfig = GetPlayerClassConfig();
+    const UPlayerCombatConfig* CombatConfig = ClassConfig ? ClassConfig->PlayerCombatConfig : nullptr;
+    UAbilitySystemComponent* AbilitySystemComponent = GetAbilitySystemComponent();
+    if (CombatConfig && AbilitySystemComponent)
+    {
+        FGameplayEffectContextHandle EffectContext = AbilitySystemComponent->MakeEffectContext();
+        FGameplayEffectSpecHandle GainSpec = AbilitySystemComponent->MakeOutgoingSpec(
+            UGE_GainResource::StaticClass(),
+            1.0f,
+            EffectContext
+        );
+        if (GainSpec.IsValid())
+        {
+            GainSpec.Data->SetSetByCallerMagnitude(
+                RiftGameplayTags::SetByCaller_SwordIntent,
+                CombatConfig->PerfectDodgeSwordIntentReward
+            );
+            GainSpec.Data->SetSetByCallerMagnitude(
+                RiftGameplayTags::SetByCaller_UltimateCharge,
+                CombatConfig->PerfectDodgeUltimateChargeReward
+            );
+            AbilitySystemComponent->ApplyGameplayEffectSpecToSelf(*GainSpec.Data.Get());
+        }
+    }
+
+}
+
 void APlayerCharacter::InitPlayerProperties()
 {
     // Network
@@ -282,21 +291,31 @@ void APlayerCharacter::InitCameraComponents()
 
 void APlayerCharacter::AssemblePlayerClass()
 {
-    ApplyAnimationConfig();
-    ApplyMovementSettings();
+    ApplyClassConfigOnAllRoles();
 
     if (!HasAuthority()) return;
 
-    ApplyCommonAttributesFromConfig();
-    GrantAbilitiesFromClassConfig();
-    ApplyWeaponsFromConfig();
+    ApplyClassConfigOnAuthority();
 }
 
 void APlayerCharacter::OnRep_PlayerClassConfig()
 {
+    ApplyClassConfigOnAllRoles();
+}
+
+void APlayerCharacter::ApplyClassConfigOnAllRoles()
+{
     ApplyAnimationConfig();
     ApplyMovementSettings();
     ApplyWeaponsFromConfig();
+}
+
+void APlayerCharacter::ApplyClassConfigOnAuthority()
+{
+    if (!HasAuthority()) return;
+
+    ApplyCommonAttributesFromConfig();
+    GrantAbilitiesFromClassConfig();
 }
 
 void APlayerCharacter::ApplyAnimationConfig() const
@@ -322,43 +341,42 @@ void APlayerCharacter::ApplyCommonAttributesFromConfig()
 {
     if (!HasAuthority()) return;
 
-    const UPlayerCommonConfig* CommonConfig = PlayerClassConfig ? PlayerClassConfig->PlayerCommonConfig : nullptr;
-    if (!CommonConfig) return;
+    if (!PlayerClassConfig) return;
 
     UAbilitySystemComponent* AbilitySystemComponent = GetAbilitySystemComponent();
     if (!AbilitySystemComponent) return;
 
     AbilitySystemComponent->SetNumericAttributeBase(
         URiftPlayerAttributeSet::GetMaxHealthAttribute(),
-        CommonConfig->MaxHealth
+        PlayerClassConfig->MaxHealth
     );
     AbilitySystemComponent->SetNumericAttributeBase(
         URiftPlayerAttributeSet::GetHealthAttribute(),
-        CommonConfig->Health
+        PlayerClassConfig->Health
     );
     AbilitySystemComponent->SetNumericAttributeBase(
         URiftPlayerAttributeSet::GetMaxStaminaAttribute(),
-        CommonConfig->MaxStamina
+        PlayerClassConfig->MaxStamina
     );
     AbilitySystemComponent->SetNumericAttributeBase(
         URiftPlayerAttributeSet::GetStaminaAttribute(),
-        CommonConfig->Stamina
+        PlayerClassConfig->Stamina
     );
     AbilitySystemComponent->SetNumericAttributeBase(
         URiftResourceAttributeSet::GetMaxSwordIntentAttribute(),
-        CommonConfig->MaxSwordIntent
+        PlayerClassConfig->MaxSwordIntent
     );
     AbilitySystemComponent->SetNumericAttributeBase(
         URiftResourceAttributeSet::GetSwordIntentAttribute(),
-        CommonConfig->SwordIntent
+        PlayerClassConfig->SwordIntent
     );
     AbilitySystemComponent->SetNumericAttributeBase(
         URiftResourceAttributeSet::GetMaxUltimateChargeAttribute(),
-        CommonConfig->MaxUltimateCharge
+        PlayerClassConfig->MaxUltimateCharge
     );
     AbilitySystemComponent->SetNumericAttributeBase(
         URiftResourceAttributeSet::GetUltimateChargeAttribute(),
-        CommonConfig->UltimateCharge
+        PlayerClassConfig->UltimateCharge
     );
 
     if (StaminaRegenEffectHandle.IsValid())
@@ -367,7 +385,7 @@ void APlayerCharacter::ApplyCommonAttributesFromConfig()
         StaminaRegenEffectHandle = FActiveGameplayEffectHandle();
     }
 
-    const float RegenPerTick = CommonConfig->StaminaRegenRate * 0.1f;
+    const float RegenPerTick = PlayerClassConfig->StaminaRegenRate * 0.1f;
     FGameplayEffectContextHandle EffectContext = AbilitySystemComponent->MakeEffectContext();
     EffectContext.AddSourceObject(this);
 
@@ -387,43 +405,8 @@ void APlayerCharacter::ApplyCommonAttributesFromConfig()
 
 void APlayerCharacter::ApplyWeaponsFromConfig()
 {
-    ClearEquippedWeapons();
-
-    if (!PlayerClassConfig)
-    {
-        FLogger::Error(this, TEXT("EquipWeapons failed: PlayerClassConfig is missing"), ELogSystem::Weapon);
-        return;
-    }
-
-    const UPlayerWeaponConfig* WeaponConfig = PlayerClassConfig->PlayerWeaponConfig;
-    if (!WeaponConfig)
-    {
-        FLogger::Error(this, TEXT("EquipWeapons failed: PlayerWeaponConfig is missing"), ELogSystem::Weapon);
-        return;
-    }
-
-    for (const FPlayerWeaponPartConfig& WeaponPartConfig : WeaponConfig->EquippedWeapons)
-    {
-        CreateAndAttachWeaponMesh(WeaponPartConfig);
-    }
-}
-
-void APlayerCharacter::ClearEquippedWeapons()
-{
-    if (LeftWeaponMesh)
-    {
-        LeftWeaponMesh->DestroyComponent();
-        LeftWeaponMesh = nullptr;
-    }
-
-    if (RightWeaponMesh)
-    {
-        RightWeaponMesh->DestroyComponent();
-        RightWeaponMesh = nullptr;
-    }
-
-    LeftWeaponTraceRadius = 15.0f;
-    RightWeaponTraceRadius = 15.0f;
+    if (!PlayerClassConfig) return;
+    ApplyWeapons(PlayerClassConfig->Weapons);
 }
 
 void APlayerCharacter::ClearGrantedAbilities()
@@ -506,77 +489,6 @@ void APlayerCharacter::GrantAbilitiesFromClassConfig()
     }
 }
 
-void APlayerCharacter::CreateAndAttachWeaponMesh(const FPlayerWeaponPartConfig& WeaponPartConfig)
-{
-    USkeletalMeshComponent* CharacterMesh = GetMesh();
-    if (!CharacterMesh)
-    {
-        FLogger::Error(this, TEXT("EquipWeapons failed: Character mesh is missing"), ELogSystem::Weapon);
-        return;
-    }
-
-    if (!WeaponPartConfig.WeaponMesh)
-    {
-        FLogger::Error(this, TEXT("EquipWeapons skipped: WeaponMesh is missing"), ELogSystem::Weapon);
-        return;
-    }
-
-    const FName SocketName = GetWeaponAttachSocketName(WeaponPartConfig.WeaponSlot);
-    if (SocketName.IsNone())
-    {
-        FLogger::Error(this, TEXT("EquipWeapons skipped: WeaponSlot has no mapped socket"), ELogSystem::Weapon);
-        return;
-    }
-
-    if (!CharacterMesh->DoesSocketExist(SocketName))
-    {
-        FLogger::Error(this, FString::Printf(TEXT("EquipWeapons skipped: socket %s does not exist"), *SocketName.ToString()), ELogSystem::Weapon);
-        return;
-    }
-
-    UStaticMeshComponent* WeaponMeshComponent = NewObject<UStaticMeshComponent>(this);
-
-    WeaponMeshComponent->SetStaticMesh(WeaponPartConfig.WeaponMesh);
-    WeaponMeshComponent->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-    WeaponMeshComponent->SetGenerateOverlapEvents(false);
-    WeaponMeshComponent->AttachToComponent(
-        CharacterMesh,
-        FAttachmentTransformRules::SnapToTargetIncludingScale,
-        SocketName
-    );
-    WeaponMeshComponent->RegisterComponent();
-
-    if (WeaponPartConfig.WeaponSlot == ERiftWeaponSlot::Left)
-    {
-        LeftWeaponMesh = WeaponMeshComponent;
-        LeftWeaponTraceRadius = WeaponPartConfig.TraceRadius;
-    }
-    else if (WeaponPartConfig.WeaponSlot == ERiftWeaponSlot::Right)
-    {
-        RightWeaponMesh = WeaponMeshComponent;
-        RightWeaponTraceRadius = WeaponPartConfig.TraceRadius;
-    }
-
-    FLogger::Log(this, FString::Printf(
-        TEXT("Equipped weapon mesh %s on %s"),
-        *GetNameSafe(WeaponPartConfig.WeaponMesh),
-        *SocketName.ToString()
-    ), ELogSystem::Weapon);
-}
-
-FName APlayerCharacter::GetWeaponAttachSocketName(const ERiftWeaponSlot WeaponSlot)
-{
-    switch (WeaponSlot)
-    {
-    case ERiftWeaponSlot::Left:
-        return TEXT("Weapon_L");
-    case ERiftWeaponSlot::Right:
-        return TEXT("Weapon_R");
-    default:
-        return NAME_None;
-    }
-}
-
 void APlayerCharacter::InitMovementSettings()
 {
     UCharacterMovementComponent* MovementComponent = GetCharacterMovement();
@@ -634,20 +546,18 @@ void APlayerCharacter::ApplyMovementSettings() const
     UCharacterMovementComponent* MovementComponent = GetCharacterMovement();
     if (!MovementComponent) return;
 
-    const UPlayerCommonConfig* CommonConfig = PlayerClassConfig ? PlayerClassConfig->PlayerCommonConfig : nullptr;
+    if (!PlayerClassConfig) return;
+    MovementComponent->MaxWalkSpeed = PlayerClassConfig->RunSpeed;
 
-    if (!CommonConfig) return;
-    MovementComponent->MaxWalkSpeed = CommonConfig->RunSpeed;
-
-    const float InitialTurnRate = (CommonConfig->MinTurnRate + CommonConfig->MaxTurnRate) / 2.0f;
+    const float InitialTurnRate = (PlayerClassConfig->MinTurnRate + PlayerClassConfig->MaxTurnRate) / 2.0f;
     MovementComponent->RotationRate = FRotator(0.0f, InitialTurnRate, 0.0f);
 
-    MovementComponent->MaxAcceleration = CommonConfig->MaxAcceleration;
-    MovementComponent->BrakingDecelerationWalking = CommonConfig->BrakingDecelerationWalking;
+    MovementComponent->MaxAcceleration = PlayerClassConfig->MaxAcceleration;
+    MovementComponent->BrakingDecelerationWalking = PlayerClassConfig->BrakingDecelerationWalking;
     MovementComponent->bUseSeparateBrakingFriction = true;
-    MovementComponent->BrakingFriction = CommonConfig->BrakingFriction;
-    MovementComponent->BrakingFrictionFactor = CommonConfig->BrakingFrictionFactor;
-    MovementComponent->GroundFriction = CommonConfig->GroundFriction;
+    MovementComponent->BrakingFriction = PlayerClassConfig->BrakingFriction;
+    MovementComponent->BrakingFrictionFactor = PlayerClassConfig->BrakingFrictionFactor;
+    MovementComponent->GroundFriction = PlayerClassConfig->GroundFriction;
 }
 
 void APlayerCharacter::UpdateMovementRotationRate(const float DeltaTime)
@@ -667,11 +577,10 @@ void APlayerCharacter::UpdateMovementRotationRate(const float DeltaTime)
         FMath::FindDeltaAngleDegrees(CurrentYaw, DesiredYaw)
     );
 
-    const UPlayerCommonConfig* CommonConfig = PlayerClassConfig ? PlayerClassConfig->PlayerCommonConfig : nullptr;
-    const float ConfigMinTurnRate = CommonConfig ? CommonConfig->MinTurnRate : 300.0f;
-    const float ConfigMaxTurnRate = CommonConfig ? CommonConfig->MaxTurnRate : 1440.0f;
-    const float ConfigMinTurnRateInterpSpeed = CommonConfig ? CommonConfig->MinTurnRateInterpSpeed : 3.0f;
-    const float ConfigMaxTurnRateInterpSpeed = CommonConfig ? CommonConfig->MaxTurnRateInterpSpeed : 18.0f;
+    const float ConfigMinTurnRate = PlayerClassConfig ? PlayerClassConfig->MinTurnRate : 300.0f;
+    const float ConfigMaxTurnRate = PlayerClassConfig ? PlayerClassConfig->MaxTurnRate : 1440.0f;
+    const float ConfigMinTurnRateInterpSpeed = PlayerClassConfig ? PlayerClassConfig->MinTurnRateInterpSpeed : 3.0f;
+    const float ConfigMaxTurnRateInterpSpeed = PlayerClassConfig ? PlayerClassConfig->MaxTurnRateInterpSpeed : 18.0f;
 
     const float TargetTurnRate = FMath::GetMappedRangeValueClamped(
         FVector2D(0.0f, 90.0f),

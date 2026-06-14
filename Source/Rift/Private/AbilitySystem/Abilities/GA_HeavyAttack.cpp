@@ -13,7 +13,6 @@
 #include "Combat/RiftWeaponTraceComponent.h"
 #include "Data/Player/Combat/PlayerCombatConfig.h"
 #include "Data/Player/PlayerClassConfig.h"
-#include "GameFramework/CharacterMovementComponent.h"
 
 UGA_HeavyAttack::UGA_HeavyAttack()
 {
@@ -76,7 +75,7 @@ void UGA_HeavyAttack::ActivateAbility(
 	const URiftAbilitySystemComponent* RiftAbilitySystemComponent =
 		Cast<URiftAbilitySystemComponent>(AbilitySystemComponent);
 	const FGameplayTag PressedInputTag = RiftAbilitySystemComponent
-		? RiftAbilitySystemComponent->PressedInputTagThisFrame
+		? RiftAbilitySystemComponent->LastPressedInputTag
 		: FGameplayTag();
 	const FRiftHeavyAttackConfig& Heavy = PressedInputTag == RiftGameplayTags::InputTag_Attack_SecondaryHeavy
 		? CombatConfig->SecondaryHeavy
@@ -159,10 +158,6 @@ void UGA_HeavyAttack::EndAbility(
 		{
 			PlayerCharacter->StopAssistedFacing();
 			PlayerCharacter->SetFacingMode(ERiftCharacterFacingMode::Movement);
-			if (UCharacterMovementComponent* Movement = PlayerCharacter->GetCharacterMovement())
-			{
-				Movement->StopMovementImmediately();
-			}
 		}
 	}
 

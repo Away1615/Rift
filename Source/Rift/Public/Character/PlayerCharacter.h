@@ -6,7 +6,6 @@
 #include "AbilitySystemInterface.h"
 #include "Camera/CameraComponent.h"
 #include "Character/BaseCharacter.h"
-#include "Combat/RiftWeaponTraceComponent.h"
 #include "GameFramework/SpringArmComponent.h"
 #include "GameplayAbilitySpec.h"
 #include "GameplayEffectTypes.h"
@@ -19,8 +18,6 @@ class UAbilitySystemComponent;
 class URiftTargetAssistComponent;
 class URiftWeaponTraceComponent;
 class URiftCombatFeedbackComponent;
-class UStaticMeshComponent;
-struct FPlayerWeaponPartConfig;
 
 UENUM(BlueprintType)
 enum class ERiftCharacterFacingMode : uint8
@@ -70,6 +67,7 @@ public:
 	void ActivatePerfectDodgeWindow(const FVector& Origin, float Duration);
 	bool IsPerfectDodgeWindowActive() const { return bPerfectDodgeWindowActive; }
 	FVector GetPerfectDodgeOrigin() const { return PerfectDodgeOrigin; }
+	void HandlePerfectDodge(AActor* InstigatorEnemy);
 
 	// Whether Player press WASD
 	bool HasMovementInput() const;
@@ -97,12 +95,6 @@ public:
 
 	UFUNCTION(BlueprintPure, Category="Animation")
 	UPlayerAnimationConfig* GetPlayerAnimationConfig() const;
-
-	UFUNCTION(BlueprintPure, Category="Weapon")
-	UStaticMeshComponent* GetWeaponMeshComponent(ERiftWeaponSlot Slot) const;
-
-	UFUNCTION(BlueprintPure, Category="Weapon")
-	float GetWeaponTraceRadius(ERiftWeaponSlot Slot) const;
 
 	UFUNCTION(BlueprintPure, Category="Combat")
 	URiftTargetAssistComponent* GetTargetAssistComponent() const { return TargetAssistComponent; }
@@ -153,15 +145,6 @@ protected:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, ReplicatedUsing=OnRep_PlayerClassConfig, Category="Class")
 	TObjectPtr<UPlayerClassConfig> PlayerClassConfig;
 
-	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category="Weapon")
-	TObjectPtr<UStaticMeshComponent> LeftWeaponMesh;
-
-	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category="Weapon")
-	TObjectPtr<UStaticMeshComponent> RightWeaponMesh;
-
-	float LeftWeaponTraceRadius = 15.0f;
-	float RightWeaponTraceRadius = 15.0f;
-
 	TArray<FGameplayAbilitySpecHandle> GrantedAbilityHandles;
 
 private:
@@ -170,14 +153,13 @@ private:
 	void InitCameraComponents();
 
 	void AssemblePlayerClass();
+	void ApplyClassConfigOnAllRoles();
+	void ApplyClassConfigOnAuthority();
 	void ApplyCommonAttributesFromConfig();
 	void ApplyAnimationConfig() const;
 	void ApplyWeaponsFromConfig();
-	void ClearEquippedWeapons();
 	void ClearGrantedAbilities();
 	void GrantAbilitiesFromClassConfig();
-	void CreateAndAttachWeaponMesh(const FPlayerWeaponPartConfig& WeaponPartConfig);
-	static FName GetWeaponAttachSocketName(ERiftWeaponSlot WeaponSlot);
 
 	FActiveGameplayEffectHandle StaminaRegenEffectHandle;
 

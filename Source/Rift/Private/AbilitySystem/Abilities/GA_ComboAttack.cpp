@@ -13,7 +13,6 @@
 #include "Data/Player/Combat/PlayerCombatConfig.h"
 #include "Data/Player/Combat/RiftComboGraph.h"
 #include "Data/Player/PlayerClassConfig.h"
-#include "GameFramework/CharacterMovementComponent.h"
 
 UGA_ComboAttack::UGA_ComboAttack()
 {
@@ -84,7 +83,7 @@ void UGA_ComboAttack::ActivateAbility(
 	const URiftAbilitySystemComponent* RiftAbilitySystemComponent =
 		Cast<URiftAbilitySystemComponent>(ActorInfo->AbilitySystemComponent.Get());
 	FGameplayTag EntryInputTag = RiftAbilitySystemComponent
-		? RiftAbilitySystemComponent->PressedInputTagThisFrame
+		? RiftAbilitySystemComponent->LastPressedInputTag
 		: FGameplayTag();
 	if (!EntryInputTag.IsValid())
 	{
@@ -149,7 +148,7 @@ void UGA_ComboAttack::InputPressed(
 		? Cast<URiftAbilitySystemComponent>(ActorInfo->AbilitySystemComponent.Get())
 		: nullptr;
 	FGameplayTag InputTag = RiftAbilitySystemComponent
-		? RiftAbilitySystemComponent->PressedInputTagThisFrame
+		? RiftAbilitySystemComponent->LastPressedInputTag
 		: FGameplayTag();
 	if (!InputTag.IsValid())
 	{
@@ -183,10 +182,6 @@ void UGA_ComboAttack::EndAbility(
 		{
 			PlayerCharacter->StopAssistedFacing();
 			PlayerCharacter->SetFacingMode(ERiftCharacterFacingMode::Movement);
-			if (UCharacterMovementComponent* Movement = PlayerCharacter->GetCharacterMovement())
-			{
-				Movement->StopMovementImmediately();
-			}
 		}
 	}
 

@@ -4,7 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "Animation/AnimNotifies/AnimNotifyState.h"
-#include "Combat/RiftWeaponTraceComponent.h"
+#include "Combat/RiftWeaponTypes.h"
 #include "AnimNotifyState_MeleeHitWindow.generated.h"
 
 UCLASS()
@@ -14,7 +14,7 @@ class RIFT_API UAnimNotifyState_MeleeHitWindow : public UAnimNotifyState
 
 public:
 	UPROPERTY(EditAnywhere, Category="Rift")
-	ERiftWeaponSlot WeaponSlot = ERiftWeaponSlot::Left;
+	ERiftWeaponSlot WeaponSlot = ERiftWeaponSlot::HandRight;
 
 	virtual void NotifyBegin(
 		USkeletalMeshComponent* MeshComp,

@@ -15,10 +15,10 @@ class RIFT_API URiftAbilitySystemComponent : public UAbilitySystemComponent
 public:
 	URiftAbilitySystemComponent();
 
-	FGameplayTag PressedInputTagThisFrame;
+	FGameplayTag LastPressedInputTag;
 
 	void AbilityInputTagPressed(const FGameplayTag& InputTag);
 
 	UFUNCTION(Server, Reliable)
-	void ServerSetPressedInputTag(FGameplayTag InputTag);
+	void ServerSetLastPressedInputTag(FGameplayTag InputTag);
 };

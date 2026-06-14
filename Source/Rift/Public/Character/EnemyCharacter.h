@@ -12,6 +12,8 @@ class UEnemyCharacterConfig;
 class UAbilitySystemComponent;
 class URiftAbilitySystemComponent;
 class URiftEnemyAttributeSet;
+class APlayerCharacter;
+class UStaticMeshComponent;
 
 UENUM(BlueprintType)
 enum class ERiftHitReactDirection : uint8
@@ -37,10 +39,22 @@ public:
 	virtual void PostInitializeComponents() override;
 	virtual UAbilitySystemComponent* GetAbilitySystemComponent() const override;
 
+	UEnemyCharacterConfig* GetEnemyCharacterConfig() const { return EnemyCharacterConfig; }
+
 	void HandlePoiseHit(bool bPoiseBroken, const FVector& InstigatorLocation);
 
+	void BeginAttackHitWindow();
+	void TickAttackHitWindow();
+	void EndAttackHitWindow();
+
 	UFUNCTION(NetMulticast, Unreliable)
-	void Multicast_PlayHitReact(ERiftHitReactDirection Direction, bool bPoiseBroken);
+	void Multicast_PlayHitReact(ERiftHitReactDirection Direction);
+
+	UFUNCTION(NetMulticast, Reliable)
+	void Multicast_PlayStagger(ERiftHitReactDirection Direction);
+
+	UFUNCTION(NetMulticast, Reliable)
+	void Multicast_ExitStagger();
 
 protected:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Config")
@@ -52,11 +66,26 @@ protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="AbilitySystem")
 	TObjectPtr<URiftEnemyAttributeSet> AttributeSet;
 
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Mesh")
+	TObjectPtr<UStaticMeshComponent> Head;
+
 private:
 	void ApplyAnimationConfig() const;
+	void ApplyCommonAttributesFromConfig();
+	void ApplyWeaponsFromConfig();
+	void GrantAbilities();
+	void TryMeleeAttack();
+	void ApplyPerfectDodgeStagger(APlayerCharacter* Dodger);
+	void EnterStagger(ERiftHitReactDirection Direction, float Duration);
+	void ExitStagger();
 	void RestorePoise();
 	ERiftHitReactDirection CalculateHitReactDirection(const FVector& InstigatorLocation) const;
 	static FName GetHitReactSectionName(ERiftHitReactDirection Direction);
 
+	FTimerHandle AttackDriverTimerHandle;
+	FTimerHandle StaggerTimerHandle;
 	FTimerHandle PoiseRegenTimerHandle;
+	float NextAttackTime = 0.0f;
+	TSet<TObjectKey<AActor>> HitPlayersThisAttack;
+	TSet<TObjectKey<AActor>> PerfectDodgersThisAttack;
 };

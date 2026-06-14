@@ -76,13 +76,13 @@ public:
 	float DodgeStaminaCost = 25.0f;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Dodge")
-	float DodgeIFrameDelay = 0.05f;
-
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Dodge")
-	float DodgeIFrameDuration = 0.3f;
-
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Dodge")
 	float PerfectDodgeWindowDuration = 0.2f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Dodge|Perfect")
+	float PerfectDodgeSwordIntentReward = 40.0f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Dodge|Perfect")
+	float PerfectDodgeUltimateChargeReward = 8.0f;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="TargetAssist")
 	float TargetAssistMaxRange = 800.0f;

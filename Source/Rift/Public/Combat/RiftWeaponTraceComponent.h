@@ -3,18 +3,12 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Combat/RiftWeaponTypes.h"
 #include "Components/ActorComponent.h"
 #include "RiftWeaponTraceComponent.generated.h"
 
 class UCameraShakeBase;
 class UStaticMeshComponent;
-
-UENUM(BlueprintType)
-enum class ERiftWeaponSlot : uint8
-{
-	Left UMETA(DisplayName="Left"),
-	Right UMETA(DisplayName="Right")
-};
 
 UENUM(BlueprintType)
 enum class ERiftWeaponTraceSocket : uint8
@@ -38,6 +32,9 @@ public:
 	void StartHitWindow(ERiftWeaponSlot Slot);
 	void EndHitWindow(ERiftWeaponSlot Slot);
 
+	UPROPERTY(EditDefaultsOnly, Category="Trace")
+	float WeaponTraceRadius = 15.0f;
+
 protected:
 	virtual void TickComponent(
 		float DeltaTime,
@@ -48,7 +45,7 @@ protected:
 private:
 	struct FWeaponTraceCache
 	{
-		ERiftWeaponSlot WeaponSlot = ERiftWeaponSlot::Left;
+		ERiftWeaponSlot WeaponSlot = ERiftWeaponSlot::HandLeft;
 		TWeakObjectPtr<UStaticMeshComponent> WeaponMesh;
 		float TraceRadius = 15.0f;
 		FVector PreviousStart = FVector::ZeroVector;
@@ -57,7 +54,7 @@ private:
 
 	bool GetWeaponTraceLocations(const UStaticMeshComponent* MeshComp, FVector& OutStart, FVector& OutEnd) const;
 	void TraceWeapon(FWeaponTraceCache& TraceCache);
-	void ProcessHit(ERiftWeaponSlot Slot, float TraceRadius, const FHitResult& Hit);
+	void ProcessPlayerHit(ERiftWeaponSlot Slot, float TraceRadius, const FHitResult& Hit);
 	void RemoveTraceCacheForSlot(ERiftWeaponSlot Slot);
 	static FName GetSocketNameForSlot(ERiftWeaponTraceSocket Socket);
 

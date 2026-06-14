@@ -77,7 +77,7 @@ void ABasePlayerController::SetupInputComponent()
 	{
 		EnhancedInputComponent->BindAction(
 			DefaultInputConfig->PrimaryAttackAction,
-			ETriggerEvent::Started,
+			ETriggerEvent::Triggered,
 			this,
 			&ABasePlayerController::HandlePrimaryAttackInput
 		);
@@ -87,7 +87,7 @@ void ABasePlayerController::SetupInputComponent()
 	{
 		EnhancedInputComponent->BindAction(
 			DefaultInputConfig->SecondaryAttackAction,
-			ETriggerEvent::Started,
+			ETriggerEvent::Triggered,
 			this,
 			&ABasePlayerController::HandleSecondaryAttackInput
 		);
