@@ -27,7 +27,6 @@ namespace RiftGameplayTags
 	UE_DEFINE_GAMEPLAY_TAG(SetByCaller_PoiseDamage, "SetByCaller.PoiseDamage");
 	UE_DEFINE_GAMEPLAY_TAG(SetByCaller_StaminaRegen, "SetByCaller.StaminaRegen");
 	UE_DEFINE_GAMEPLAY_TAG(SetByCaller_StaminaCost, "SetByCaller.StaminaCost");
-	UE_DEFINE_GAMEPLAY_TAG(SetByCaller_SwordIntent, "SetByCaller.SwordIntent");
 	UE_DEFINE_GAMEPLAY_TAG(SetByCaller_UltimateCharge, "SetByCaller.UltimateCharge");
 
 	UE_DEFINE_GAMEPLAY_TAG(GameplayCue_Combat_MeleeHit, "GameplayCue.Combat.MeleeHit");

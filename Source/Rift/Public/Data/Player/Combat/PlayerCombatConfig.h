@@ -28,12 +28,6 @@ struct FRiftHeavyAttackConfig
 	float StaminaCost = 25.0f;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly)
-	float SwordIntentCost = 20.0f;
-
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly)
-	float SwordIntentOnHit = 0.0f;
-
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly)
 	float UltimateChargeOnHit = 4.0f;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly)
@@ -77,9 +71,6 @@ public:
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Dodge")
 	float PerfectDodgeWindowDuration = 0.2f;
-
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Dodge|Perfect")
-	float PerfectDodgeSwordIntentReward = 40.0f;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Dodge|Perfect")
 	float PerfectDodgeUltimateChargeReward = 8.0f;

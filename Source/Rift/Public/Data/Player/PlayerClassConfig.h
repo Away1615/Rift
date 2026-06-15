@@ -36,12 +36,6 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Attribute|Stamina")
 	float StaminaRegenRate = 20.0f;
 
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Attribute|SwordIntent")
-	float SwordIntent = 30.0f;
-
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Attribute|SwordIntent")
-	float MaxSwordIntent = 100.0f;
-
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Attribute|Ultimate")
 	float UltimateCharge = 0.0f;
 

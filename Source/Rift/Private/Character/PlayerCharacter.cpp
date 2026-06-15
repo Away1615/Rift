@@ -255,10 +255,6 @@ void APlayerCharacter::HandlePerfectDodge(AActor* InstigatorEnemy)
         if (GainSpec.IsValid())
         {
             GainSpec.Data->SetSetByCallerMagnitude(
-                RiftGameplayTags::SetByCaller_SwordIntent,
-                CombatConfig->PerfectDodgeSwordIntentReward
-            );
-            GainSpec.Data->SetSetByCallerMagnitude(
                 RiftGameplayTags::SetByCaller_UltimateCharge,
                 CombatConfig->PerfectDodgeUltimateChargeReward
             );
@@ -361,14 +357,6 @@ void APlayerCharacter::ApplyCommonAttributesFromConfig()
     AbilitySystemComponent->SetNumericAttributeBase(
         URiftPlayerAttributeSet::GetStaminaAttribute(),
         PlayerClassConfig->Stamina
-    );
-    AbilitySystemComponent->SetNumericAttributeBase(
-        URiftResourceAttributeSet::GetMaxSwordIntentAttribute(),
-        PlayerClassConfig->MaxSwordIntent
-    );
-    AbilitySystemComponent->SetNumericAttributeBase(
-        URiftResourceAttributeSet::GetSwordIntentAttribute(),
-        PlayerClassConfig->SwordIntent
     );
     AbilitySystemComponent->SetNumericAttributeBase(
         URiftResourceAttributeSet::GetMaxUltimateChargeAttribute(),

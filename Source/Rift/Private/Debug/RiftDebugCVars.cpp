@@ -20,6 +20,13 @@ namespace RiftDebugCVars
 		ECVF_Default
 	);
 
+	static TAutoConsoleVariable<int32> CVarEnemyMovement(
+		TEXT("Rift.Enemy.Movement"),
+		1,
+		TEXT("Enemy AI movement. 0=stationary(debug), 1=chase player."),
+		ECVF_Default
+	);
+
 	bool IsTargetAssistDebugEnabled()
 	{
 		return CVarDebugTargetAssist.GetValueOnGameThread() != 0;
@@ -28,5 +35,10 @@ namespace RiftDebugCVars
 	bool IsCombatDebugEnabled()
 	{
 		return CVarDebugCombat.GetValueOnGameThread() != 0;
+	}
+
+	bool IsEnemyMovementEnabled()
+	{
+		return CVarEnemyMovement.GetValueOnGameThread() != 0;
 	}
 }

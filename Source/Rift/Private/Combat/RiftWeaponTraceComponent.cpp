@@ -25,13 +25,11 @@ URiftWeaponTraceComponent::URiftWeaponTraceComponent()
 void URiftWeaponTraceComponent::SetIncomingHitParams(
 	const float Damage,
 	const float PoiseDamage,
-	const float SwordIntentOnHit,
 	const float UltimateChargeOnHit
 )
 {
 	IncomingDamage = FMath::Max(0.0f, Damage);
 	IncomingPoiseDamage = FMath::Max(0.0f, PoiseDamage);
-	IncomingSwordIntent = FMath::Max(0.0f, SwordIntentOnHit);
 	IncomingUltimateCharge = FMath::Max(0.0f, UltimateChargeOnHit);
 }
 
@@ -238,7 +236,7 @@ void URiftWeaponTraceComponent::ProcessPlayerHit(const ERiftWeaponSlot Slot, con
 		TargetAbilitySystemComponent
 	);
 
-	if (IncomingSwordIntent > 0.0f || IncomingUltimateCharge > 0.0f)
+	if (IncomingUltimateCharge > 0.0f)
 	{
 		FGameplayEffectSpecHandle GainSpecHandle = SourceAbilitySystemComponent->MakeOutgoingSpec(
 			UGE_GainResource::StaticClass(),
@@ -247,10 +245,6 @@ void URiftWeaponTraceComponent::ProcessPlayerHit(const ERiftWeaponSlot Slot, con
 		);
 		if (GainSpecHandle.IsValid())
 		{
-			GainSpecHandle.Data->SetSetByCallerMagnitude(
-				RiftGameplayTags::SetByCaller_SwordIntent,
-				IncomingSwordIntent
-			);
 			GainSpecHandle.Data->SetSetByCallerMagnitude(
 				RiftGameplayTags::SetByCaller_UltimateCharge,
 				IncomingUltimateCharge

@@ -380,7 +380,6 @@ void UGA_ComboAttack::UpdateWeaponTraceDamage()
 	WeaponTraceComponent->SetIncomingHitParams(
 		Node->Damage,
 		Node->PoiseDamage,
-		Node->SwordIntentOnHit,
 		Node->UltimateChargeOnHit
 	);
 	WeaponTraceComponent->SetIncomingCameraShake(Node->CameraShake, Node->CameraShakeDir);

@@ -90,6 +90,9 @@ private:
 	void ApplyWeaponsFromConfig();
 	void GrantAbilities();
 	void TryMeleeAttack();
+	APlayerCharacter* FindNearestPlayer() const;
+	void UpdateAIMovement();
+	void StopAIMovement();
 	void ApplyPerfectDodgeStagger(APlayerCharacter* Dodger);
 	void EnterStagger(ERiftHitReactDirection Direction, float Duration);
 	void ExitStagger();

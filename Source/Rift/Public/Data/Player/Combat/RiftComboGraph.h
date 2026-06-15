@@ -38,9 +38,6 @@ struct FRiftComboNode
 	float StaminaCost = 0.0f;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly)
-	float SwordIntentOnHit = 0.0f;
-
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly)
 	float UltimateChargeOnHit = 0.0f;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly)

@@ -29,7 +29,6 @@ namespace RiftGameplayTags
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(SetByCaller_PoiseDamage);
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(SetByCaller_StaminaRegen);
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(SetByCaller_StaminaCost);
-	UE_DECLARE_GAMEPLAY_TAG_EXTERN(SetByCaller_SwordIntent);
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(SetByCaller_UltimateCharge);
 
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(GameplayCue_Combat_MeleeHit);

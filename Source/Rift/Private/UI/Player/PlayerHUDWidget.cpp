@@ -26,8 +26,6 @@ void UPlayerHUDWidget::NativeDestruct()
 		ASC->GetGameplayAttributeValueChangeDelegate(URiftPlayerAttributeSet::GetMaxHealthAttribute()).RemoveAll(this);
 		ASC->GetGameplayAttributeValueChangeDelegate(URiftPlayerAttributeSet::GetStaminaAttribute()).RemoveAll(this);
 		ASC->GetGameplayAttributeValueChangeDelegate(URiftPlayerAttributeSet::GetMaxStaminaAttribute()).RemoveAll(this);
-		ASC->GetGameplayAttributeValueChangeDelegate(URiftResourceAttributeSet::GetSwordIntentAttribute()).RemoveAll(this);
-		ASC->GetGameplayAttributeValueChangeDelegate(URiftResourceAttributeSet::GetMaxSwordIntentAttribute()).RemoveAll(this);
 		ASC->GetGameplayAttributeValueChangeDelegate(URiftResourceAttributeSet::GetUltimateChargeAttribute()).RemoveAll(this);
 		ASC->GetGameplayAttributeValueChangeDelegate(URiftResourceAttributeSet::GetMaxUltimateChargeAttribute()).RemoveAll(this);
 	}
@@ -92,14 +90,6 @@ void UPlayerHUDWidget::BindToAbilitySystem(UAbilitySystemComponent* ASC)
 		this,
 		&UPlayerHUDWidget::HandleStaminaChanged
 	);
-	ASC->GetGameplayAttributeValueChangeDelegate(URiftResourceAttributeSet::GetSwordIntentAttribute()).AddUObject(
-		this,
-		&UPlayerHUDWidget::HandleSwordIntentChanged
-	);
-	ASC->GetGameplayAttributeValueChangeDelegate(URiftResourceAttributeSet::GetMaxSwordIntentAttribute()).AddUObject(
-		this,
-		&UPlayerHUDWidget::HandleSwordIntentChanged
-	);
 	ASC->GetGameplayAttributeValueChangeDelegate(URiftResourceAttributeSet::GetUltimateChargeAttribute()).AddUObject(
 		this,
 		&UPlayerHUDWidget::HandleUltimateChargeChanged
@@ -124,10 +114,6 @@ void UPlayerHUDWidget::RefreshAll()
 	OnStaminaChanged(
 		ASC->GetNumericAttribute(URiftPlayerAttributeSet::GetStaminaAttribute()),
 		ASC->GetNumericAttribute(URiftPlayerAttributeSet::GetMaxStaminaAttribute())
-	);
-	OnSwordIntentChanged(
-		ASC->GetNumericAttribute(URiftResourceAttributeSet::GetSwordIntentAttribute()),
-		ASC->GetNumericAttribute(URiftResourceAttributeSet::GetMaxSwordIntentAttribute())
 	);
 	OnUltimateChargeChanged(
 		ASC->GetNumericAttribute(URiftResourceAttributeSet::GetUltimateChargeAttribute()),
@@ -154,17 +140,6 @@ void UPlayerHUDWidget::HandleStaminaChanged(const FOnAttributeChangeData&)
 	OnStaminaChanged(
 		ASC->GetNumericAttribute(URiftPlayerAttributeSet::GetStaminaAttribute()),
 		ASC->GetNumericAttribute(URiftPlayerAttributeSet::GetMaxStaminaAttribute())
-	);
-}
-
-void UPlayerHUDWidget::HandleSwordIntentChanged(const FOnAttributeChangeData&)
-{
-	UAbilitySystemComponent* ASC = AbilitySystemComponent.Get();
-	if (!ASC) return;
-
-	OnSwordIntentChanged(
-		ASC->GetNumericAttribute(URiftResourceAttributeSet::GetSwordIntentAttribute()),
-		ASC->GetNumericAttribute(URiftResourceAttributeSet::GetMaxSwordIntentAttribute())
 	);
 }
 

@@ -25,7 +25,7 @@ class RIFT_API URiftWeaponTraceComponent : public UActorComponent
 public:
 	URiftWeaponTraceComponent();
 
-	void SetIncomingHitParams(float Damage, float PoiseDamage, float SwordIntentOnHit, float UltimateChargeOnHit);
+	void SetIncomingHitParams(float Damage, float PoiseDamage, float UltimateChargeOnHit);
 	void SetIncomingCameraShake(TSubclassOf<UCameraShakeBase> Shake, FVector2D Dir);
 	TSubclassOf<UCameraShakeBase> GetIncomingCameraShake() const { return IncomingCameraShake; }
 	FVector2D GetIncomingCameraShakeDir() const { return IncomingCameraShakeDir; }
@@ -60,7 +60,6 @@ private:
 
 	float IncomingDamage = 0.0f;
 	float IncomingPoiseDamage = 0.0f;
-	float IncomingSwordIntent = 0.0f;
 	float IncomingUltimateCharge = 0.0f;
 	TSubclassOf<UCameraShakeBase> IncomingCameraShake;
 	FVector2D IncomingCameraShakeDir = FVector2D(1.0f, 0.0f);

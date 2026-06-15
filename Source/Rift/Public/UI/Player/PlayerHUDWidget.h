@@ -29,9 +29,6 @@ protected:
 	void OnStaminaChanged(float Current, float Max);
 
 	UFUNCTION(BlueprintImplementableEvent, Category="HUD")
-	void OnSwordIntentChanged(float Current, float Max);
-
-	UFUNCTION(BlueprintImplementableEvent, Category="HUD")
 	void OnUltimateChargeChanged(float Current, float Max);
 
 private:
@@ -40,7 +37,6 @@ private:
 	void RefreshAll();
 	void HandleHealthChanged(const FOnAttributeChangeData& Data);
 	void HandleStaminaChanged(const FOnAttributeChangeData& Data);
-	void HandleSwordIntentChanged(const FOnAttributeChangeData& Data);
 	void HandleUltimateChargeChanged(const FOnAttributeChangeData& Data);
 
 	TWeakObjectPtr<UAbilitySystemComponent> AbilitySystemComponent;

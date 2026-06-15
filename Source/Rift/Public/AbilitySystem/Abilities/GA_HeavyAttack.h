@@ -41,7 +41,7 @@ protected:
 	void HandleMontageCancelled();
 
 private:
-	bool TryChargeHeavyCost(float StaminaCost, float SwordIntentCost);
+	bool TryChargeHeavyCost(float StaminaCost);
 	void FinishHeavyAbility(bool bWasCancelled);
 
 	bool bIsFinishingHeavy = false;

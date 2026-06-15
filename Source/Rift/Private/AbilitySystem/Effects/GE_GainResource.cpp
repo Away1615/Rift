@@ -7,16 +7,6 @@ UGE_GainResource::UGE_GainResource()
 {
 	DurationPolicy = EGameplayEffectDurationType::Instant;
 
-	FSetByCallerFloat SwordIntentMagnitude;
-	SwordIntentMagnitude.DataTag = RiftGameplayTags::SetByCaller_SwordIntent;
-
-	FGameplayModifierInfo SwordIntentModifier;
-	SwordIntentModifier.Attribute = URiftResourceAttributeSet::GetSwordIntentAttribute();
-	SwordIntentModifier.ModifierOp = EGameplayModOp::Additive;
-	SwordIntentModifier.ModifierMagnitude = FGameplayEffectModifierMagnitude(SwordIntentMagnitude);
-
-	Modifiers.Add(SwordIntentModifier);
-
 	FSetByCallerFloat UltimateChargeMagnitude;
 	UltimateChargeMagnitude.DataTag = RiftGameplayTags::SetByCaller_UltimateCharge;
 

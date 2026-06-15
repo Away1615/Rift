@@ -3,9 +3,7 @@
 #include "Abilities/Tasks/AbilityTask_PlayMontageAndWait.h"
 #include "AbilitySystemComponent.h"
 #include "AbilitySystem/Attributes/RiftPlayerAttributeSet.h"
-#include "AbilitySystem/Attributes/RiftResourceAttributeSet.h"
 #include "AbilitySystem/Effects/GE_StaminaCost.h"
-#include "AbilitySystem/Effects/GE_SwordIntentCost.h"
 #include "AbilitySystem/RiftAbilitySystemComponent.h"
 #include "AbilitySystem/RiftGameplayTags.h"
 #include "Character/PlayerCharacter.h"
@@ -87,7 +85,7 @@ void UGA_HeavyAttack::ActivateAbility(
 		return;
 	}
 
-	if (!TryChargeHeavyCost(Heavy.StaminaCost, Heavy.SwordIntentCost))
+	if (!TryChargeHeavyCost(Heavy.StaminaCost))
 	{
 		EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
 		return;
@@ -117,7 +115,6 @@ void UGA_HeavyAttack::ActivateAbility(
 		WeaponTraceComponent->SetIncomingHitParams(
 			Heavy.Damage,
 			Heavy.PoiseDamage,
-			Heavy.SwordIntentOnHit,
 			Heavy.UltimateChargeOnHit
 		);
 		WeaponTraceComponent->SetIncomingCameraShake(Heavy.CameraShake, Heavy.CameraShakeDir);
@@ -185,7 +182,7 @@ void UGA_HeavyAttack::HandleMontageCancelled()
 	FinishHeavyAbility(true);
 }
 
-bool UGA_HeavyAttack::TryChargeHeavyCost(const float StaminaCost, const float SwordIntentCost)
+bool UGA_HeavyAttack::TryChargeHeavyCost(const float StaminaCost)
 {
 	if (!CurrentActorInfo) return false;
 
@@ -195,15 +192,11 @@ bool UGA_HeavyAttack::TryChargeHeavyCost(const float StaminaCost, const float Sw
 	const float CurrentStamina = AbilitySystemComponent->GetNumericAttribute(
 		URiftPlayerAttributeSet::GetStaminaAttribute()
 	);
-	const float CurrentSwordIntent = AbilitySystemComponent->GetNumericAttribute(
-		URiftResourceAttributeSet::GetSwordIntentAttribute()
-	);
-	if (CurrentStamina < StaminaCost || CurrentSwordIntent < SwordIntentCost) return false;
-
-	FGameplayEffectContextHandle EffectContext = AbilitySystemComponent->MakeEffectContext();
+	if (CurrentStamina < StaminaCost) return false;
 
 	if (StaminaCost > 0.0f)
 	{
+		FGameplayEffectContextHandle EffectContext = AbilitySystemComponent->MakeEffectContext();
 		FGameplayEffectSpecHandle StaminaCostSpec = AbilitySystemComponent->MakeOutgoingSpec(
 			UGE_StaminaCost::StaticClass(),
 			1.0f,
@@ -213,23 +206,6 @@ bool UGA_HeavyAttack::TryChargeHeavyCost(const float StaminaCost, const float Sw
 		{
 			StaminaCostSpec.Data->SetSetByCallerMagnitude(RiftGameplayTags::SetByCaller_StaminaCost, -StaminaCost);
 			AbilitySystemComponent->ApplyGameplayEffectSpecToSelf(*StaminaCostSpec.Data.Get());
-		}
-	}
-
-	if (SwordIntentCost > 0.0f)
-	{
-		FGameplayEffectSpecHandle SwordIntentCostSpec = AbilitySystemComponent->MakeOutgoingSpec(
-			UGE_SwordIntentCost::StaticClass(),
-			1.0f,
-			EffectContext
-		);
-		if (SwordIntentCostSpec.IsValid())
-		{
-			SwordIntentCostSpec.Data->SetSetByCallerMagnitude(
-				RiftGameplayTags::SetByCaller_SwordIntent,
-				-SwordIntentCost
-			);
-			AbilitySystemComponent->ApplyGameplayEffectSpecToSelf(*SwordIntentCostSpec.Data.Get());
 		}
 	}
 

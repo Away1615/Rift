@@ -10,7 +10,8 @@ public class Rift : ModuleRules
 
 		PublicDependencyModuleNames.AddRange(new string[] {
 			"Core", "CoreUObject", "Engine", "InputCore", "EnhancedInput", "UMG",
-			"GameplayAbilities", "GameplayTags", "GameplayTasks"
+			"GameplayAbilities", "GameplayTags", "GameplayTasks",
+			"AIModule", "NavigationSystem"
 			});
 
 		PrivateDependencyModuleNames.AddRange(new string[] {  });

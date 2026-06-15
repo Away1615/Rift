@@ -3,6 +3,7 @@
 
 #include "Character/EnemyCharacter.h"
 
+#include "AIController.h"
 #include "AbilitySystem/Effects/GE_EnemyMeleeDamage.h"
 #include "AbilitySystem/Effects/GE_GainResource.h"
 #include "AbilitySystem/RiftAbilitySystemComponent.h"
@@ -31,6 +32,8 @@ AEnemyCharacter::AEnemyCharacter()
 {
 	bReplicates = true;
 	ACharacter::SetReplicateMovement(true);
+	AutoPossessAI = EAutoPossessAI::PlacedInWorldOrSpawned;
+	bUseControllerRotationYaw = false;
 
 	AbilitySystemComponent = CreateDefaultSubobject<URiftAbilitySystemComponent>(TEXT("AbilitySystemComponent"));
 	AbilitySystemComponent->SetReplicationMode(EGameplayEffectReplicationMode::Minimal);
@@ -49,6 +52,11 @@ AEnemyCharacter::AEnemyCharacter()
 	HealthBarWidgetComp->SetDrawAtDesiredSize(true);
 	HealthBarWidgetComp->SetRelativeLocation(FVector(0.0f, 0.0f, 110.0f));
 	HealthBarWidgetComp->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+
+	if (UCharacterMovementComponent* Movement = GetCharacterMovement())
+	{
+		Movement->bOrientRotationToMovement = true;
+	}
 }
 
 void AEnemyCharacter::PostInitializeComponents()
@@ -352,6 +360,7 @@ void AEnemyCharacter::HandleDeath(AActor* Killer)
 	}
 
 	SetActorEnableCollision(false);
+	StopAIMovement();
 	if (UCharacterMovementComponent* Movement = GetCharacterMovement())
 	{
 		Movement->DisableMovement();
@@ -395,7 +404,6 @@ void AEnemyCharacter::GrantKillReward(AActor* Killer)
 	);
 	if (!GainSpecHandle.IsValid()) return;
 
-	GainSpecHandle.Data->SetSetByCallerMagnitude(RiftGameplayTags::SetByCaller_SwordIntent, 0.0f);
 	GainSpecHandle.Data->SetSetByCallerMagnitude(
 		RiftGameplayTags::SetByCaller_UltimateCharge,
 		EnemyCharacterConfig->KillUltimateCharge
@@ -499,37 +507,27 @@ void AEnemyCharacter::TryMeleeAttack()
 {
 	if (!HasAuthority() || bIsDead) return;
 
+	UpdateAIMovement();
+
 	UWorld* World = GetWorld();
 	const UEnemyCombatConfig* CombatConfig = EnemyCharacterConfig ? EnemyCharacterConfig->EnemyCombatConfig : nullptr;
 	if (!World || !CombatConfig || !AbilitySystemComponent) return;
 
-	APlayerCharacter* ClosestPlayer = nullptr;
-	float ClosestDistanceSq = FMath::Square(CombatConfig->AttackRange);
-	const FVector EnemyLocation = GetActorLocation();
-
-	for (TActorIterator<APlayerCharacter> It(World); It; ++It)
-	{
-		APlayerCharacter* PlayerCharacter = *It;
-		FVector ToPlayer = PlayerCharacter->GetActorLocation() - EnemyLocation;
-		ToPlayer.Z = 0.0f;
-
-		const float DistanceSq = ToPlayer.SizeSquared();
-		if (DistanceSq <= ClosestDistanceSq)
-		{
-			ClosestDistanceSq = DistanceSq;
-			ClosestPlayer = PlayerCharacter;
-		}
-	}
-
+	APlayerCharacter* ClosestPlayer = FindNearestPlayer();
 	if (!ClosestPlayer) return;
+
+	// Planar distance keeps "nearest" / range / facing consistent with FindNearestPlayer
+	// (height differences must not skew melee range checks).
+	FVector ToTarget = ClosestPlayer->GetActorLocation() - GetActorLocation();
+	ToTarget.Z = 0.0f;
+	if (ToTarget.SizeSquared() > FMath::Square(CombatConfig->AttackRange)) return;
+
 	if (AbilitySystemComponent->HasMatchingGameplayTag(RiftGameplayTags::State_Attacking) ||
 		AbilitySystemComponent->HasMatchingGameplayTag(RiftGameplayTags::State_HitReact))
 	{
 		return;
 	}
 
-	FVector ToTarget = ClosestPlayer->GetActorLocation() - EnemyLocation;
-	ToTarget.Z = 0.0f;
 	if (ToTarget.Normalize())
 	{
 		SetActorRotation(ToTarget.ToOrientationRotator());
@@ -543,6 +541,75 @@ void AEnemyCharacter::TryMeleeAttack()
 	if (AbilitySystemComponent->TryActivateAbilitiesByTag(AttackTags))
 	{
 		NextAttackTime = Now + CombatConfig->AttackCooldown;
+	}
+}
+
+APlayerCharacter* AEnemyCharacter::FindNearestPlayer() const
+{
+	UWorld* World = GetWorld();
+	if (!World) return nullptr;
+
+	APlayerCharacter* ClosestPlayer = nullptr;
+	float ClosestDistanceSq = TNumericLimits<float>::Max();
+	const FVector EnemyLocation = GetActorLocation();
+
+	for (TActorIterator<APlayerCharacter> It(World); It; ++It)
+	{
+		APlayerCharacter* PlayerCharacter = *It;
+		FVector ToPlayer = PlayerCharacter->GetActorLocation() - EnemyLocation;
+		ToPlayer.Z = 0.0f;
+		const float DistanceSq = ToPlayer.SizeSquared();
+		if (DistanceSq < ClosestDistanceSq)
+		{
+			ClosestDistanceSq = DistanceSq;
+			ClosestPlayer = PlayerCharacter;
+		}
+	}
+
+	return ClosestPlayer;
+}
+
+void AEnemyCharacter::UpdateAIMovement()
+{
+	if (!HasAuthority() || bIsDead || !AbilitySystemComponent) return;
+
+	AAIController* AIController = Cast<AAIController>(GetController());
+	if (!AIController) return;
+
+	if (!RiftDebugCVars::IsEnemyMovementEnabled() ||
+		AbilitySystemComponent->HasMatchingGameplayTag(RiftGameplayTags::State_Attacking) ||
+		AbilitySystemComponent->HasMatchingGameplayTag(RiftGameplayTags::State_HitReact))
+	{
+		AIController->StopMovement();
+		return;
+	}
+
+	APlayerCharacter* Target = FindNearestPlayer();
+	const UEnemyCombatConfig* CombatConfig = EnemyCharacterConfig ? EnemyCharacterConfig->EnemyCombatConfig : nullptr;
+	if (!Target || !CombatConfig)
+	{
+		AIController->StopMovement();
+		return;
+	}
+
+	// PathFollowingComponent drives the actual per-frame movement; we just (re)issue
+	// the goal on the attack-driver cadence so a moving player stays tracked.
+	// bUsePathfinding=false keeps this a direct move so no NavMesh is required yet
+	// (NavMesh/pathfinding comes with the dungeon phase).
+	const float AcceptanceRadius = FMath::Max(0.0f, CombatConfig->AttackRange * 0.85f);
+	AIController->MoveToActor(
+		Target,
+		AcceptanceRadius,
+		/*bStopOnOverlap*/ true,
+		/*bUsePathfinding*/ false
+	);
+}
+
+void AEnemyCharacter::StopAIMovement()
+{
+	if (AAIController* AIController = Cast<AAIController>(GetController()))
+	{
+		AIController->StopMovement();
 	}
 }
 
@@ -573,6 +640,7 @@ void AEnemyCharacter::EnterStagger(const ERiftHitReactDirection Direction, const
 	AbilitySystemComponent->CancelAbilities(&AttackTags);
 
 	AbilitySystemComponent->SetLooseGameplayTagCount(RiftGameplayTags::State_HitReact, 1);
+	StopAIMovement();
 
 	Multicast_PlayStagger(Direction);
 
