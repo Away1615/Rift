@@ -318,6 +318,37 @@ void APlayerCharacter::Multicast_PlayDeath_Implementation()
     OnPlayerDeath();
 }
 
+void APlayerCharacter::HandleDamageReaction(
+    const ERiftPlayerDamageReactionType ReactionType,
+    AActor* DamageInstigator,
+    const float DamageValue
+)
+{
+    if (!HasAuthority() || IsDead()) return;
+
+    switch (ReactionType)
+    {
+    case ERiftPlayerDamageReactionType::None:
+        break;
+    case ERiftPlayerDamageReactionType::Light:
+        Multicast_PlayLightDamageReaction(DamageValue, DamageInstigator);
+        break;
+    case ERiftPlayerDamageReactionType::Heavy:
+        // Heavy reactions are reserved for boss attacks in a later phase.
+        break;
+    default:
+        break;
+    }
+}
+
+void APlayerCharacter::Multicast_PlayLightDamageReaction_Implementation(
+    const float DamageValue,
+    AActor* DamageInstigator
+)
+{
+    OnPlayerLightDamaged(DamageValue, DamageInstigator);
+}
+
 void APlayerCharacter::InitPlayerProperties()
 {
     // Network

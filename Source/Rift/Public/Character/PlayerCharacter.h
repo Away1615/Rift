@@ -6,6 +6,7 @@
 #include "AbilitySystemInterface.h"
 #include "Camera/CameraComponent.h"
 #include "Character/BaseCharacter.h"
+#include "Combat/RiftDamageReactionTypes.h"
 #include "GameFramework/SpringArmComponent.h"
 #include "GameplayAbilitySpec.h"
 #include "GameplayEffectTypes.h"
@@ -69,15 +70,23 @@ public:
 	FVector GetPerfectDodgeOrigin() const { return PerfectDodgeOrigin; }
 	void HandlePerfectDodge(AActor* InstigatorEnemy);
 	void HandleDeath();
+	bool IsDead() const { return bIsDead; }
+	void HandleDamageReaction(ERiftPlayerDamageReactionType ReactionType, AActor* DamageInstigator, float DamageValue);
 
 	UFUNCTION(NetMulticast, Reliable)
 	void Multicast_PlayDeath();
+
+	UFUNCTION(NetMulticast, Unreliable)
+	void Multicast_PlayLightDamageReaction(float DamageValue, AActor* DamageInstigator);
 
 	UFUNCTION(Client, Reliable)
 	void Client_DisableInputOnDeath();
 
 	UFUNCTION(BlueprintImplementableEvent, Category="Death")
 	void OnPlayerDeath();
+
+	UFUNCTION(BlueprintImplementableEvent, Category="Damage")
+	void OnPlayerLightDamaged(float DamageValue, AActor* DamageInstigator);
 
 	// Whether Player press WASD
 	bool HasMovementInput() const;

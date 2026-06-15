@@ -1,6 +1,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Combat/RiftDamageReactionTypes.h"
 #include "Engine/DataAsset.h"
 #include "EnemyCombatConfig.generated.h"
 
@@ -17,6 +18,9 @@ public:
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Attack")
 	float AttackDamage = 15.0f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Attack")
+	ERiftPlayerDamageReactionType PlayerDamageReaction = ERiftPlayerDamageReactionType::Light;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Attack")
 	float AttackRange = 200.0f;

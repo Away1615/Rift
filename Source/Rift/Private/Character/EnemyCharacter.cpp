@@ -259,6 +259,11 @@ void AEnemyCharacter::TickAttackHitWindow()
 				*DamageSpecHandle.Data.Get(),
 				TargetAbilitySystemComponent
 			);
+			PlayerCharacter->HandleDamageReaction(
+				CombatConfig->PlayerDamageReaction,
+				this,
+				CombatConfig->AttackDamage
+			);
 		}
 	}
 
