@@ -68,6 +68,16 @@ public:
 	bool IsPerfectDodgeWindowActive() const { return bPerfectDodgeWindowActive; }
 	FVector GetPerfectDodgeOrigin() const { return PerfectDodgeOrigin; }
 	void HandlePerfectDodge(AActor* InstigatorEnemy);
+	void HandleDeath();
+
+	UFUNCTION(NetMulticast, Reliable)
+	void Multicast_PlayDeath();
+
+	UFUNCTION(Client, Reliable)
+	void Client_DisableInputOnDeath();
+
+	UFUNCTION(BlueprintImplementableEvent, Category="Death")
+	void OnPlayerDeath();
 
 	// Whether Player press WASD
 	bool HasMovementInput() const;
@@ -165,6 +175,7 @@ private:
 
 	FVector PerfectDodgeOrigin = FVector::ZeroVector;
 	bool bPerfectDodgeWindowActive = false;
+	bool bIsDead = false;
 	FTimerHandle PerfectDodgeWindowTimerHandle;
 
 	UFUNCTION()

@@ -264,6 +264,60 @@ void APlayerCharacter::HandlePerfectDodge(AActor* InstigatorEnemy)
 
 }
 
+void APlayerCharacter::HandleDeath()
+{
+    if (!HasAuthority() || bIsDead) return;
+
+    bIsDead = true;
+
+    GetWorldTimerManager().ClearTimer(PerfectDodgeWindowTimerHandle);
+    bPerfectDodgeWindowActive = false;
+    CustomTimeDilation = 1.0f;
+    ClearMovementInputCache();
+    StopAssistedFacing();
+
+    if (UAbilitySystemComponent* AbilitySystemComponent = GetAbilitySystemComponent())
+    {
+        AbilitySystemComponent->CancelAllAbilities();
+        AbilitySystemComponent->SetLooseGameplayTagCount(RiftGameplayTags::State_Attacking, 0);
+        AbilitySystemComponent->SetLooseGameplayTagCount(RiftGameplayTags::State_Dodging, 0);
+        AbilitySystemComponent->SetLooseGameplayTagCount(RiftGameplayTags::State_HitReact, 0);
+        AbilitySystemComponent->AddLooseGameplayTag(RiftGameplayTags::State_Dead);
+        AbilitySystemComponent->SetUserAbilityActivationInhibited(true);
+    }
+
+    if (UCharacterMovementComponent* MovementComponent = GetCharacterMovement())
+    {
+        MovementComponent->StopMovementImmediately();
+        MovementComponent->DisableMovement();
+    }
+
+    SetActorEnableCollision(false);
+    Client_DisableInputOnDeath();
+    Multicast_PlayDeath();
+}
+
+void APlayerCharacter::Client_DisableInputOnDeath_Implementation()
+{
+    if (AController* CurrentController = GetController())
+    {
+        CurrentController->SetIgnoreMoveInput(true);
+        CurrentController->SetIgnoreLookInput(true);
+    }
+
+    ClearMovementInputCache();
+
+    if (UAbilitySystemComponent* AbilitySystemComponent = GetAbilitySystemComponent())
+    {
+        AbilitySystemComponent->SetUserAbilityActivationInhibited(true);
+    }
+}
+
+void APlayerCharacter::Multicast_PlayDeath_Implementation()
+{
+    OnPlayerDeath();
+}
+
 void APlayerCharacter::InitPlayerProperties()
 {
     // Network

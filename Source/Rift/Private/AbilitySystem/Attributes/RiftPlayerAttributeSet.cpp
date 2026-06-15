@@ -2,6 +2,8 @@
 
 #include "AbilitySystem/Attributes/RiftPlayerAttributeSet.h"
 
+#include "AbilitySystemComponent.h"
+#include "Character/PlayerCharacter.h"
 #include "GameplayEffectExtension.h"
 #include "Net/UnrealNetwork.h"
 
@@ -40,6 +42,16 @@ void URiftPlayerAttributeSet::PostGameplayEffectExecute(const FGameplayEffectMod
 		if (DamageValue > 0.0f)
 		{
 			SetHealth(FMath::Clamp(GetHealth() - DamageValue, 0.0f, GetMaxHealth()));
+			if (GetHealth() <= 0.0f)
+			{
+				if (UAbilitySystemComponent* AbilitySystemComponent = GetOwningAbilitySystemComponent())
+				{
+					if (APlayerCharacter* PlayerCharacter = Cast<APlayerCharacter>(AbilitySystemComponent->GetAvatarActor()))
+					{
+						PlayerCharacter->HandleDeath();
+					}
+				}
+			}
 		}
 	}
 
