@@ -8,6 +8,7 @@
 
 class UAnimInstance;
 class UAnimMontage;
+class UAnimSequence;
 class USkeletalMesh;
 class UStaticMesh;
 
@@ -28,12 +29,18 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Animation")
 	TSubclassOf<UAnimInstance> AnimInstanceClass;
 
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="HitReact")
-	TObjectPtr<UAnimMontage> FlinchMontage;
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Hit")
+	TObjectPtr<UAnimMontage> HitMontage;
 
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="HitReact")
-	TObjectPtr<UAnimMontage> StaggerMontage;
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Staggered")
+	TObjectPtr<UAnimSequence> StaggeredStartSequence;
 
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="HitReact")
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Staggered")
+	TObjectPtr<UAnimSequence> StaggeredLoopSequence;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Staggered")
+	TObjectPtr<UAnimSequence> StaggeredEndSequence;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Death")
 	TObjectPtr<UAnimMontage> DeathMontage;
 };

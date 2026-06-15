@@ -20,7 +20,7 @@ public:
 	float AttackDamage = 15.0f;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Attack")
-	ERiftPlayerDamageReactionType PlayerDamageReaction = ERiftPlayerDamageReactionType::Light;
+	ERiftPlayerDamageReactionType PlayerDamageReaction = ERiftPlayerDamageReactionType::Hit;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Attack")
 	float AttackRange = 200.0f;
@@ -36,10 +36,4 @@ public:
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Poise")
 	float PoiseBreakStaggerDuration = 1.2f;
-
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="PerfectDodge")
-	float PerfectDodgeStaggerDuration = 1.5f;
-
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="PerfectDodge")
-	float PerfectDodgeTimeDilation = 0.3f;
 };

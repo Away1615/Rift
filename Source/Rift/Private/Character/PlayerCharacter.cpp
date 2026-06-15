@@ -10,6 +10,7 @@
 #include "AbilitySystem/Effects/GE_StaminaRegen.h"
 #include "AbilitySystem/RiftGameplayTags.h"
 #include "Abilities/GameplayAbility.h"
+#include "Animation/AnimInstance.h"
 #include "Combat/RiftCombatFeedbackComponent.h"
 #include "Combat/RiftTargetAssistComponent.h"
 #include "Combat/RiftWeaponTraceComponent.h"
@@ -281,7 +282,6 @@ void APlayerCharacter::HandleDeath()
         AbilitySystemComponent->CancelAllAbilities();
         AbilitySystemComponent->SetLooseGameplayTagCount(RiftGameplayTags::State_Attacking, 0);
         AbilitySystemComponent->SetLooseGameplayTagCount(RiftGameplayTags::State_Dodging, 0);
-        AbilitySystemComponent->SetLooseGameplayTagCount(RiftGameplayTags::State_HitReact, 0);
         AbilitySystemComponent->AddLooseGameplayTag(RiftGameplayTags::State_Dead);
         AbilitySystemComponent->SetUserAbilityActivationInhibited(true);
     }
@@ -330,23 +330,43 @@ void APlayerCharacter::HandleDamageReaction(
     {
     case ERiftPlayerDamageReactionType::None:
         break;
-    case ERiftPlayerDamageReactionType::Light:
-        Multicast_PlayLightDamageReaction(DamageValue, DamageInstigator);
+    case ERiftPlayerDamageReactionType::Hit:
+        Multicast_PlayHitDamageReaction(
+            DamageInstigator
+                ? CalculateHitReactDirection(this, DamageInstigator->GetActorLocation())
+                : ERiftHitReactDirection::Front,
+            DamageValue,
+            DamageInstigator
+        );
         break;
-    case ERiftPlayerDamageReactionType::Heavy:
-        // Heavy reactions are reserved for boss attacks in a later phase.
+    case ERiftPlayerDamageReactionType::KnockDown:
+        // KnockDown/GetUp montage flow is reserved for a later phase.
         break;
     default:
         break;
     }
 }
 
-void APlayerCharacter::Multicast_PlayLightDamageReaction_Implementation(
+void APlayerCharacter::Multicast_PlayHitDamageReaction_Implementation(
+    const ERiftHitReactDirection Direction,
     const float DamageValue,
     AActor* DamageInstigator
 )
 {
-    OnPlayerLightDamaged(DamageValue, DamageInstigator);
+    OnPlayerHitDamaged(Direction, DamageValue, DamageInstigator);
+
+    const UPlayerAnimationConfig* AnimationConfig = GetPlayerAnimationConfig();
+    UAnimMontage* HitMontage = AnimationConfig ? AnimationConfig->HitMontage : nullptr;
+    if (!HitMontage) return;
+
+    USkeletalMeshComponent* CharacterMesh = GetMesh();
+    if (!CharacterMesh) return;
+
+    UAnimInstance* AnimInstance = CharacterMesh->GetAnimInstance();
+    if (!AnimInstance) return;
+
+    AnimInstance->Montage_Play(HitMontage);
+    AnimInstance->Montage_JumpToSection(GetHitReactSectionName(Direction), HitMontage);
 }
 
 void APlayerCharacter::InitPlayerProperties()

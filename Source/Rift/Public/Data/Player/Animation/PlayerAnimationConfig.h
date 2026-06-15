@@ -7,6 +7,7 @@
 #include "PlayerAnimationConfig.generated.h"
 
 class UAnimInstance;
+class UAnimMontage;
 class USkeletalMesh;
 
 /**
@@ -24,4 +25,13 @@ public:
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Animation")
 	TSubclassOf<UAnimInstance> AnimInstanceClass;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Hit")
+	TObjectPtr<UAnimMontage> HitMontage;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="KnockDown")
+	TObjectPtr<UAnimMontage> KnockDownMontage;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="KnockDown")
+	TObjectPtr<UAnimMontage> GetUpMontage;
 };

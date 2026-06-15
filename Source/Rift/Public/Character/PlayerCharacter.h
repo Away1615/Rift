@@ -7,6 +7,7 @@
 #include "Camera/CameraComponent.h"
 #include "Character/BaseCharacter.h"
 #include "Combat/RiftDamageReactionTypes.h"
+#include "Combat/RiftHitReactionTypes.h"
 #include "GameFramework/SpringArmComponent.h"
 #include "GameplayAbilitySpec.h"
 #include "GameplayEffectTypes.h"
@@ -77,7 +78,11 @@ public:
 	void Multicast_PlayDeath();
 
 	UFUNCTION(NetMulticast, Unreliable)
-	void Multicast_PlayLightDamageReaction(float DamageValue, AActor* DamageInstigator);
+	void Multicast_PlayHitDamageReaction(
+		ERiftHitReactDirection Direction,
+		float DamageValue,
+		AActor* DamageInstigator
+	);
 
 	UFUNCTION(Client, Reliable)
 	void Client_DisableInputOnDeath();
@@ -86,7 +91,7 @@ public:
 	void OnPlayerDeath();
 
 	UFUNCTION(BlueprintImplementableEvent, Category="Damage")
-	void OnPlayerLightDamaged(float DamageValue, AActor* DamageInstigator);
+	void OnPlayerHitDamaged(ERiftHitReactDirection Direction, float DamageValue, AActor* DamageInstigator);
 
 	// Whether Player press WASD
 	bool HasMovementInput() const;

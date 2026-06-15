@@ -7,6 +7,6 @@ UENUM(BlueprintType)
 enum class ERiftPlayerDamageReactionType : uint8
 {
 	None UMETA(DisplayName="None"),
-	Light UMETA(DisplayName="Light"),
-	Heavy UMETA(DisplayName="Heavy")
+	Hit UMETA(DisplayName="Hit"),
+	KnockDown UMETA(DisplayName="KnockDown")
 };

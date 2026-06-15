@@ -133,6 +133,17 @@ UAbilitySystemComponent* AEnemyCharacter::GetAbilitySystemComponent() const
 	return AbilitySystemComponent;
 }
 
+bool AEnemyCharacter::IsStaggeredForAnimation() const
+{
+	return AbilitySystemComponent &&
+		AbilitySystemComponent->HasMatchingGameplayTag(RiftGameplayTags::State_Staggered);
+}
+
+bool AEnemyCharacter::IsDeadForAnimation() const
+{
+	return bIsDead;
+}
+
 void AEnemyCharacter::HandlePoiseHit(const bool bPoiseBroken, const FVector& InstigatorLocation)
 {
 	if (!HasAuthority() || bIsDead) return;
@@ -156,16 +167,16 @@ void AEnemyCharacter::HandlePoiseHit(const bool bPoiseBroken, const FVector& Ins
 		}
 	}
 
-	const ERiftHitReactDirection Direction = CalculateHitReactDirection(InstigatorLocation);
 	if (bPoiseBroken)
 	{
 		const UEnemyCombatConfig* CombatConfig = EnemyCharacterConfig ? EnemyCharacterConfig->EnemyCombatConfig : nullptr;
-		const float StaggerDuration = CombatConfig ? CombatConfig->PoiseBreakStaggerDuration : 1.2f;
-		EnterStagger(Direction, StaggerDuration);
+		const float StaggeredDuration = CombatConfig ? CombatConfig->PoiseBreakStaggerDuration : 1.2f;
+		EnterStaggered(StaggeredDuration);
 	}
 	else
 	{
-		Multicast_PlayHitReact(Direction);
+		const ERiftHitReactDirection Direction = CalculateHitReactDirection(this, InstigatorLocation);
+		Multicast_PlayHit(Direction);
 	}
 }
 
@@ -189,7 +200,6 @@ void AEnemyCharacter::TickAttackHitWindow()
 	const float HitboxRadius = FMath::Max(0.0f, CombatConfig->HitboxRadius);
 	if (HitboxRadius <= 0.0f) return;
 
-	APlayerCharacter* StaggerDodger = nullptr;
 	for (TActorIterator<APlayerCharacter> It(World); It; ++It)
 	{
 		APlayerCharacter* PlayerCharacter = *It;
@@ -208,7 +218,6 @@ void AEnemyCharacter::TickAttackHitWindow()
 
 		PerfectDodgersThisAttack.Add(PlayerKey);
 		PlayerCharacter->HandlePerfectDodge(this);
-		StaggerDodger = PlayerCharacter;
 	}
 
 	if (PerfectDodgersThisAttack.Num() == 0)
@@ -267,11 +276,6 @@ void AEnemyCharacter::TickAttackHitWindow()
 		}
 	}
 
-	if (StaggerDodger)
-	{
-		ApplyPerfectDodgeStagger(StaggerDodger);
-	}
-
 	if (RiftDebugCVars::IsCombatDebugEnabled())
 	{
 		DrawDebugSphere(World, HitboxCenter, HitboxRadius, 16, FColor::Red, false, 0.1f, 0, 1.5f);
@@ -286,13 +290,15 @@ void AEnemyCharacter::EndAttackHitWindow()
 	PerfectDodgersThisAttack.Reset();
 }
 
-void AEnemyCharacter::Multicast_PlayHitReact_Implementation(const ERiftHitReactDirection Direction)
+void AEnemyCharacter::Multicast_PlayHit_Implementation(const ERiftHitReactDirection Direction)
 {
+	LastHitReactDirection = Direction;
+
 	const UEnemyAnimationConfig* AnimationConfig = EnemyCharacterConfig ? EnemyCharacterConfig->EnemyAnimationConfig : nullptr;
 	if (!AnimationConfig) return;
 
-	UAnimMontage* HitReactMontage = AnimationConfig->FlinchMontage;
-	if (!HitReactMontage) return;
+	UAnimMontage* HitMontage = AnimationConfig->HitMontage;
+	if (!HitMontage) return;
 
 	USkeletalMeshComponent* CharacterMesh = GetMesh();
 	if (!CharacterMesh) return;
@@ -300,43 +306,8 @@ void AEnemyCharacter::Multicast_PlayHitReact_Implementation(const ERiftHitReactD
 	UAnimInstance* AnimInstance = CharacterMesh->GetAnimInstance();
 	if (!AnimInstance) return;
 
-	AnimInstance->Montage_Play(HitReactMontage);
-	AnimInstance->Montage_JumpToSection(GetHitReactSectionName(Direction), HitReactMontage);
-}
-
-void AEnemyCharacter::Multicast_PlayStagger_Implementation(const ERiftHitReactDirection Direction)
-{
-	const UEnemyAnimationConfig* AnimationConfig = EnemyCharacterConfig ? EnemyCharacterConfig->EnemyAnimationConfig : nullptr;
-	if (!AnimationConfig) return;
-
-	UAnimMontage* StaggerMontage = AnimationConfig->StaggerMontage;
-	if (!StaggerMontage) return;
-
-	USkeletalMeshComponent* CharacterMesh = GetMesh();
-	if (!CharacterMesh) return;
-
-	UAnimInstance* AnimInstance = CharacterMesh->GetAnimInstance();
-	if (!AnimInstance) return;
-
-	AnimInstance->Montage_Play(StaggerMontage);
-	AnimInstance->Montage_JumpToSection(GetHitReactSectionName(Direction), StaggerMontage);
-}
-
-void AEnemyCharacter::Multicast_ExitStagger_Implementation()
-{
-	const UEnemyAnimationConfig* AnimationConfig = EnemyCharacterConfig ? EnemyCharacterConfig->EnemyAnimationConfig : nullptr;
-	if (!AnimationConfig) return;
-
-	UAnimMontage* StaggerMontage = AnimationConfig->StaggerMontage;
-	if (!StaggerMontage) return;
-
-	USkeletalMeshComponent* CharacterMesh = GetMesh();
-	if (!CharacterMesh) return;
-
-	UAnimInstance* AnimInstance = CharacterMesh->GetAnimInstance();
-	if (!AnimInstance || !AnimInstance->Montage_IsPlaying(StaggerMontage)) return;
-
-	AnimInstance->Montage_JumpToSection(TEXT("End"), StaggerMontage);
+	AnimInstance->Montage_Play(HitMontage);
+	AnimInstance->Montage_JumpToSection(GetHitReactSectionName(Direction), HitMontage);
 }
 
 void AEnemyCharacter::HandleDeath(AActor* Killer)
@@ -351,7 +322,7 @@ void AEnemyCharacter::HandleDeath(AActor* Killer)
 	}
 
 	GetWorldTimerManager().ClearTimer(AttackDriverTimerHandle);
-	GetWorldTimerManager().ClearTimer(StaggerTimerHandle);
+	GetWorldTimerManager().ClearTimer(StaggeredTimerHandle);
 	GetWorldTimerManager().ClearTimer(PoiseRegenTimerHandle);
 	HitPlayersThisAttack.Reset();
 	PerfectDodgersThisAttack.Reset();
@@ -360,7 +331,7 @@ void AEnemyCharacter::HandleDeath(AActor* Killer)
 	if (AbilitySystemComponent)
 	{
 		AbilitySystemComponent->CancelAllAbilities();
-		AbilitySystemComponent->SetLooseGameplayTagCount(RiftGameplayTags::State_HitReact, 0);
+		SetStaggeredState(false);
 		AbilitySystemComponent->AddLooseGameplayTag(RiftGameplayTags::State_Dead);
 	}
 
@@ -374,7 +345,7 @@ void AEnemyCharacter::HandleDeath(AActor* Killer)
 	GrantKillReward(Killer);
 
 	const ERiftHitReactDirection Direction = Killer
-		? CalculateHitReactDirection(Killer->GetActorLocation())
+		? CalculateHitReactDirection(this, Killer->GetActorLocation())
 		: ERiftHitReactDirection::Front;
 	Multicast_PlayDeath(Direction);
 
@@ -421,6 +392,9 @@ void AEnemyCharacter::GrantKillReward(AActor* Killer)
 
 void AEnemyCharacter::Multicast_PlayDeath_Implementation(const ERiftHitReactDirection Direction)
 {
+	bIsDead = true;
+	LastHitReactDirection = Direction;
+
 	if (HealthBarWidgetComp)
 	{
 		HealthBarWidgetComp->SetVisibility(false);
@@ -528,7 +502,7 @@ void AEnemyCharacter::TryMeleeAttack()
 	if (ToTarget.SizeSquared() > FMath::Square(CombatConfig->AttackRange)) return;
 
 	if (AbilitySystemComponent->HasMatchingGameplayTag(RiftGameplayTags::State_Attacking) ||
-		AbilitySystemComponent->HasMatchingGameplayTag(RiftGameplayTags::State_HitReact))
+		AbilitySystemComponent->HasMatchingGameplayTag(RiftGameplayTags::State_Staggered))
 	{
 		return;
 	}
@@ -583,7 +557,7 @@ void AEnemyCharacter::UpdateAIMovement()
 
 	if (!RiftDebugCVars::IsEnemyMovementEnabled() ||
 		AbilitySystemComponent->HasMatchingGameplayTag(RiftGameplayTags::State_Attacking) ||
-		AbilitySystemComponent->HasMatchingGameplayTag(RiftGameplayTags::State_HitReact))
+		AbilitySystemComponent->HasMatchingGameplayTag(RiftGameplayTags::State_Staggered))
 	{
 		AIController->StopMovement();
 		return;
@@ -618,25 +592,16 @@ void AEnemyCharacter::StopAIMovement()
 	}
 }
 
-void AEnemyCharacter::ApplyPerfectDodgeStagger(APlayerCharacter* Dodger)
+void AEnemyCharacter::SetStaggeredState(const bool bInStaggered)
 {
-	if (!HasAuthority()) return;
+	if (!AbilitySystemComponent) return;
 
-	const UEnemyCombatConfig* Config = EnemyCharacterConfig ? EnemyCharacterConfig->EnemyCombatConfig : nullptr;
-	const float Dilation = Config
-		? FMath::Clamp(Config->PerfectDodgeTimeDilation, 0.01f, 1.0f)
-		: 0.3f;
-	const float Duration = Config ? FMath::Max(0.1f, Config->PerfectDodgeStaggerDuration) : 2.0f;
-
-	CustomTimeDilation = Dilation;
-
-	const FVector DodgerLocation = Dodger
-		? Dodger->GetActorLocation()
-		: GetActorLocation() + GetActorForwardVector();
-	EnterStagger(CalculateHitReactDirection(DodgerLocation), Duration);
+	const int32 NewCount = bInStaggered ? 1 : 0;
+	AbilitySystemComponent->SetLooseGameplayTagCount(RiftGameplayTags::State_Staggered, NewCount);
+	AbilitySystemComponent->SetReplicatedLooseGameplayTagCount(RiftGameplayTags::State_Staggered, NewCount);
 }
 
-void AEnemyCharacter::EnterStagger(const ERiftHitReactDirection Direction, const float Duration)
+void AEnemyCharacter::EnterStaggered(const float Duration)
 {
 	if (!HasAuthority() || bIsDead || !AbilitySystemComponent) return;
 
@@ -644,33 +609,29 @@ void AEnemyCharacter::EnterStagger(const ERiftHitReactDirection Direction, const
 	AttackTags.AddTag(RiftGameplayTags::Ability_Enemy_MeleeAttack);
 	AbilitySystemComponent->CancelAbilities(&AttackTags);
 
-	AbilitySystemComponent->SetLooseGameplayTagCount(RiftGameplayTags::State_HitReact, 1);
+	SetStaggeredState(true);
 	StopAIMovement();
-
-	Multicast_PlayStagger(Direction);
 
 	if (UWorld* World = GetWorld())
 	{
-		World->GetTimerManager().ClearTimer(StaggerTimerHandle);
+		World->GetTimerManager().ClearTimer(StaggeredTimerHandle);
 		World->GetTimerManager().SetTimer(
-			StaggerTimerHandle,
+			StaggeredTimerHandle,
 			this,
-			&AEnemyCharacter::ExitStagger,
+			&AEnemyCharacter::ExitStaggered,
 			FMath::Max(0.1f, Duration),
 			false
 		);
 	}
 }
 
-void AEnemyCharacter::ExitStagger()
+void AEnemyCharacter::ExitStaggered()
 {
 	if (!HasAuthority()) return;
 
-	Multicast_ExitStagger();
-
 	if (AbilitySystemComponent)
 	{
-		AbilitySystemComponent->SetLooseGameplayTagCount(RiftGameplayTags::State_HitReact, 0);
+		SetStaggeredState(false);
 	}
 
 	CustomTimeDilation = 1.0f;
@@ -681,49 +642,4 @@ void AEnemyCharacter::RestorePoise()
 	if (!HasAuthority() || !AttributeSet) return;
 
 	AttributeSet->SetPoise(AttributeSet->GetMaxPoise());
-}
-
-ERiftHitReactDirection AEnemyCharacter::CalculateHitReactDirection(const FVector& InstigatorLocation) const
-{
-	FVector DirectionToInstigator = InstigatorLocation - GetActorLocation();
-	DirectionToInstigator.Z = 0.0f;
-	if (!DirectionToInstigator.Normalize())
-	{
-		return ERiftHitReactDirection::Front;
-	}
-
-	FVector Forward = GetActorForwardVector();
-	Forward.Z = 0.0f;
-	Forward.Normalize();
-
-	FVector Right = GetActorRightVector();
-	Right.Z = 0.0f;
-	Right.Normalize();
-
-	const float ForwardDot = FVector::DotProduct(Forward, DirectionToInstigator);
-	const float RightDot = FVector::DotProduct(Right, DirectionToInstigator);
-
-	if (FMath::Abs(ForwardDot) >= FMath::Abs(RightDot))
-	{
-		return ForwardDot >= 0.0f ? ERiftHitReactDirection::Front : ERiftHitReactDirection::Back;
-	}
-
-	return RightDot >= 0.0f ? ERiftHitReactDirection::Right : ERiftHitReactDirection::Left;
-}
-
-FName AEnemyCharacter::GetHitReactSectionName(const ERiftHitReactDirection Direction)
-{
-	switch (Direction)
-	{
-	case ERiftHitReactDirection::Front:
-		return TEXT("Front");
-	case ERiftHitReactDirection::Back:
-		return TEXT("Back");
-	case ERiftHitReactDirection::Left:
-		return TEXT("Left");
-	case ERiftHitReactDirection::Right:
-		return TEXT("Right");
-	default:
-		return NAME_None;
-	}
 }

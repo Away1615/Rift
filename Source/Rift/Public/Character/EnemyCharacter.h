@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "AbilitySystemInterface.h"
 #include "Character/BaseCharacter.h"
+#include "Combat/RiftHitReactionTypes.h"
 #include "TimerManager.h"
 #include "EnemyCharacter.generated.h"
 
@@ -16,15 +17,6 @@ class APlayerCharacter;
 class UStaticMeshComponent;
 class UUserWidget;
 class UWidgetComponent;
-
-UENUM(BlueprintType)
-enum class ERiftHitReactDirection : uint8
-{
-	Front UMETA(DisplayName="Front"),
-	Back UMETA(DisplayName="Back"),
-	Left UMETA(DisplayName="Left"),
-	Right UMETA(DisplayName="Right")
-};
 
 /**
  *
@@ -43,6 +35,15 @@ public:
 
 	UEnemyCharacterConfig* GetEnemyCharacterConfig() const { return EnemyCharacterConfig; }
 
+	UFUNCTION(BlueprintPure, Category="Animation")
+	bool IsStaggeredForAnimation() const;
+
+	UFUNCTION(BlueprintPure, Category="Animation")
+	bool IsDeadForAnimation() const;
+
+	UFUNCTION(BlueprintPure, Category="Animation")
+	ERiftHitReactDirection GetLastHitReactDirection() const { return LastHitReactDirection; }
+
 	void HandlePoiseHit(bool bPoiseBroken, const FVector& InstigatorLocation);
 	void HandleDeath(AActor* Killer);
 
@@ -51,13 +52,7 @@ public:
 	void EndAttackHitWindow();
 
 	UFUNCTION(NetMulticast, Unreliable)
-	void Multicast_PlayHitReact(ERiftHitReactDirection Direction);
-
-	UFUNCTION(NetMulticast, Reliable)
-	void Multicast_PlayStagger(ERiftHitReactDirection Direction);
-
-	UFUNCTION(NetMulticast, Reliable)
-	void Multicast_ExitStagger();
+	void Multicast_PlayHit(ERiftHitReactDirection Direction);
 
 	UFUNCTION(NetMulticast, Reliable)
 	void Multicast_PlayDeath(ERiftHitReactDirection Direction);
@@ -93,21 +88,20 @@ private:
 	APlayerCharacter* FindNearestPlayer() const;
 	void UpdateAIMovement();
 	void StopAIMovement();
-	void ApplyPerfectDodgeStagger(APlayerCharacter* Dodger);
-	void EnterStagger(ERiftHitReactDirection Direction, float Duration);
-	void ExitStagger();
+	void SetStaggeredState(bool bInStaggered);
+	void EnterStaggered(float Duration);
+	void ExitStaggered();
 	void GrantKillReward(AActor* Killer);
 	void FinishDeath();
 	void RestorePoise();
-	ERiftHitReactDirection CalculateHitReactDirection(const FVector& InstigatorLocation) const;
-	static FName GetHitReactSectionName(ERiftHitReactDirection Direction);
 
 	FTimerHandle AttackDriverTimerHandle;
-	FTimerHandle StaggerTimerHandle;
+	FTimerHandle StaggeredTimerHandle;
 	FTimerHandle DeathDespawnTimerHandle;
 	FTimerHandle PoiseRegenTimerHandle;
 	float NextAttackTime = 0.0f;
 	bool bIsDead = false;
+	ERiftHitReactDirection LastHitReactDirection = ERiftHitReactDirection::Front;
 	TSet<TObjectKey<AActor>> HitPlayersThisAttack;
 	TSet<TObjectKey<AActor>> PerfectDodgersThisAttack;
 };
