@@ -4,7 +4,16 @@ DerivedDataCache/
 Intermediate/
 Saved/
 Content/Vendor/*
+Content/AnimationsMonstUE4pcs9/*
+Content/BossyEnemy/*
+Content/Goblin_sword_shield_AnimSet/*
+Content/GreatDualBlade_animset/*
+Content/NiagaraMagicalSlashes/*
 Content/Frank_RPG_Dual/*
+Content/sA_StylizedSwordSet/*
+Content/Sword_Animations/*
+Content/WMAnimation/*
+
 Content/TrailMaster/*
 Content/GreatDualBlade_animset/*
 Content/NiagaraMagicalSlashes/*

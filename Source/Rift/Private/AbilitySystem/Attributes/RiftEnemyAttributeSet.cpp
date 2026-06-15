@@ -39,6 +39,14 @@ void URiftEnemyAttributeSet::PostGameplayEffectExecute(const FGameplayEffectModC
 		if (DamageValue > 0.0f)
 		{
 			SetHealth(FMath::Clamp(GetHealth() - DamageValue, 0.0f, GetMaxHealth()));
+			if (GetHealth() <= 0.0f)
+			{
+				AActor* Killer = Data.EffectSpec.GetContext().GetInstigator();
+				if (AEnemyCharacter* Enemy = Cast<AEnemyCharacter>(GetOwningActor()))
+				{
+					Enemy->HandleDeath(Killer);
+				}
+			}
 		}
 	}
 

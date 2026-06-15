@@ -39,6 +39,12 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Weapon")
 	TMap<ERiftWeaponSlot, TObjectPtr<UStaticMesh>> Weapons;
 
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Death")
+	float KillUltimateCharge = 3.0f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Death")
+	float DeathDespawnDelay = 3.0f;
+
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Animation")
 	TObjectPtr<UEnemyAnimationConfig> EnemyAnimationConfig;
 

@@ -42,6 +42,7 @@ public:
 	UEnemyCharacterConfig* GetEnemyCharacterConfig() const { return EnemyCharacterConfig; }
 
 	void HandlePoiseHit(bool bPoiseBroken, const FVector& InstigatorLocation);
+	void HandleDeath(AActor* Killer);
 
 	void BeginAttackHitWindow();
 	void TickAttackHitWindow();
@@ -55,6 +56,12 @@ public:
 
 	UFUNCTION(NetMulticast, Reliable)
 	void Multicast_ExitStagger();
+
+	UFUNCTION(NetMulticast, Reliable)
+	void Multicast_PlayDeath(ERiftHitReactDirection Direction);
+
+	UFUNCTION(BlueprintImplementableEvent, Category="Death")
+	void OnDeathVisual(ERiftHitReactDirection Direction);
 
 protected:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Config")
@@ -78,14 +85,18 @@ private:
 	void ApplyPerfectDodgeStagger(APlayerCharacter* Dodger);
 	void EnterStagger(ERiftHitReactDirection Direction, float Duration);
 	void ExitStagger();
+	void GrantKillReward(AActor* Killer);
+	void FinishDeath();
 	void RestorePoise();
 	ERiftHitReactDirection CalculateHitReactDirection(const FVector& InstigatorLocation) const;
 	static FName GetHitReactSectionName(ERiftHitReactDirection Direction);
 
 	FTimerHandle AttackDriverTimerHandle;
 	FTimerHandle StaggerTimerHandle;
+	FTimerHandle DeathDespawnTimerHandle;
 	FTimerHandle PoiseRegenTimerHandle;
 	float NextAttackTime = 0.0f;
+	bool bIsDead = false;
 	TSet<TObjectKey<AActor>> HitPlayersThisAttack;
 	TSet<TObjectKey<AActor>> PerfectDodgersThisAttack;
 };

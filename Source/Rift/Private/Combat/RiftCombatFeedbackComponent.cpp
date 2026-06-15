@@ -78,13 +78,15 @@ void URiftCombatFeedbackComponent::EndPlay(const EEndPlayReason::Type EndPlayRea
 	Super::EndPlay(EndPlayReason);
 }
 
-void URiftCombatFeedbackComponent::ApplyHitStopToActor(
+void URiftCombatFeedbackComponent::	ApplyHitStopToActor(
 	AActor* TargetActor,
 	const float TimeDilation,
 	const float Duration
 )
 {
 	if (!TargetActor) return;
+
+	if (!FMath::IsNearlyEqual(TargetActor->CustomTimeDilation, 1.0f)) return;
 
 	UWorld* World = GetWorld();
 	if (!World) return;

@@ -33,4 +33,7 @@ public:
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="HitReact")
 	TObjectPtr<UAnimMontage> StaggerMontage;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="HitReact")
+	TObjectPtr<UAnimMontage> DeathMontage;
 };

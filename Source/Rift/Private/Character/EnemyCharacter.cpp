@@ -4,9 +4,11 @@
 #include "Character/EnemyCharacter.h"
 
 #include "AbilitySystem/Effects/GE_EnemyMeleeDamage.h"
+#include "AbilitySystem/Effects/GE_GainResource.h"
 #include "AbilitySystem/RiftAbilitySystemComponent.h"
 #include "AbilitySystem/Attributes/RiftEnemyAttributeSet.h"
 #include "AbilitySystem/RiftGameplayTags.h"
+#include "AbilitySystemInterface.h"
 #include "Character/PlayerCharacter.h"
 #include "Animation/AnimInstance.h"
 #include "Components/CapsuleComponent.h"
@@ -102,7 +104,7 @@ UAbilitySystemComponent* AEnemyCharacter::GetAbilitySystemComponent() const
 
 void AEnemyCharacter::HandlePoiseHit(const bool bPoiseBroken, const FVector& InstigatorLocation)
 {
-	if (!HasAuthority()) return;
+	if (!HasAuthority() || bIsDead) return;
 
 	if (UWorld* World = GetWorld())
 	{
@@ -138,7 +140,7 @@ void AEnemyCharacter::HandlePoiseHit(const bool bPoiseBroken, const FVector& Ins
 
 void AEnemyCharacter::BeginAttackHitWindow()
 {
-	if (!HasAuthority()) return;
+	if (!HasAuthority() || bIsDead) return;
 
 	HitPlayersThisAttack.Reset();
 	PerfectDodgersThisAttack.Reset();
@@ -146,7 +148,7 @@ void AEnemyCharacter::BeginAttackHitWindow()
 
 void AEnemyCharacter::TickAttackHitWindow()
 {
-	if (!HasAuthority()) return;
+	if (!HasAuthority() || bIsDead) return;
 
 	UWorld* World = GetWorld();
 	const UEnemyCombatConfig* CombatConfig = EnemyCharacterConfig ? EnemyCharacterConfig->EnemyCombatConfig : nullptr;
@@ -242,7 +244,7 @@ void AEnemyCharacter::TickAttackHitWindow()
 
 void AEnemyCharacter::EndAttackHitWindow()
 {
-	if (!HasAuthority()) return;
+	if (!HasAuthority() || bIsDead) return;
 
 	HitPlayersThisAttack.Reset();
 	PerfectDodgersThisAttack.Reset();
@@ -299,6 +301,105 @@ void AEnemyCharacter::Multicast_ExitStagger_Implementation()
 	if (!AnimInstance || !AnimInstance->Montage_IsPlaying(StaggerMontage)) return;
 
 	AnimInstance->Montage_JumpToSection(TEXT("End"), StaggerMontage);
+}
+
+void AEnemyCharacter::HandleDeath(AActor* Killer)
+{
+	if (bIsDead || !HasAuthority()) return;
+
+	bIsDead = true;
+
+	GetWorldTimerManager().ClearTimer(AttackDriverTimerHandle);
+	GetWorldTimerManager().ClearTimer(StaggerTimerHandle);
+	GetWorldTimerManager().ClearTimer(PoiseRegenTimerHandle);
+	HitPlayersThisAttack.Reset();
+	PerfectDodgersThisAttack.Reset();
+	CustomTimeDilation = 1.0f;
+
+	if (AbilitySystemComponent)
+	{
+		AbilitySystemComponent->CancelAllAbilities();
+		AbilitySystemComponent->SetLooseGameplayTagCount(RiftGameplayTags::State_HitReact, 0);
+		AbilitySystemComponent->AddLooseGameplayTag(RiftGameplayTags::State_Dead);
+	}
+
+	SetActorEnableCollision(false);
+	if (UCharacterMovementComponent* Movement = GetCharacterMovement())
+	{
+		Movement->DisableMovement();
+	}
+
+	GrantKillReward(Killer);
+
+	const ERiftHitReactDirection Direction = Killer
+		? CalculateHitReactDirection(Killer->GetActorLocation())
+		: ERiftHitReactDirection::Front;
+	Multicast_PlayDeath(Direction);
+
+	const float DespawnDelay = EnemyCharacterConfig
+		? FMath::Max(0.1f, EnemyCharacterConfig->DeathDespawnDelay)
+		: 3.0f;
+	GetWorldTimerManager().SetTimer(
+		DeathDespawnTimerHandle,
+		this,
+		&AEnemyCharacter::FinishDeath,
+		DespawnDelay,
+		false
+	);
+}
+
+void AEnemyCharacter::GrantKillReward(AActor* Killer)
+{
+	if (!Killer || !EnemyCharacterConfig) return;
+	if (EnemyCharacterConfig->KillUltimateCharge <= 0.0f) return;
+
+	IAbilitySystemInterface* KillerAbilityInterface = Cast<IAbilitySystemInterface>(Killer);
+	UAbilitySystemComponent* KillerAbilitySystemComponent = KillerAbilityInterface
+		? KillerAbilityInterface->GetAbilitySystemComponent()
+		: nullptr;
+	if (!KillerAbilitySystemComponent) return;
+
+	FGameplayEffectContextHandle EffectContext = KillerAbilitySystemComponent->MakeEffectContext();
+	FGameplayEffectSpecHandle GainSpecHandle = KillerAbilitySystemComponent->MakeOutgoingSpec(
+		UGE_GainResource::StaticClass(),
+		1.0f,
+		EffectContext
+	);
+	if (!GainSpecHandle.IsValid()) return;
+
+	GainSpecHandle.Data->SetSetByCallerMagnitude(RiftGameplayTags::SetByCaller_SwordIntent, 0.0f);
+	GainSpecHandle.Data->SetSetByCallerMagnitude(
+		RiftGameplayTags::SetByCaller_UltimateCharge,
+		EnemyCharacterConfig->KillUltimateCharge
+	);
+	KillerAbilitySystemComponent->ApplyGameplayEffectSpecToTarget(
+		*GainSpecHandle.Data.Get(),
+		KillerAbilitySystemComponent
+	);
+}
+
+void AEnemyCharacter::Multicast_PlayDeath_Implementation(const ERiftHitReactDirection Direction)
+{
+	const UEnemyAnimationConfig* AnimationConfig = EnemyCharacterConfig ? EnemyCharacterConfig->EnemyAnimationConfig : nullptr;
+	UAnimMontage* DeathMontage = AnimationConfig ? AnimationConfig->DeathMontage : nullptr;
+	if (DeathMontage)
+	{
+		if (USkeletalMeshComponent* CharacterMesh = GetMesh())
+		{
+			if (UAnimInstance* AnimInstance = CharacterMesh->GetAnimInstance())
+			{
+				AnimInstance->Montage_Play(DeathMontage);
+				AnimInstance->Montage_JumpToSection(GetHitReactSectionName(Direction), DeathMontage);
+			}
+		}
+	}
+
+	OnDeathVisual(Direction);
+}
+
+void AEnemyCharacter::FinishDeath()
+{
+	Destroy();
 }
 
 void AEnemyCharacter::ApplyAnimationConfig() const
@@ -363,7 +464,7 @@ void AEnemyCharacter::GrantAbilities()
 
 void AEnemyCharacter::TryMeleeAttack()
 {
-	if (!HasAuthority()) return;
+	if (!HasAuthority() || bIsDead) return;
 
 	UWorld* World = GetWorld();
 	const UEnemyCombatConfig* CombatConfig = EnemyCharacterConfig ? EnemyCharacterConfig->EnemyCombatConfig : nullptr;
@@ -432,7 +533,7 @@ void AEnemyCharacter::ApplyPerfectDodgeStagger(APlayerCharacter* Dodger)
 
 void AEnemyCharacter::EnterStagger(const ERiftHitReactDirection Direction, const float Duration)
 {
-	if (!HasAuthority() || !AbilitySystemComponent) return;
+	if (!HasAuthority() || bIsDead || !AbilitySystemComponent) return;
 
 	FGameplayTagContainer AttackTags;
 	AttackTags.AddTag(RiftGameplayTags::Ability_Enemy_MeleeAttack);
