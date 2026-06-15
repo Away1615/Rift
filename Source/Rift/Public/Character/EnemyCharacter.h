@@ -14,6 +14,8 @@ class URiftAbilitySystemComponent;
 class URiftEnemyAttributeSet;
 class APlayerCharacter;
 class UStaticMeshComponent;
+class UUserWidget;
+class UWidgetComponent;
 
 UENUM(BlueprintType)
 enum class ERiftHitReactDirection : uint8
@@ -75,6 +77,12 @@ protected:
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Mesh")
 	TObjectPtr<UStaticMeshComponent> Head;
+
+	UPROPERTY(VisibleAnywhere)
+	TObjectPtr<UWidgetComponent> HealthBarWidgetComp;
+
+	UPROPERTY(EditDefaultsOnly, Category="UI")
+	TSubclassOf<UUserWidget> HealthBarWidgetClass;
 
 private:
 	void ApplyAnimationConfig() const;

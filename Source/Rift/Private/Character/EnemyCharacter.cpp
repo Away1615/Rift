@@ -14,6 +14,7 @@
 #include "Components/CapsuleComponent.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Components/StaticMeshComponent.h"
+#include "Components/WidgetComponent.h"
 #include "Data/Enemy/Animation/EnemyAnimationConfig.h"
 #include "Data/Enemy/Combat/EnemyCombatConfig.h"
 #include "Data/Enemy/EnemyCharacterConfig.h"
@@ -24,6 +25,7 @@
 #include "EngineUtils.h"
 #include "Engine/World.h"
 #include "GameFramework/CharacterMovementComponent.h"
+#include "UI/Enemy/EnemyHealthBarWidget.h"
 
 AEnemyCharacter::AEnemyCharacter()
 {
@@ -40,6 +42,13 @@ AEnemyCharacter::AEnemyCharacter()
 	Head = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("Head"));
 	Head->SetupAttachment(GetMesh(), TEXT("head"));
 	Head->SetRelativeRotation(FRotator(0.0f, 0.0f, -90.0f));
+
+	HealthBarWidgetComp = CreateDefaultSubobject<UWidgetComponent>(TEXT("HealthBarWidget"));
+	HealthBarWidgetComp->SetupAttachment(GetRootComponent());
+	HealthBarWidgetComp->SetWidgetSpace(EWidgetSpace::Screen);
+	HealthBarWidgetComp->SetDrawAtDesiredSize(true);
+	HealthBarWidgetComp->SetRelativeLocation(FVector(0.0f, 0.0f, 110.0f));
+	HealthBarWidgetComp->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 }
 
 void AEnemyCharacter::PostInitializeComponents()
@@ -79,6 +88,20 @@ void AEnemyCharacter::BeginPlay()
 			0.2f,
 			true
 		);
+	}
+
+	if (HealthBarWidgetComp)
+	{
+		if (!HealthBarWidgetComp->GetWidgetClass() && HealthBarWidgetClass)
+		{
+			HealthBarWidgetComp->SetWidgetClass(HealthBarWidgetClass);
+		}
+
+		HealthBarWidgetComp->InitWidget();
+		if (UEnemyHealthBarWidget* HealthBarWidget = Cast<UEnemyHealthBarWidget>(HealthBarWidgetComp->GetUserWidgetObject()))
+		{
+			HealthBarWidget->InitializeFor(AbilitySystemComponent);
+		}
 	}
 }
 
@@ -309,6 +332,11 @@ void AEnemyCharacter::HandleDeath(AActor* Killer)
 
 	bIsDead = true;
 
+	if (HealthBarWidgetComp)
+	{
+		HealthBarWidgetComp->SetVisibility(false);
+	}
+
 	GetWorldTimerManager().ClearTimer(AttackDriverTimerHandle);
 	GetWorldTimerManager().ClearTimer(StaggerTimerHandle);
 	GetWorldTimerManager().ClearTimer(PoiseRegenTimerHandle);
@@ -380,6 +408,11 @@ void AEnemyCharacter::GrantKillReward(AActor* Killer)
 
 void AEnemyCharacter::Multicast_PlayDeath_Implementation(const ERiftHitReactDirection Direction)
 {
+	if (HealthBarWidgetComp)
+	{
+		HealthBarWidgetComp->SetVisibility(false);
+	}
+
 	const UEnemyAnimationConfig* AnimationConfig = EnemyCharacterConfig ? EnemyCharacterConfig->EnemyAnimationConfig : nullptr;
 	UAnimMontage* DeathMontage = AnimationConfig ? AnimationConfig->DeathMontage : nullptr;
 	if (DeathMontage)

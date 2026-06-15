@@ -2,6 +2,8 @@
 
 
 #include "Player/BaseHUD.h"
+
+#include "GameFramework/PlayerController.h"
 #include "UI/Player/PlayerHUDWidget.h"
 
 ABaseHUD::ABaseHUD()
@@ -18,11 +20,11 @@ void ABaseHUD::CreatePlayerInfoPanel()
 {
 	APlayerController* OwningPC = GetOwningPlayerController();
 
-	if (!OwningPC) return;
+	if (!OwningPC || !PlayerInfoPanelClass || PlayerInfoPanel) return;
 
-	if (!PlayerInfoPanelClass)
+	PlayerInfoPanel = CreateWidget<UPlayerHUDWidget>(OwningPC, PlayerInfoPanelClass);
+	if (PlayerInfoPanel)
 	{
-
-
+		PlayerInfoPanel->AddToViewport();
 	}
 }
