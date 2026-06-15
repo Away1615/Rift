@@ -3,6 +3,7 @@
 
 #include "Character/BaseCharacter.h"
 
+#include "Components/CapsuleComponent.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Components/StaticMeshComponent.h"
 
@@ -37,6 +38,12 @@ ABaseCharacter::ABaseCharacter()
 	WeaponArmRightMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("Weapon_ArmRight"));
 	WeaponArmRightMesh->SetupAttachment(GetMesh(), RiftWeapon::GetWeaponSlotSocketName(ERiftWeaponSlot::ArmRight));
 	WeaponArmRightMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+
+	GetCapsuleComponent()->SetCollisionResponseToChannel(ECC_Camera, ECR_Ignore);
+	if (GetMesh())
+	{
+		GetMesh()->SetCollisionResponseToChannel(ECC_Camera, ECR_Ignore);
+	}
 }
 
 void ABaseCharacter::ApplyWeapons(const TMap<ERiftWeaponSlot, TObjectPtr<UStaticMesh>>& Weapons)

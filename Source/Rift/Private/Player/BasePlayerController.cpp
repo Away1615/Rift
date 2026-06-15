@@ -4,6 +4,7 @@
 
 #include "AbilitySystem/RiftAbilitySystemComponent.h"
 #include "AbilitySystem/RiftGameplayTags.h"
+#include "Camera/PlayerCameraManager.h"
 #include "InputActionValue.h"
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
@@ -13,6 +14,12 @@
 void ABasePlayerController::BeginPlay()
 {
 	Super::BeginPlay();
+
+	if (PlayerCameraManager)
+	{
+		PlayerCameraManager->ViewPitchMin = -60.0f;
+		PlayerCameraManager->ViewPitchMax = 25.0f;
+	}
 
 	// Use Input Config reference
 	if (!IsLocalController() || !DefaultInputConfig || !DefaultInputConfig->MappingContext) return;
