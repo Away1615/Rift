@@ -33,6 +33,12 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Attribute|Stamina")
 	float MaxStamina = 100.0f;
 
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Attribute|Poise")
+	float Poise = 100.0f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Attribute|Poise")
+	float MaxPoise = 100.0f;
+
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Attribute|Stamina")
 	float StaminaRegenRate = 20.0f;
 

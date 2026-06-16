@@ -17,6 +17,7 @@
 class UPlayerAnimationConfig;
 class UPlayerClassConfig;
 class UAbilitySystemComponent;
+class UAnimMontage;
 class URiftTargetAssistComponent;
 class URiftWeaponTraceComponent;
 class URiftCombatFeedbackComponent;
@@ -72,13 +73,37 @@ public:
 	void HandlePerfectDodge(AActor* InstigatorEnemy);
 	void HandleDeath();
 	bool IsDead() const { return bIsDead; }
-	void HandleDamageReaction(ERiftPlayerDamageReactionType ReactionType, AActor* DamageInstigator, float DamageValue);
+	void HandleHitFeedback(ERiftPlayerHitFeedbackPolicy FeedbackPolicy, AActor* DamageInstigator, float DamageValue);
+	void HandlePoiseBroken(AActor* DamageInstigator);
+	void HandleHeavyHit(AActor* DamageInstigator);
+
+	UFUNCTION(BlueprintCallable, Category="State")
+	void FinishHeavyHit();
+
+	UFUNCTION(Server, Reliable)
+	void Server_FinishHeavyHit();
+
+	UFUNCTION(BlueprintPure, Category="State")
+	bool IsInHeavyHitState() const;
+
+	UFUNCTION(BlueprintPure, Category="Animation")
+	ERiftHitReactDirection GetLastHitReactDirection() const { return LastHitReactDirection; }
 
 	UFUNCTION(NetMulticast, Reliable)
 	void Multicast_PlayDeath();
 
 	UFUNCTION(NetMulticast, Unreliable)
-	void Multicast_PlayHitDamageReaction(
+	void Multicast_PlayLightHit(
+		ERiftHitReactDirection Direction,
+		float DamageValue,
+		AActor* DamageInstigator
+	);
+
+	UFUNCTION(NetMulticast, Unreliable)
+	void Multicast_PlayHeavyHit(ERiftHitReactDirection Direction);
+
+	UFUNCTION(NetMulticast, Unreliable)
+	void Multicast_PlayHitFeedback(
 		ERiftHitReactDirection Direction,
 		float DamageValue,
 		AActor* DamageInstigator
@@ -86,6 +111,9 @@ public:
 
 	UFUNCTION(Client, Reliable)
 	void Client_DisableInputOnDeath();
+
+	UFUNCTION(Client, Reliable)
+	void Client_SetHeavyHitControlState(bool bInHeavyHit);
 
 	UFUNCTION(BlueprintImplementableEvent, Category="Death")
 	void OnPlayerDeath();
@@ -184,16 +212,22 @@ private:
 	void ApplyWeaponsFromConfig();
 	void ClearGrantedAbilities();
 	void GrantAbilitiesFromClassConfig();
+	void SetHeavyHitState(bool bInHeavyHit);
 
 	FActiveGameplayEffectHandle StaminaRegenEffectHandle;
+	TWeakObjectPtr<UAnimMontage> ActiveHeavyHitMontage;
 
 	FVector PerfectDodgeOrigin = FVector::ZeroVector;
 	bool bPerfectDodgeWindowActive = false;
 	bool bIsDead = false;
+	ERiftHitReactDirection LastHitReactDirection = ERiftHitReactDirection::Front;
 	FTimerHandle PerfectDodgeWindowTimerHandle;
 
 	UFUNCTION()
 	void OnRep_PlayerClassConfig();
+
+	UFUNCTION()
+	void OnHeavyHitMontageEnded(UAnimMontage* Montage, bool bInterrupted);
 
 	void DeactivatePerfectDodgeWindow();
 

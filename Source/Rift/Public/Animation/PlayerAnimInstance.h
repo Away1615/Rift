@@ -4,7 +4,11 @@
 
 #include "CoreMinimal.h"
 #include "Animation/AnimInstance.h"
+#include "Combat/RiftHitReactionTypes.h"
 #include "PlayerAnimInstance.generated.h"
+
+class APlayerCharacter;
+class UPlayerAnimationConfig;
 
 /**
  *
@@ -20,4 +24,13 @@ public:
 protected:
 	UPROPERTY(BlueprintReadOnly, Category = "Movement")
 	float Speed = 0.0f;
+
+	UPROPERTY(BlueprintReadOnly, Category="Character")
+	TObjectPtr<APlayerCharacter> PlayerCharacter;
+
+	UPROPERTY(BlueprintReadOnly, Category="Animation")
+	TObjectPtr<UPlayerAnimationConfig> AnimationConfig;
+
+	UPROPERTY(BlueprintReadOnly, Category="Hit")
+	ERiftHitReactDirection LastHitReactDirection = ERiftHitReactDirection::Front;
 };

@@ -139,6 +139,12 @@ UAbilitySystemComponent* APlayerCharacter::GetAbilitySystemComponent() const
 
 void APlayerCharacter::HandleMove(const FVector2D& InputValue)
 {
+    if (IsDead() || IsInHeavyHitState())
+    {
+        ClearMovementInputCache();
+        return;
+    }
+
     MovementInputVector = InputValue;
 
     if (InputValue.IsNearlyZero())
@@ -276,12 +282,14 @@ void APlayerCharacter::HandleDeath()
     CustomTimeDilation = 1.0f;
     ClearMovementInputCache();
     StopAssistedFacing();
+    ActiveHeavyHitMontage.Reset();
 
     if (UAbilitySystemComponent* AbilitySystemComponent = GetAbilitySystemComponent())
     {
         AbilitySystemComponent->CancelAllAbilities();
         AbilitySystemComponent->SetLooseGameplayTagCount(RiftGameplayTags::State_Attacking, 0);
         AbilitySystemComponent->SetLooseGameplayTagCount(RiftGameplayTags::State_Dodging, 0);
+        SetHeavyHitState(false);
         AbilitySystemComponent->AddLooseGameplayTag(RiftGameplayTags::State_Dead);
         AbilitySystemComponent->SetUserAbilityActivationInhibited(true);
     }
@@ -313,51 +321,189 @@ void APlayerCharacter::Client_DisableInputOnDeath_Implementation()
     }
 }
 
+void APlayerCharacter::Client_SetHeavyHitControlState_Implementation(const bool bInHeavyHit)
+{
+    ClearMovementInputCache();
+
+    if (UAbilitySystemComponent* AbilitySystemComponent = GetAbilitySystemComponent())
+    {
+        AbilitySystemComponent->SetUserAbilityActivationInhibited(bInHeavyHit);
+    }
+}
+
 void APlayerCharacter::Multicast_PlayDeath_Implementation()
 {
     OnPlayerDeath();
 }
 
-void APlayerCharacter::HandleDamageReaction(
-    const ERiftPlayerDamageReactionType ReactionType,
+void APlayerCharacter::HandleHitFeedback(
+    const ERiftPlayerHitFeedbackPolicy FeedbackPolicy,
     AActor* DamageInstigator,
     const float DamageValue
 )
 {
     if (!HasAuthority() || IsDead()) return;
 
-    switch (ReactionType)
+    UAbilitySystemComponent* AbilitySystemComponent = GetAbilitySystemComponent();
+    if (AbilitySystemComponent &&
+        (AbilitySystemComponent->HasMatchingGameplayTag(RiftGameplayTags::State_SuperArmor_Red) ||
+            AbilitySystemComponent->HasMatchingGameplayTag(RiftGameplayTags::State_Hit_Heavy)))
     {
-    case ERiftPlayerDamageReactionType::None:
+        return;
+    }
+
+    const ERiftHitReactDirection Direction = DamageInstigator
+        ? CalculateHitReactDirection(this, DamageInstigator->GetActorLocation())
+        : ERiftHitReactDirection::Front;
+
+    switch (FeedbackPolicy)
+    {
+    case ERiftPlayerHitFeedbackPolicy::None:
         break;
-    case ERiftPlayerDamageReactionType::Hit:
-        Multicast_PlayHitDamageReaction(
-            DamageInstigator
-                ? CalculateHitReactDirection(this, DamageInstigator->GetActorLocation())
-                : ERiftHitReactDirection::Front,
-            DamageValue,
-            DamageInstigator
-        );
+    case ERiftPlayerHitFeedbackPolicy::FeedbackOnly:
+        Multicast_PlayHitFeedback(Direction, DamageValue, DamageInstigator);
         break;
-    case ERiftPlayerDamageReactionType::KnockDown:
-        // KnockDown/GetUp montage flow is reserved for a later phase.
+    case ERiftPlayerHitFeedbackPolicy::LightHit:
+        Multicast_PlayLightHit(Direction, DamageValue, DamageInstigator);
         break;
     default:
         break;
     }
 }
 
-void APlayerCharacter::Multicast_PlayHitDamageReaction_Implementation(
+void APlayerCharacter::HandlePoiseBroken(AActor* DamageInstigator)
+{
+    if (!HasAuthority() || IsDead()) return;
+
+    UAbilitySystemComponent* AbilitySystemComponent = GetAbilitySystemComponent();
+    if (AbilitySystemComponent &&
+        AbilitySystemComponent->HasMatchingGameplayTag(RiftGameplayTags::State_SuperArmor_Red))
+    {
+        return;
+    }
+
+    HandleHeavyHit(DamageInstigator);
+}
+
+void APlayerCharacter::HandleHeavyHit(AActor* DamageInstigator)
+{
+    if (!HasAuthority() || IsDead()) return;
+
+    UAbilitySystemComponent* AbilitySystemComponent = GetAbilitySystemComponent();
+    if (!AbilitySystemComponent) return;
+
+    if (AbilitySystemComponent->HasMatchingGameplayTag(RiftGameplayTags::State_Hit_Heavy) ||
+        AbilitySystemComponent->HasMatchingGameplayTag(RiftGameplayTags::State_SuperArmor_Red))
+    {
+        return;
+    }
+
+    const UPlayerAnimationConfig* AnimationConfig = GetPlayerAnimationConfig();
+    UAnimMontage* HeavyHitMontage = AnimationConfig ? AnimationConfig->HeavyHitMontage : nullptr;
+    if (!HeavyHitMontage) return;
+
+    LastHitReactDirection = DamageInstigator
+        ? CalculateHitReactDirection(this, DamageInstigator->GetActorLocation())
+        : ERiftHitReactDirection::Front;
+
+    AbilitySystemComponent->CancelAllAbilities();
+    AbilitySystemComponent->SetUserAbilityActivationInhibited(true);
+    AbilitySystemComponent->SetLooseGameplayTagCount(RiftGameplayTags::State_Attacking, 0);
+    AbilitySystemComponent->SetLooseGameplayTagCount(RiftGameplayTags::State_Dodging, 0);
+    ActiveHeavyHitMontage = HeavyHitMontage;
+    SetHeavyHitState(true);
+
+    ClearMovementInputCache();
+    StopAssistedFacing();
+    if (UCharacterMovementComponent* MovementComponent = GetCharacterMovement())
+    {
+        MovementComponent->StopMovementImmediately();
+    }
+
+    Client_SetHeavyHitControlState(true);
+    Multicast_PlayHeavyHit(LastHitReactDirection);
+}
+
+void APlayerCharacter::FinishHeavyHit()
+{
+    if (!HasAuthority())
+    {
+        if (IsLocallyControlled())
+        {
+            Server_FinishHeavyHit();
+        }
+        return;
+    }
+
+    if (IsDead()) return;
+
+    UAbilitySystemComponent* AbilitySystemComponent = GetAbilitySystemComponent();
+    if (!AbilitySystemComponent) return;
+    if (!AbilitySystemComponent->HasMatchingGameplayTag(RiftGameplayTags::State_Hit_Heavy)) return;
+
+    SetHeavyHitState(false);
+    ActiveHeavyHitMontage.Reset();
+    AbilitySystemComponent->SetUserAbilityActivationInhibited(false);
+    Client_SetHeavyHitControlState(false);
+
+    if (UCharacterMovementComponent* MovementComponent = GetCharacterMovement())
+    {
+        if (MovementComponent->MovementMode == MOVE_None)
+        {
+            MovementComponent->SetMovementMode(MOVE_Walking);
+        }
+    }
+}
+
+void APlayerCharacter::Server_FinishHeavyHit_Implementation()
+{
+    FinishHeavyHit();
+}
+
+void APlayerCharacter::OnHeavyHitMontageEnded(UAnimMontage* Montage, bool bInterrupted)
+{
+    static_cast<void>(bInterrupted);
+
+    if (!HasAuthority()) return;
+    if (IsDead()) return;
+    if (!Montage || ActiveHeavyHitMontage.Get() != Montage) return;
+
+    UAbilitySystemComponent* AbilitySystemComponent = GetAbilitySystemComponent();
+    if (!AbilitySystemComponent) return;
+    if (!AbilitySystemComponent->HasMatchingGameplayTag(RiftGameplayTags::State_Hit_Heavy)) return;
+
+    FinishHeavyHit();
+}
+
+bool APlayerCharacter::IsInHeavyHitState() const
+{
+    const UAbilitySystemComponent* AbilitySystemComponent = GetAbilitySystemComponent();
+    return AbilitySystemComponent &&
+        AbilitySystemComponent->HasMatchingGameplayTag(RiftGameplayTags::State_Hit_Heavy);
+}
+
+void APlayerCharacter::Multicast_PlayHitFeedback_Implementation(
     const ERiftHitReactDirection Direction,
     const float DamageValue,
     AActor* DamageInstigator
 )
 {
+    LastHitReactDirection = Direction;
+    OnPlayerHitDamaged(Direction, DamageValue, DamageInstigator);
+}
+
+void APlayerCharacter::Multicast_PlayLightHit_Implementation(
+    const ERiftHitReactDirection Direction,
+    const float DamageValue,
+    AActor* DamageInstigator
+)
+{
+    LastHitReactDirection = Direction;
     OnPlayerHitDamaged(Direction, DamageValue, DamageInstigator);
 
     const UPlayerAnimationConfig* AnimationConfig = GetPlayerAnimationConfig();
-    UAnimMontage* HitMontage = AnimationConfig ? AnimationConfig->HitMontage : nullptr;
-    if (!HitMontage) return;
+    UAnimMontage* LightHitMontage = AnimationConfig ? AnimationConfig->LightHitMontage : nullptr;
+    if (!LightHitMontage) return;
 
     USkeletalMeshComponent* CharacterMesh = GetMesh();
     if (!CharacterMesh) return;
@@ -365,8 +511,64 @@ void APlayerCharacter::Multicast_PlayHitDamageReaction_Implementation(
     UAnimInstance* AnimInstance = CharacterMesh->GetAnimInstance();
     if (!AnimInstance) return;
 
-    AnimInstance->Montage_Play(HitMontage);
-    AnimInstance->Montage_JumpToSection(GetHitReactSectionName(Direction), HitMontage);
+    AnimInstance->Montage_Play(LightHitMontage);
+    AnimInstance->Montage_JumpToSection(GetHitReactSectionName(Direction), LightHitMontage);
+}
+
+void APlayerCharacter::Multicast_PlayHeavyHit_Implementation(const ERiftHitReactDirection Direction)
+{
+    LastHitReactDirection = Direction;
+
+    const UPlayerAnimationConfig* AnimationConfig = GetPlayerAnimationConfig();
+    UAnimMontage* HeavyHitMontage = AnimationConfig ? AnimationConfig->HeavyHitMontage : nullptr;
+    if (!HeavyHitMontage)
+    {
+        if (HasAuthority())
+        {
+            FinishHeavyHit();
+        }
+        return;
+    }
+
+    USkeletalMeshComponent* CharacterMesh = GetMesh();
+    if (!CharacterMesh)
+    {
+        if (HasAuthority())
+        {
+            FinishHeavyHit();
+        }
+        return;
+    }
+
+    UAnimInstance* AnimInstance = CharacterMesh->GetAnimInstance();
+    if (!AnimInstance)
+    {
+        if (HasAuthority())
+        {
+            FinishHeavyHit();
+        }
+        return;
+    }
+
+    const float MontageLength = AnimInstance->Montage_Play(HeavyHitMontage);
+    if (MontageLength <= 0.0f)
+    {
+        if (HasAuthority())
+        {
+            FinishHeavyHit();
+        }
+        return;
+    }
+
+    AnimInstance->Montage_JumpToSection(GetHitReactSectionName(Direction), HeavyHitMontage);
+
+    if (HasAuthority())
+    {
+        ActiveHeavyHitMontage = HeavyHitMontage;
+        FOnMontageEnded EndDelegate;
+        EndDelegate.BindUObject(this, &APlayerCharacter::OnHeavyHitMontageEnded);
+        AnimInstance->Montage_SetEndDelegate(EndDelegate, HeavyHitMontage);
+    }
 }
 
 void APlayerCharacter::InitPlayerProperties()
@@ -464,6 +666,14 @@ void APlayerCharacter::ApplyCommonAttributesFromConfig()
         PlayerClassConfig->Stamina
     );
     AbilitySystemComponent->SetNumericAttributeBase(
+        URiftPlayerAttributeSet::GetMaxPoiseAttribute(),
+        PlayerClassConfig->MaxPoise
+    );
+    AbilitySystemComponent->SetNumericAttributeBase(
+        URiftPlayerAttributeSet::GetPoiseAttribute(),
+        PlayerClassConfig->Poise
+    );
+    AbilitySystemComponent->SetNumericAttributeBase(
         URiftResourceAttributeSet::GetMaxUltimateChargeAttribute(),
         PlayerClassConfig->MaxUltimateCharge
     );
@@ -527,6 +737,16 @@ void APlayerCharacter::ClearGrantedAbilities()
 void APlayerCharacter::DeactivatePerfectDodgeWindow()
 {
     bPerfectDodgeWindowActive = false;
+}
+
+void APlayerCharacter::SetHeavyHitState(const bool bInHeavyHit)
+{
+    UAbilitySystemComponent* AbilitySystemComponent = GetAbilitySystemComponent();
+    if (!AbilitySystemComponent) return;
+
+    const int32 NewCount = bInHeavyHit ? 1 : 0;
+    AbilitySystemComponent->SetLooseGameplayTagCount(RiftGameplayTags::State_Hit_Heavy, NewCount);
+    AbilitySystemComponent->SetReplicatedLooseGameplayTagCount(RiftGameplayTags::State_Hit_Heavy, NewCount);
 }
 
 void APlayerCharacter::GrantAbilitiesFromClassConfig()
@@ -595,6 +815,7 @@ void APlayerCharacter::InitMovementSettings()
 
 void APlayerCharacter::ApplyCameraRelativeMovementInput()
 {
+    if (IsDead() || IsInHeavyHitState()) return;
     if (!Controller || MovementInputVector.IsNearlyZero()) return;
 
     const FVector2D InputVector = MovementInputVector.GetClampedToMaxSize(1.0f);

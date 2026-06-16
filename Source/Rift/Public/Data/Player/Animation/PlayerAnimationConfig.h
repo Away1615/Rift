@@ -27,11 +27,8 @@ public:
 	TSubclassOf<UAnimInstance> AnimInstanceClass;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Hit")
-	TObjectPtr<UAnimMontage> HitMontage;
+	TObjectPtr<UAnimMontage> LightHitMontage;
 
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="KnockDown")
-	TObjectPtr<UAnimMontage> KnockDownMontage;
-
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="KnockDown")
-	TObjectPtr<UAnimMontage> GetUpMontage;
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Hit")
+	TObjectPtr<UAnimMontage> HeavyHitMontage;
 };

@@ -8,6 +8,8 @@ namespace RiftGameplayTags
 	UE_DEFINE_GAMEPLAY_TAG(State_Dodging, "State.Dodging");
 	UE_DEFINE_GAMEPLAY_TAG(State_Staggered, "State.Staggered");
 	UE_DEFINE_GAMEPLAY_TAG(State_Invincible, "State.Invincible");
+	UE_DEFINE_GAMEPLAY_TAG(State_SuperArmor_Red, "State.SuperArmor.Red");
+	UE_DEFINE_GAMEPLAY_TAG(State_Hit_Heavy, "State.Hit.Heavy");
 	UE_DEFINE_GAMEPLAY_TAG(State_Dead, "State.Dead");
 
 	UE_DEFINE_GAMEPLAY_TAG(Ability_Attack_Primary, "Ability.Attack.Primary");

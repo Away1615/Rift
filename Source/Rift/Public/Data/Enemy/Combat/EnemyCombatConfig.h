@@ -20,7 +20,13 @@ public:
 	float AttackDamage = 15.0f;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Attack")
-	ERiftPlayerDamageReactionType PlayerDamageReaction = ERiftPlayerDamageReactionType::Hit;
+	float AttackPoiseDamage = 10.0f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Attack")
+	bool bForcePlayerPoiseBreak = false;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Attack")
+	ERiftPlayerHitFeedbackPolicy PlayerHitFeedbackPolicy = ERiftPlayerHitFeedbackPolicy::FeedbackOnly;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Attack")
 	float AttackRange = 200.0f;

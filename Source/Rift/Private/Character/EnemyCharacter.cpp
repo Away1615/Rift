@@ -8,11 +8,11 @@
 #include "AbilitySystem/Effects/GE_GainResource.h"
 #include "AbilitySystem/RiftAbilitySystemComponent.h"
 #include "AbilitySystem/Attributes/RiftEnemyAttributeSet.h"
+#include "AbilitySystem/Attributes/RiftPlayerAttributeSet.h"
 #include "AbilitySystem/RiftGameplayTags.h"
 #include "AbilitySystemInterface.h"
 #include "Character/PlayerCharacter.h"
 #include "Animation/AnimInstance.h"
-#include "Components/CapsuleComponent.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Components/WidgetComponent.h"
@@ -185,7 +185,6 @@ void AEnemyCharacter::BeginAttackHitWindow()
 	if (!HasAuthority() || bIsDead) return;
 
 	HitPlayersThisAttack.Reset();
-	PerfectDodgersThisAttack.Reset();
 }
 
 void AEnemyCharacter::TickAttackHitWindow()
@@ -200,80 +199,73 @@ void AEnemyCharacter::TickAttackHitWindow()
 	const float HitboxRadius = FMath::Max(0.0f, CombatConfig->HitboxRadius);
 	if (HitboxRadius <= 0.0f) return;
 
-	for (TActorIterator<APlayerCharacter> It(World); It; ++It)
+	TArray<FOverlapResult> OverlapResults;
+	FCollisionObjectQueryParams ObjectQueryParams;
+	ObjectQueryParams.AddObjectTypesToQuery(ECC_Pawn);
+	FCollisionQueryParams QueryParams(SCENE_QUERY_STAT(RiftEnemyMeleeHitWindow), false, this);
+	QueryParams.AddIgnoredActor(this);
+
+	World->OverlapMultiByObjectType(
+		OverlapResults,
+		HitboxCenter,
+		FQuat::Identity,
+		ObjectQueryParams,
+		FCollisionShape::MakeSphere(HitboxRadius),
+		QueryParams
+	);
+
+	for (const FOverlapResult& OverlapResult : OverlapResults)
 	{
-		APlayerCharacter* PlayerCharacter = *It;
+		APlayerCharacter* PlayerCharacter = Cast<APlayerCharacter>(OverlapResult.GetActor());
+		if (!PlayerCharacter) continue;
+
 		const TObjectKey<AActor> PlayerKey(PlayerCharacter);
-		if (PerfectDodgersThisAttack.Contains(PlayerKey)) continue;
-		if (!PlayerCharacter->IsPerfectDodgeWindowActive()) continue;
+		if (HitPlayersThisAttack.Contains(PlayerKey)) continue;
 
-		const float CapsuleRadius = PlayerCharacter->GetCapsuleComponent()
-			? PlayerCharacter->GetCapsuleComponent()->GetScaledCapsuleRadius()
-			: 34.0f;
-		const float Threshold = HitboxRadius + CapsuleRadius;
-		if (FVector::DistSquared(PlayerCharacter->GetPerfectDodgeOrigin(), HitboxCenter) > FMath::Square(Threshold))
-		{
-			continue;
-		}
+		UAbilitySystemComponent* TargetAbilitySystemComponent = PlayerCharacter->GetAbilitySystemComponent();
+		if (!TargetAbilitySystemComponent) continue;
 
-		PerfectDodgersThisAttack.Add(PlayerKey);
-		PlayerCharacter->HandlePerfectDodge(this);
-	}
+		FGameplayEffectContextHandle EffectContext = AbilitySystemComponent->MakeEffectContext();
+		EffectContext.AddInstigator(this, this);
+		EffectContext.AddSourceObject(this);
 
-	if (PerfectDodgersThisAttack.Num() == 0)
-	{
-		TArray<FOverlapResult> OverlapResults;
-		FCollisionObjectQueryParams ObjectQueryParams;
-		ObjectQueryParams.AddObjectTypesToQuery(ECC_Pawn);
-		FCollisionQueryParams QueryParams(SCENE_QUERY_STAT(RiftEnemyMeleeHitWindow), false, this);
-		QueryParams.AddIgnoredActor(this);
-
-		World->OverlapMultiByObjectType(
-			OverlapResults,
-			HitboxCenter,
-			FQuat::Identity,
-			ObjectQueryParams,
-			FCollisionShape::MakeSphere(HitboxRadius),
-			QueryParams
+		FGameplayEffectSpecHandle DamageSpecHandle = AbilitySystemComponent->MakeOutgoingSpec(
+			UGE_EnemyMeleeDamage::StaticClass(),
+			1.0f,
+			EffectContext
 		);
+		if (!DamageSpecHandle.IsValid()) continue;
 
-		for (const FOverlapResult& OverlapResult : OverlapResults)
+		HitPlayersThisAttack.Add(PlayerKey);
+		DamageSpecHandle.Data->SetSetByCallerMagnitude(
+			RiftGameplayTags::SetByCaller_Damage,
+			CombatConfig->AttackDamage
+		);
+		float PlayerPoiseDamage = CombatConfig->AttackPoiseDamage;
+		if (CombatConfig->bForcePlayerPoiseBreak)
 		{
-			APlayerCharacter* PlayerCharacter = Cast<APlayerCharacter>(OverlapResult.GetActor());
-			if (!PlayerCharacter) continue;
-
-			const TObjectKey<AActor> PlayerKey(PlayerCharacter);
-			if (HitPlayersThisAttack.Contains(PlayerKey)) continue;
-
-			UAbilitySystemComponent* TargetAbilitySystemComponent = PlayerCharacter->GetAbilitySystemComponent();
-			if (!TargetAbilitySystemComponent) continue;
-
-			FGameplayEffectContextHandle EffectContext = AbilitySystemComponent->MakeEffectContext();
-			EffectContext.AddInstigator(this, this);
-			EffectContext.AddSourceObject(this);
-
-			FGameplayEffectSpecHandle DamageSpecHandle = AbilitySystemComponent->MakeOutgoingSpec(
-				UGE_EnemyMeleeDamage::StaticClass(),
-				1.0f,
-				EffectContext
+			const float CurrentPoise = TargetAbilitySystemComponent->GetNumericAttribute(
+				URiftPlayerAttributeSet::GetPoiseAttribute()
 			);
-			if (!DamageSpecHandle.IsValid()) continue;
-
-			HitPlayersThisAttack.Add(PlayerKey);
-			DamageSpecHandle.Data->SetSetByCallerMagnitude(
-				RiftGameplayTags::SetByCaller_Damage,
-				CombatConfig->AttackDamage
-			);
-			AbilitySystemComponent->ApplyGameplayEffectSpecToTarget(
-				*DamageSpecHandle.Data.Get(),
-				TargetAbilitySystemComponent
-			);
-			PlayerCharacter->HandleDamageReaction(
-				CombatConfig->PlayerDamageReaction,
-				this,
-				CombatConfig->AttackDamage
-			);
+			PlayerPoiseDamage = FMath::Max(PlayerPoiseDamage, CurrentPoise);
+			if (PlayerPoiseDamage <= 0.0f)
+			{
+				PlayerPoiseDamage = 1.0f;
+			}
 		}
+		DamageSpecHandle.Data->SetSetByCallerMagnitude(
+			RiftGameplayTags::SetByCaller_PoiseDamage,
+			PlayerPoiseDamage
+		);
+		AbilitySystemComponent->ApplyGameplayEffectSpecToTarget(
+			*DamageSpecHandle.Data.Get(),
+			TargetAbilitySystemComponent
+		);
+		PlayerCharacter->HandleHitFeedback(
+			CombatConfig->PlayerHitFeedbackPolicy,
+			this,
+			CombatConfig->AttackDamage
+		);
 	}
 
 	if (RiftDebugCVars::IsCombatDebugEnabled())
@@ -287,7 +279,6 @@ void AEnemyCharacter::EndAttackHitWindow()
 	if (!HasAuthority() || bIsDead) return;
 
 	HitPlayersThisAttack.Reset();
-	PerfectDodgersThisAttack.Reset();
 }
 
 void AEnemyCharacter::Multicast_PlayHit_Implementation(const ERiftHitReactDirection Direction)
@@ -325,7 +316,6 @@ void AEnemyCharacter::HandleDeath(AActor* Killer)
 	GetWorldTimerManager().ClearTimer(StaggeredTimerHandle);
 	GetWorldTimerManager().ClearTimer(PoiseRegenTimerHandle);
 	HitPlayersThisAttack.Reset();
-	PerfectDodgersThisAttack.Reset();
 	CustomTimeDilation = 1.0f;
 
 	if (AbilitySystemComponent)

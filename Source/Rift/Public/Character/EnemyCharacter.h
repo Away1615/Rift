@@ -103,5 +103,4 @@ private:
 	bool bIsDead = false;
 	ERiftHitReactDirection LastHitReactDirection = ERiftHitReactDirection::Front;
 	TSet<TObjectKey<AActor>> HitPlayersThisAttack;
-	TSet<TObjectKey<AActor>> PerfectDodgersThisAttack;
 };
