@@ -15,6 +15,7 @@
 #include "Combat/RiftTargetAssistComponent.h"
 #include "Combat/RiftWeaponTraceComponent.h"
 #include "Components/SkeletalMeshComponent.h"
+#include "Core/RiftGameplayGameMode.h"
 #include "Data/Player/PlayerClassConfig.h"
 #include "Data/Player/Animation/PlayerAnimationConfig.h"
 #include "Data/Player/Combat/PlayerCombatConfig.h"
@@ -88,6 +89,18 @@ void APlayerCharacter::PossessedBy(AController* NewController)
     if (UAbilitySystemComponent* AbilitySystemComponent = GetAbilitySystemComponent())
     {
         AbilitySystemComponent->InitAbilityActorInfo(GetPlayerState(), this);
+    }
+
+    if (HasAuthority())
+    {
+        const ABasePlayerState* RiftPlayerState = GetPlayerState<ABasePlayerState>();
+        UPlayerClassConfig* SelectedPlayerClassConfig = RiftPlayerState
+            ? RiftPlayerState->GetSelectedPlayerClassConfig()
+            : nullptr;
+        if (SelectedPlayerClassConfig)
+        {
+            PlayerClassConfig = SelectedPlayerClassConfig;
+        }
     }
 
     AssemblePlayerClass();
@@ -307,23 +320,39 @@ void APlayerCharacter::HandleDeath(AActor* DeathInstigator)
     }
 
     SetActorEnableCollision(false);
-    Client_DisableInputOnDeath();
+    Client_SetDeadControlState(true);
     Multicast_PlayDeath(LastHitReactDirection);
+
+    if (UWorld* World = GetWorld())
+    {
+        if (ARiftGameplayGameMode* GameplayGameMode = World->GetAuthGameMode<ARiftGameplayGameMode>())
+        {
+            GameplayGameMode->NotifyPlayerDied(this);
+        }
+    }
 }
 
 void APlayerCharacter::Client_DisableInputOnDeath_Implementation()
 {
+    Client_SetDeadControlState_Implementation(true);
+}
+
+void APlayerCharacter::Client_SetDeadControlState_Implementation(const bool bDead)
+{
     if (AController* CurrentController = GetController())
     {
-        CurrentController->SetIgnoreMoveInput(true);
-        CurrentController->SetIgnoreLookInput(true);
+        CurrentController->SetIgnoreMoveInput(bDead);
+        CurrentController->SetIgnoreLookInput(bDead);
     }
 
-    ClearMovementInputCache();
+    if (bDead)
+    {
+        ClearMovementInputCache();
+    }
 
     if (UAbilitySystemComponent* AbilitySystemComponent = GetAbilitySystemComponent())
     {
-        AbilitySystemComponent->SetUserAbilityActivationInhibited(true);
+        AbilitySystemComponent->SetUserAbilityActivationInhibited(bDead);
     }
 }
 
@@ -339,6 +368,7 @@ void APlayerCharacter::Client_SetHeavyHitControlState_Implementation(const bool 
 
 void APlayerCharacter::Multicast_PlayDeath_Implementation(const ERiftHitReactDirection Direction)
 {
+    bIsDead = true;
     LastHitReactDirection = Direction;
 
     const UPlayerAnimationConfig* AnimationConfig = GetPlayerAnimationConfig();
@@ -356,6 +386,79 @@ void APlayerCharacter::Multicast_PlayDeath_Implementation(const ERiftHitReactDir
     }
 
     OnDeathVisual(Direction);
+}
+
+void APlayerCharacter::ReviveAtTransform(const FTransform& ReviveTransform)
+{
+    if (!HasAuthority())
+    {
+        return;
+    }
+
+    bIsDead = false;
+    LastHitReactDirection = ERiftHitReactDirection::Front;
+    GetWorldTimerManager().ClearTimer(PerfectDodgeWindowTimerHandle);
+    bPerfectDodgeWindowActive = false;
+    PerfectDodgeOrigin = FVector::ZeroVector;
+    ActiveHeavyHitMontage.Reset();
+    CustomTimeDilation = 1.0f;
+    ClearMovementInputCache();
+    StopAssistedFacing();
+    SetFacingMode(ERiftCharacterFacingMode::Movement);
+
+    SetActorTransform(ReviveTransform, false, nullptr, ETeleportType::TeleportPhysics);
+    SetActorEnableCollision(true);
+
+    if (UCharacterMovementComponent* MovementComponent = GetCharacterMovement())
+    {
+        MovementComponent->StopMovementImmediately();
+        MovementComponent->SetMovementMode(MOVE_Walking);
+    }
+
+    UAbilitySystemComponent* AbilitySystemComponent = GetAbilitySystemComponent();
+    if (AbilitySystemComponent)
+    {
+        AbilitySystemComponent->SetLooseGameplayTagCount(RiftGameplayTags::State_Dead, 0);
+        AbilitySystemComponent->SetReplicatedLooseGameplayTagCount(RiftGameplayTags::State_Dead, 0);
+        SetHeavyHitState(false);
+
+        const float MaxHealth = AbilitySystemComponent->GetNumericAttribute(
+            URiftPlayerAttributeSet::GetMaxHealthAttribute()
+        );
+        const float MaxPoise = AbilitySystemComponent->GetNumericAttribute(
+            URiftPlayerAttributeSet::GetMaxPoiseAttribute()
+        );
+        const float MaxStamina = AbilitySystemComponent->GetNumericAttribute(
+            URiftPlayerAttributeSet::GetMaxStaminaAttribute()
+        );
+
+        AbilitySystemComponent->SetNumericAttributeBase(
+            URiftPlayerAttributeSet::GetHealthAttribute(),
+            MaxHealth
+        );
+        AbilitySystemComponent->SetNumericAttributeBase(
+            URiftPlayerAttributeSet::GetPoiseAttribute(),
+            MaxPoise
+        );
+        AbilitySystemComponent->SetNumericAttributeBase(
+            URiftPlayerAttributeSet::GetStaminaAttribute(),
+            MaxStamina
+        );
+        AbilitySystemComponent->SetUserAbilityActivationInhibited(false);
+    }
+    else
+    {
+        SetHeavyHitState(false);
+    }
+
+    Client_SetDeadControlState(false);
+    Multicast_PlayReviveVisual();
+}
+
+void APlayerCharacter::Multicast_PlayReviveVisual_Implementation()
+{
+    bIsDead = false;
+    OnPlayerRevived();
 }
 
 void APlayerCharacter::HandleHitFeedback(

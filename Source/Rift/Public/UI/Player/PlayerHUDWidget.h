@@ -8,6 +8,7 @@
 #include "PlayerHUDWidget.generated.h"
 
 class UAbilitySystemComponent;
+class ABasePlayerState;
 struct FOnAttributeChangeData;
 
 /**
@@ -31,15 +32,30 @@ protected:
 	UFUNCTION(BlueprintImplementableEvent, Category="HUD")
 	void OnUltimateChargeChanged(float Current, float Max);
 
+	UFUNCTION(BlueprintImplementableEvent, Category="HUD|Respawn")
+	void OnRespawnStateChanged(bool bWaitingForRespawn);
+
+	UFUNCTION(BlueprintImplementableEvent, Category="HUD|Respawn")
+	void OnRespawnCountdownChanged(float RemainingSeconds);
+
 private:
 	void TryInitialize();
 	void BindToAbilitySystem(UAbilitySystemComponent* ASC);
+	void BindToPlayerState(ABasePlayerState* PlayerState);
+	void UnbindFromPlayerState();
 	void RefreshAll();
 	void HandleHealthChanged(const FOnAttributeChangeData& Data);
 	void HandleStaminaChanged(const FOnAttributeChangeData& Data);
 	void HandleUltimateChargeChanged(const FOnAttributeChangeData& Data);
 
+	UFUNCTION()
+	void HandleRespawnStateChanged();
+
+	void UpdateRespawnCountdown();
+
 	TWeakObjectPtr<UAbilitySystemComponent> AbilitySystemComponent;
+	TWeakObjectPtr<ABasePlayerState> BoundPlayerState;
 	FTimerHandle InitRetryTimerHandle;
+	FTimerHandle RespawnCountdownTimerHandle;
 	bool bInitialized = false;
 };

@@ -3,13 +3,18 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "Character/PlayerCharacter.h"
 #include "GameFramework/PlayerController.h"
 #include "Data/Player/Input/PlayerInputConfig.h"
 #include "BasePlayerController.generated.h"
 
 struct FInputActionValue;
+class APlayerCharacter;
 class UPlayerInputConfig;
+class UPlayerClassConfig;
+
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FRiftLobbyStartTransitionSignature, float, Duration);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FRiftLobbyActionFailedSignature, const FString&, ErrorMessage);
+
 /**
  *
  */
@@ -17,6 +22,37 @@ UCLASS()
 class RIFT_API ABasePlayerController : public APlayerController
 {
 	GENERATED_BODY()
+
+public:
+	UFUNCTION(BlueprintCallable, Category="Rift|Lobby")
+	void RequestSelectPlayerClass(UPlayerClassConfig* ClassConfig);
+
+	UFUNCTION(BlueprintCallable, Category="Rift|Lobby")
+	void RequestStartLobbyGame();
+
+	UFUNCTION(Server, Reliable)
+	void Server_SelectPlayerClass(UPlayerClassConfig* ClassConfig);
+
+	UFUNCTION(Server, Reliable)
+	void Server_StartLobbyGame();
+
+	UFUNCTION(Client, Reliable)
+	void Client_PlayLobbyStartTransition(float Duration);
+
+	UFUNCTION(Client, Reliable)
+	void Client_LobbyActionFailed(const FString& ErrorMessage);
+
+	UPROPERTY(BlueprintAssignable, Category="Rift|Lobby")
+	FRiftLobbyStartTransitionSignature OnLobbyStartTransitionRequested;
+
+	UPROPERTY(BlueprintAssignable, Category="Rift|Lobby")
+	FRiftLobbyActionFailedSignature OnLobbyActionFailedRequested;
+
+	UFUNCTION(BlueprintImplementableEvent, Category="Rift|Lobby")
+	void OnLobbyStartTransition(float Duration);
+
+	UFUNCTION(BlueprintImplementableEvent, Category="Rift|Lobby")
+	void OnLobbyActionFailed(const FString& ErrorMessage);
 
 protected:
 	virtual void BeginPlay() override;

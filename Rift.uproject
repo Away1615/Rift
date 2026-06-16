@@ -19,6 +19,10 @@
 			"Enabled": true
 		},
 		{
+			"Name": "OnlineSubsystemNull",
+			"Enabled": true
+		},
+		{
 			"Name": "ModelingToolsEditorMode",
 			"Enabled": true,
 			"TargetAllowList": [

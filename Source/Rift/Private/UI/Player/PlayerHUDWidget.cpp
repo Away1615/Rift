@@ -33,7 +33,10 @@ void UPlayerHUDWidget::NativeDestruct()
 	if (UWorld* World = GetWorld())
 	{
 		World->GetTimerManager().ClearTimer(InitRetryTimerHandle);
+		World->GetTimerManager().ClearTimer(RespawnCountdownTimerHandle);
 	}
+
+	UnbindFromPlayerState();
 
 	Super::NativeDestruct();
 }
@@ -43,11 +46,13 @@ void UPlayerHUDWidget::TryInitialize()
 	if (bInitialized) return;
 
 	UAbilitySystemComponent* ASC = nullptr;
+	ABasePlayerState* RiftPlayerState = nullptr;
 	if (APlayerController* PC = GetOwningPlayer())
 	{
-		if (ABasePlayerState* PS = PC->GetPlayerState<ABasePlayerState>())
+		RiftPlayerState = PC->GetPlayerState<ABasePlayerState>();
+		if (RiftPlayerState)
 		{
-			ASC = PS->GetAbilitySystemComponent();
+			ASC = RiftPlayerState->GetAbilitySystemComponent();
 		}
 	}
 
@@ -67,7 +72,9 @@ void UPlayerHUDWidget::TryInitialize()
 	}
 
 	BindToAbilitySystem(ASC);
+	BindToPlayerState(RiftPlayerState);
 	bInitialized = true;
+	HandleRespawnStateChanged();
 }
 
 void UPlayerHUDWidget::BindToAbilitySystem(UAbilitySystemComponent* ASC)
@@ -102,6 +109,31 @@ void UPlayerHUDWidget::BindToAbilitySystem(UAbilitySystemComponent* ASC)
 	RefreshAll();
 }
 
+void UPlayerHUDWidget::BindToPlayerState(ABasePlayerState* PlayerState)
+{
+	if (!PlayerState || BoundPlayerState.Get() == PlayerState)
+	{
+		return;
+	}
+
+	UnbindFromPlayerState();
+	BoundPlayerState = PlayerState;
+	PlayerState->OnRespawnStateChanged.AddUniqueDynamic(this, &UPlayerHUDWidget::HandleRespawnStateChanged);
+}
+
+void UPlayerHUDWidget::UnbindFromPlayerState()
+{
+	ABasePlayerState* PlayerState = BoundPlayerState.Get();
+	if (!PlayerState)
+	{
+		BoundPlayerState.Reset();
+		return;
+	}
+
+	PlayerState->OnRespawnStateChanged.RemoveDynamic(this, &UPlayerHUDWidget::HandleRespawnStateChanged);
+	BoundPlayerState.Reset();
+}
+
 void UPlayerHUDWidget::RefreshAll()
 {
 	UAbilitySystemComponent* ASC = AbilitySystemComponent.Get();
@@ -119,6 +151,54 @@ void UPlayerHUDWidget::RefreshAll()
 		ASC->GetNumericAttribute(URiftResourceAttributeSet::GetUltimateChargeAttribute()),
 		ASC->GetNumericAttribute(URiftResourceAttributeSet::GetMaxUltimateChargeAttribute())
 	);
+}
+
+void UPlayerHUDWidget::HandleRespawnStateChanged()
+{
+	ABasePlayerState* PlayerState = BoundPlayerState.Get();
+	const bool bWaitingForRespawn = PlayerState && PlayerState->IsWaitingForRespawn();
+
+	OnRespawnStateChanged(bWaitingForRespawn);
+
+	UWorld* World = GetWorld();
+	if (!World)
+	{
+		return;
+	}
+
+	World->GetTimerManager().ClearTimer(RespawnCountdownTimerHandle);
+
+	if (!bWaitingForRespawn)
+	{
+		OnRespawnCountdownChanged(0.0f);
+		return;
+	}
+
+	UpdateRespawnCountdown();
+	World->GetTimerManager().SetTimer(
+		RespawnCountdownTimerHandle,
+		this,
+		&UPlayerHUDWidget::UpdateRespawnCountdown,
+		0.25f,
+		true
+	);
+}
+
+void UPlayerHUDWidget::UpdateRespawnCountdown()
+{
+	ABasePlayerState* PlayerState = BoundPlayerState.Get();
+	const float RemainingSeconds = PlayerState ? PlayerState->GetRespawnRemainingTime() : 0.0f;
+	OnRespawnCountdownChanged(RemainingSeconds);
+
+	if (RemainingSeconds > 0.0f)
+	{
+		return;
+	}
+
+	if (UWorld* World = GetWorld())
+	{
+		World->GetTimerManager().ClearTimer(RespawnCountdownTimerHandle);
+	}
 }
 
 void UPlayerHUDWidget::HandleHealthChanged(const FOnAttributeChangeData&)

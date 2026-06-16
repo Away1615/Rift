@@ -114,7 +114,15 @@ public:
 	void Client_DisableInputOnDeath();
 
 	UFUNCTION(Client, Reliable)
+	void Client_SetDeadControlState(bool bDead);
+
+	UFUNCTION(Client, Reliable)
 	void Client_SetHeavyHitControlState(bool bInHeavyHit);
+
+	UFUNCTION(NetMulticast, Reliable)
+	void Multicast_PlayReviveVisual();
+
+	void ReviveAtTransform(const FTransform& ReviveTransform);
 
 	UFUNCTION(BlueprintImplementableEvent, Category="Death", meta=(DeprecatedFunction, DeprecationMessage="Use OnDeathVisual instead."))
 	void OnPlayerDeath();
@@ -124,6 +132,9 @@ public:
 
 	UFUNCTION(BlueprintImplementableEvent, Category="Damage")
 	void OnPlayerHitDamaged(ERiftHitReactDirection Direction, float DamageValue, AActor* DamageInstigator);
+
+	UFUNCTION(BlueprintImplementableEvent, Category="Respawn")
+	void OnPlayerRevived();
 
 	// Whether Player press WASD
 	bool HasMovementInput() const;

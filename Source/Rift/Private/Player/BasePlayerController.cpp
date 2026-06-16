@@ -9,7 +9,10 @@
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
 #include "Character/PlayerCharacter.h"
+#include "Core/RiftLobbyGameMode.h"
 #include "Data/Player/Input/PlayerInputConfig.h"
+#include "Data/Player/PlayerClassConfig.h"
+#include "Player/BasePlayerState.h"
 
 void ABasePlayerController::BeginPlay()
 {
@@ -129,6 +132,73 @@ void ABasePlayerController::SetupInputComponent()
 			&ABasePlayerController::HandleCoreInput
 		);
 	}
+}
+
+void ABasePlayerController::RequestSelectPlayerClass(UPlayerClassConfig* ClassConfig)
+{
+	if (HasAuthority())
+	{
+		Server_SelectPlayerClass_Implementation(ClassConfig);
+		return;
+	}
+
+	Server_SelectPlayerClass(ClassConfig);
+}
+
+void ABasePlayerController::RequestStartLobbyGame()
+{
+	if (HasAuthority())
+	{
+		Server_StartLobbyGame_Implementation();
+		return;
+	}
+
+	Server_StartLobbyGame();
+}
+
+void ABasePlayerController::Server_SelectPlayerClass_Implementation(UPlayerClassConfig* ClassConfig)
+{
+	if (!ClassConfig)
+	{
+		return;
+	}
+
+	ABasePlayerState* RiftPlayerState = GetPlayerState<ABasePlayerState>();
+	if (!RiftPlayerState)
+	{
+		return;
+	}
+
+	RiftPlayerState->SetSelectedPlayerClassConfig(ClassConfig);
+}
+
+void ABasePlayerController::Server_StartLobbyGame_Implementation()
+{
+	UWorld* World = GetWorld();
+	if (!World)
+	{
+		return;
+	}
+
+	ARiftLobbyGameMode* LobbyGameMode = World->GetAuthGameMode<ARiftLobbyGameMode>();
+	if (!LobbyGameMode)
+	{
+		return;
+	}
+
+	LobbyGameMode->StartGameFromLobby(this);
+}
+
+void ABasePlayerController::Client_PlayLobbyStartTransition_Implementation(const float Duration)
+{
+	OnLobbyStartTransitionRequested.Broadcast(Duration);
+	OnLobbyStartTransition(Duration);
+}
+
+void ABasePlayerController::Client_LobbyActionFailed_Implementation(const FString& ErrorMessage)
+{
+	OnLobbyActionFailedRequested.Broadcast(ErrorMessage);
+	OnLobbyActionFailed(ErrorMessage);
 }
 
 APlayerCharacter* ABasePlayerController::GetPlayerCharacter() const
