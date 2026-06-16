@@ -3,7 +3,7 @@
 
 #include "Character/EnemyCharacter.h"
 
-#include "AIController.h"
+#include "AI/RiftEnemyAIController.h"
 #include "AbilitySystem/Effects/GE_EnemyMeleeDamage.h"
 #include "AbilitySystem/Effects/GE_GainResource.h"
 #include "AbilitySystem/RiftAbilitySystemComponent.h"
@@ -23,8 +23,8 @@
 #include "Debug/RiftDebugCVars.h"
 #include "DrawDebugHelpers.h"
 #include "Engine/OverlapResult.h"
-#include "EngineUtils.h"
 #include "Engine/World.h"
+#include "GameFramework/Controller.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "UI/Enemy/EnemyHealthBarWidget.h"
 
@@ -32,6 +32,7 @@ AEnemyCharacter::AEnemyCharacter()
 {
 	bReplicates = true;
 	ACharacter::SetReplicateMovement(true);
+	AIControllerClass = ARiftEnemyAIController::StaticClass();
 	AutoPossessAI = EAutoPossessAI::PlacedInWorldOrSpawned;
 	bUseControllerRotationYaw = false;
 
@@ -89,13 +90,11 @@ void AEnemyCharacter::BeginPlay()
 	{
 		ApplyCommonAttributesFromConfig();
 		GrantAbilities();
-		GetWorldTimerManager().SetTimer(
-			AttackDriverTimerHandle,
-			this,
-			&AEnemyCharacter::TryMeleeAttack,
-			0.2f,
-			true
-		);
+
+		if (ARiftEnemyAIController* RiftAIController = Cast<ARiftEnemyAIController>(GetController()))
+		{
+			RiftAIController->StartEnemyBehavior(this);
+		}
 	}
 
 	if (HealthBarWidgetComp)
@@ -133,6 +132,11 @@ UAbilitySystemComponent* AEnemyCharacter::GetAbilitySystemComponent() const
 	return AbilitySystemComponent;
 }
 
+const UEnemyCombatConfig* AEnemyCharacter::GetEnemyCombatConfig() const
+{
+	return EnemyCharacterConfig ? EnemyCharacterConfig->EnemyCombatConfig : nullptr;
+}
+
 bool AEnemyCharacter::IsStaggeredForAnimation() const
 {
 	return AbilitySystemComponent &&
@@ -142,6 +146,65 @@ bool AEnemyCharacter::IsStaggeredForAnimation() const
 bool AEnemyCharacter::IsDeadForAnimation() const
 {
 	return bIsDead;
+}
+
+bool AEnemyCharacter::IsStaggeredForAI() const
+{
+	return IsStaggeredForAnimation();
+}
+
+bool AEnemyCharacter::IsAttackingForAI() const
+{
+	return AbilitySystemComponent &&
+		AbilitySystemComponent->HasMatchingGameplayTag(RiftGameplayTags::State_Attacking);
+}
+
+bool AEnemyCharacter::CanStartMeleeAttack(AActor* TargetActor) const
+{
+	const UEnemyCombatConfig* CombatConfig = GetEnemyCombatConfig();
+	const UWorld* World = GetWorld();
+	if (!HasAuthority() || bIsDead || !AbilitySystemComponent || !CombatConfig || !TargetActor || !World) return false;
+
+	const APlayerCharacter* PlayerTarget = Cast<APlayerCharacter>(TargetActor);
+	if (PlayerTarget && PlayerTarget->IsDead()) return false;
+
+	FVector ToTarget = TargetActor->GetActorLocation() - GetActorLocation();
+	ToTarget.Z = 0.0f;
+	if (ToTarget.SizeSquared() > FMath::Square(CombatConfig->AttackRange)) return false;
+	if (World->GetTimeSeconds() < NextAttackTime) return false;
+
+	return HasAuthority() &&
+		!bIsDead &&
+		AbilitySystemComponent &&
+		!IsStaggeredForAI() &&
+		!IsAttackingForAI();
+}
+
+bool AEnemyCharacter::TryStartMeleeAttack(AActor* TargetActor)
+{
+	if (!CanStartMeleeAttack(TargetActor)) return false;
+
+	FVector ToTarget = TargetActor->GetActorLocation() - GetActorLocation();
+	ToTarget.Z = 0.0f;
+	if (ToTarget.Normalize())
+	{
+		SetActorRotation(ToTarget.ToOrientationRotator());
+	}
+
+	FGameplayTagContainer AttackTags;
+	AttackTags.AddTag(RiftGameplayTags::Ability_Enemy_MeleeAttack);
+	const bool bActivated = AbilitySystemComponent->TryActivateAbilitiesByTag(AttackTags);
+	if (bActivated)
+	{
+		const UEnemyCombatConfig* CombatConfig = GetEnemyCombatConfig();
+		const UWorld* World = GetWorld();
+		if (CombatConfig && World)
+		{
+			NextAttackTime = World->GetTimeSeconds() + CombatConfig->AttackCooldown;
+		}
+	}
+
+	return bActivated;
 }
 
 void AEnemyCharacter::HandlePoiseHit(const bool bPoiseBroken, const FVector& InstigatorLocation)
@@ -313,7 +376,6 @@ void AEnemyCharacter::HandleDeath(AActor* Killer)
 		HealthBarWidgetComp->SetVisibility(false);
 	}
 
-	GetWorldTimerManager().ClearTimer(AttackDriverTimerHandle);
 	GetWorldTimerManager().ClearTimer(StaggeredTimerHandle);
 	GetWorldTimerManager().ClearTimer(PoiseRegenTimerHandle);
 	HitPlayersThisAttack.Reset();
@@ -473,119 +535,11 @@ void AEnemyCharacter::GrantAbilities()
 	}
 }
 
-void AEnemyCharacter::TryMeleeAttack()
-{
-	if (!HasAuthority() || bIsDead) return;
-
-	UpdateAIMovement();
-
-	UWorld* World = GetWorld();
-	const UEnemyCombatConfig* CombatConfig = EnemyCharacterConfig ? EnemyCharacterConfig->EnemyCombatConfig : nullptr;
-	if (!World || !CombatConfig || !AbilitySystemComponent) return;
-
-	APlayerCharacter* ClosestPlayer = FindNearestPlayer();
-	if (!ClosestPlayer)
-	{
-		StopAIMovement();
-		return;
-	}
-
-	// Planar distance keeps "nearest" / range / facing consistent with FindNearestPlayer
-	// (height differences must not skew melee range checks).
-	FVector ToTarget = ClosestPlayer->GetActorLocation() - GetActorLocation();
-	ToTarget.Z = 0.0f;
-	if (ToTarget.SizeSquared() > FMath::Square(CombatConfig->AttackRange)) return;
-
-	if (AbilitySystemComponent->HasMatchingGameplayTag(RiftGameplayTags::State_Attacking) ||
-		AbilitySystemComponent->HasMatchingGameplayTag(RiftGameplayTags::State_Staggered))
-	{
-		return;
-	}
-
-	if (ToTarget.Normalize())
-	{
-		SetActorRotation(ToTarget.ToOrientationRotator());
-	}
-
-	const float Now = World->GetTimeSeconds();
-	if (Now < NextAttackTime) return;
-
-	FGameplayTagContainer AttackTags;
-	AttackTags.AddTag(RiftGameplayTags::Ability_Enemy_MeleeAttack);
-	if (AbilitySystemComponent->TryActivateAbilitiesByTag(AttackTags))
-	{
-		NextAttackTime = Now + CombatConfig->AttackCooldown;
-	}
-}
-
-APlayerCharacter* AEnemyCharacter::FindNearestPlayer() const
-{
-	UWorld* World = GetWorld();
-	if (!World) return nullptr;
-
-	APlayerCharacter* ClosestPlayer = nullptr;
-	float ClosestDistanceSq = TNumericLimits<float>::Max();
-	const FVector EnemyLocation = GetActorLocation();
-
-	for (TActorIterator<APlayerCharacter> It(World); It; ++It)
-	{
-		APlayerCharacter* PlayerCharacter = *It;
-		if (!PlayerCharacter || PlayerCharacter->IsDead()) continue;
-
-		FVector ToPlayer = PlayerCharacter->GetActorLocation() - EnemyLocation;
-		ToPlayer.Z = 0.0f;
-		const float DistanceSq = ToPlayer.SizeSquared();
-		if (DistanceSq < ClosestDistanceSq)
-		{
-			ClosestDistanceSq = DistanceSq;
-			ClosestPlayer = PlayerCharacter;
-		}
-	}
-
-	return ClosestPlayer;
-}
-
-void AEnemyCharacter::UpdateAIMovement()
-{
-	if (!HasAuthority() || bIsDead || !AbilitySystemComponent) return;
-
-	AAIController* AIController = Cast<AAIController>(GetController());
-	if (!AIController) return;
-
-	if (!RiftDebugCVars::IsEnemyMovementEnabled() ||
-		AbilitySystemComponent->HasMatchingGameplayTag(RiftGameplayTags::State_Attacking) ||
-		AbilitySystemComponent->HasMatchingGameplayTag(RiftGameplayTags::State_Staggered))
-	{
-		AIController->StopMovement();
-		return;
-	}
-
-	APlayerCharacter* Target = FindNearestPlayer();
-	const UEnemyCombatConfig* CombatConfig = EnemyCharacterConfig ? EnemyCharacterConfig->EnemyCombatConfig : nullptr;
-	if (!Target || !CombatConfig)
-	{
-		AIController->StopMovement();
-		return;
-	}
-
-	// PathFollowingComponent drives the actual per-frame movement; we just (re)issue
-	// the goal on the attack-driver cadence so a moving player stays tracked.
-	// bUsePathfinding=false keeps this a direct move so no NavMesh is required yet
-	// (NavMesh/pathfinding comes with the dungeon phase).
-	const float AcceptanceRadius = FMath::Max(0.0f, CombatConfig->AttackRange * 0.85f);
-	AIController->MoveToActor(
-		Target,
-		AcceptanceRadius,
-		/*bStopOnOverlap*/ true,
-		/*bUsePathfinding*/ false
-	);
-}
-
 void AEnemyCharacter::StopAIMovement()
 {
-	if (AAIController* AIController = Cast<AAIController>(GetController()))
+	if (AController* EnemyController = GetController())
 	{
-		AIController->StopMovement();
+		EnemyController->StopMovement();
 	}
 }
 

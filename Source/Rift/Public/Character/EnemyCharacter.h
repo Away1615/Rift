@@ -10,6 +10,7 @@
 #include "EnemyCharacter.generated.h"
 
 class UEnemyCharacterConfig;
+class UEnemyCombatConfig;
 class UAbilitySystemComponent;
 class URiftAbilitySystemComponent;
 class URiftEnemyAttributeSet;
@@ -34,6 +35,7 @@ public:
 	virtual UAbilitySystemComponent* GetAbilitySystemComponent() const override;
 
 	UEnemyCharacterConfig* GetEnemyCharacterConfig() const { return EnemyCharacterConfig; }
+	const UEnemyCombatConfig* GetEnemyCombatConfig() const;
 
 	UFUNCTION(BlueprintPure, Category="Animation")
 	bool IsStaggeredForAnimation() const;
@@ -46,6 +48,11 @@ public:
 
 	void HandlePoiseHit(bool bPoiseBroken, const FVector& InstigatorLocation);
 	void HandleDeath(AActor* Killer);
+	bool IsDeadForAI() const { return bIsDead; }
+	bool IsStaggeredForAI() const;
+	bool IsAttackingForAI() const;
+	bool CanStartMeleeAttack(AActor* TargetActor) const;
+	bool TryStartMeleeAttack(AActor* TargetActor);
 
 	void BeginAttackHitWindow();
 	void TickAttackHitWindow();
@@ -81,9 +88,6 @@ private:
 	void ApplyCommonAttributesFromConfig();
 	void ApplyWeaponsFromConfig();
 	void GrantAbilities();
-	void TryMeleeAttack();
-	APlayerCharacter* FindNearestPlayer() const;
-	void UpdateAIMovement();
 	void StopAIMovement();
 	void SetStaggeredState(bool bInStaggered);
 	void EnterStaggered(float Duration);
@@ -92,7 +96,6 @@ private:
 	void FinishDeath();
 	void RestorePoise();
 
-	FTimerHandle AttackDriverTimerHandle;
 	FTimerHandle StaggeredTimerHandle;
 	FTimerHandle DeathDespawnTimerHandle;
 	FTimerHandle PoiseRegenTimerHandle;

@@ -10,6 +10,7 @@
 
 class UEnemyAnimationConfig;
 class UEnemyCombatConfig;
+class UBehaviorTree;
 class UStaticMesh;
 
 UCLASS(BlueprintType)
@@ -35,6 +36,9 @@ public:
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Locomotion")
 	float MoveSpeed = 350.0f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="AI")
+	TObjectPtr<UBehaviorTree> BehaviorTree;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Weapon")
 	TMap<ERiftWeaponSlot, TObjectPtr<UStaticMesh>> Weapons;
