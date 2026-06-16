@@ -54,7 +54,7 @@ void URiftPlayerAttributeSet::PostGameplayEffectExecute(const FGameplayEffectMod
 				{
 					if (APlayerCharacter* PlayerCharacter = Cast<APlayerCharacter>(AbilitySystemComponent->GetAvatarActor()))
 					{
-						PlayerCharacter->HandleDeath();
+						PlayerCharacter->HandleDeath(Data.EffectSpec.GetContext().GetInstigator());
 					}
 				}
 			}

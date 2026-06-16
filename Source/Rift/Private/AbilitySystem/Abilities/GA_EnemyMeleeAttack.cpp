@@ -16,6 +16,8 @@ UGA_EnemyMeleeAttack::UGA_EnemyMeleeAttack()
 	SetAssetTags(MeleeAttackAssetTags);
 
 	ActivationOwnedTags.AddTag(RiftGameplayTags::State_Attacking);
+	ActivationBlockedTags.AddTag(RiftGameplayTags::State_Dead);
+	ActivationBlockedTags.AddTag(RiftGameplayTags::State_Staggered);
 }
 
 void UGA_EnemyMeleeAttack::ActivateAbility(

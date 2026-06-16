@@ -3,6 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Combat/RiftHitReactionTypes.h"
 #include "Combat/RiftWeaponTypes.h"
 #include "GameFramework/Character.h"
 #include "BaseCharacter.generated.h"
@@ -20,6 +21,10 @@ public:
 
 	void ApplyWeapons(const TMap<ERiftWeaponSlot, TObjectPtr<UStaticMesh>>& Weapons);
 	UStaticMeshComponent* GetWeaponMesh(ERiftWeaponSlot Slot) const;
+
+	UFUNCTION(BlueprintNativeEvent, Category="Death")
+	void OnDeathVisual(ERiftHitReactDirection Direction);
+	virtual void OnDeathVisual_Implementation(ERiftHitReactDirection Direction);
 
 protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Weapon")

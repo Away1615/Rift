@@ -31,4 +31,7 @@ public:
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Hit")
 	TObjectPtr<UAnimMontage> HeavyHitMontage;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Death")
+	TObjectPtr<UAnimMontage> DeathMontage;
 };

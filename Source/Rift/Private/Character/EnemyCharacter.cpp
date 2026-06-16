@@ -218,6 +218,7 @@ void AEnemyCharacter::TickAttackHitWindow()
 	{
 		APlayerCharacter* PlayerCharacter = Cast<APlayerCharacter>(OverlapResult.GetActor());
 		if (!PlayerCharacter) continue;
+		if (PlayerCharacter->IsDead()) continue;
 
 		const TObjectKey<AActor> PlayerKey(PlayerCharacter);
 		if (HitPlayersThisAttack.Contains(PlayerKey)) continue;
@@ -483,7 +484,11 @@ void AEnemyCharacter::TryMeleeAttack()
 	if (!World || !CombatConfig || !AbilitySystemComponent) return;
 
 	APlayerCharacter* ClosestPlayer = FindNearestPlayer();
-	if (!ClosestPlayer) return;
+	if (!ClosestPlayer)
+	{
+		StopAIMovement();
+		return;
+	}
 
 	// Planar distance keeps "nearest" / range / facing consistent with FindNearestPlayer
 	// (height differences must not skew melee range checks).
@@ -525,6 +530,8 @@ APlayerCharacter* AEnemyCharacter::FindNearestPlayer() const
 	for (TActorIterator<APlayerCharacter> It(World); It; ++It)
 	{
 		APlayerCharacter* PlayerCharacter = *It;
+		if (!PlayerCharacter || PlayerCharacter->IsDead()) continue;
+
 		FVector ToPlayer = PlayerCharacter->GetActorLocation() - EnemyLocation;
 		ToPlayer.Z = 0.0f;
 		const float DistanceSq = ToPlayer.SizeSquared();

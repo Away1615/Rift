@@ -25,6 +25,8 @@ UGA_Dodge::UGA_Dodge()
 	ActivationOwnedTags.AddTag(RiftGameplayTags::Ability_Dodge);
 	ActivationOwnedTags.AddTag(RiftGameplayTags::State_Dodging);
 	ActivationBlockedTags.AddTag(RiftGameplayTags::Ability_Dodge);
+	ActivationBlockedTags.AddTag(RiftGameplayTags::State_Dead);
+	ActivationBlockedTags.AddTag(RiftGameplayTags::State_Hit_Heavy);
 }
 
 void UGA_Dodge::ActivateAbility(

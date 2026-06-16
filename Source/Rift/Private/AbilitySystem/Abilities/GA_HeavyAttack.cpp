@@ -27,6 +27,8 @@ UGA_HeavyAttack::UGA_HeavyAttack()
 	ActivationOwnedTags.AddTag(RiftGameplayTags::Ability_Attack_Heavy);
 	ActivationBlockedTags.AddTag(RiftGameplayTags::Ability_Attack_Heavy);
 	ActivationBlockedTags.AddTag(RiftGameplayTags::State_Dodging);
+	ActivationBlockedTags.AddTag(RiftGameplayTags::State_Dead);
+	ActivationBlockedTags.AddTag(RiftGameplayTags::State_Hit_Heavy);
 	bReplicateInputDirectly = true;
 }
 

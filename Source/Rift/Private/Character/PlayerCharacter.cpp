@@ -273,9 +273,17 @@ void APlayerCharacter::HandlePerfectDodge(AActor* InstigatorEnemy)
 
 void APlayerCharacter::HandleDeath()
 {
+    HandleDeath(nullptr);
+}
+
+void APlayerCharacter::HandleDeath(AActor* DeathInstigator)
+{
     if (!HasAuthority() || bIsDead) return;
 
     bIsDead = true;
+    LastHitReactDirection = DeathInstigator
+        ? CalculateHitReactDirection(this, DeathInstigator->GetActorLocation())
+        : ERiftHitReactDirection::Front;
 
     GetWorldTimerManager().ClearTimer(PerfectDodgeWindowTimerHandle);
     bPerfectDodgeWindowActive = false;
@@ -287,8 +295,6 @@ void APlayerCharacter::HandleDeath()
     if (UAbilitySystemComponent* AbilitySystemComponent = GetAbilitySystemComponent())
     {
         AbilitySystemComponent->CancelAllAbilities();
-        AbilitySystemComponent->SetLooseGameplayTagCount(RiftGameplayTags::State_Attacking, 0);
-        AbilitySystemComponent->SetLooseGameplayTagCount(RiftGameplayTags::State_Dodging, 0);
         SetHeavyHitState(false);
         AbilitySystemComponent->AddLooseGameplayTag(RiftGameplayTags::State_Dead);
         AbilitySystemComponent->SetUserAbilityActivationInhibited(true);
@@ -302,7 +308,7 @@ void APlayerCharacter::HandleDeath()
 
     SetActorEnableCollision(false);
     Client_DisableInputOnDeath();
-    Multicast_PlayDeath();
+    Multicast_PlayDeath(LastHitReactDirection);
 }
 
 void APlayerCharacter::Client_DisableInputOnDeath_Implementation()
@@ -331,9 +337,25 @@ void APlayerCharacter::Client_SetHeavyHitControlState_Implementation(const bool 
     }
 }
 
-void APlayerCharacter::Multicast_PlayDeath_Implementation()
+void APlayerCharacter::Multicast_PlayDeath_Implementation(const ERiftHitReactDirection Direction)
 {
-    OnPlayerDeath();
+    LastHitReactDirection = Direction;
+
+    const UPlayerAnimationConfig* AnimationConfig = GetPlayerAnimationConfig();
+    UAnimMontage* DeathMontage = AnimationConfig ? AnimationConfig->DeathMontage : nullptr;
+    if (DeathMontage)
+    {
+        if (USkeletalMeshComponent* CharacterMesh = GetMesh())
+        {
+            if (UAnimInstance* AnimInstance = CharacterMesh->GetAnimInstance())
+            {
+                AnimInstance->Montage_Play(DeathMontage);
+                AnimInstance->Montage_JumpToSection(GetHitReactSectionName(Direction), DeathMontage);
+            }
+        }
+    }
+
+    OnDeathVisual(Direction);
 }
 
 void APlayerCharacter::HandleHitFeedback(
@@ -408,8 +430,6 @@ void APlayerCharacter::HandleHeavyHit(AActor* DamageInstigator)
 
     AbilitySystemComponent->CancelAllAbilities();
     AbilitySystemComponent->SetUserAbilityActivationInhibited(true);
-    AbilitySystemComponent->SetLooseGameplayTagCount(RiftGameplayTags::State_Attacking, 0);
-    AbilitySystemComponent->SetLooseGameplayTagCount(RiftGameplayTags::State_Dodging, 0);
     ActiveHeavyHitMontage = HeavyHitMontage;
     SetHeavyHitState(true);
 

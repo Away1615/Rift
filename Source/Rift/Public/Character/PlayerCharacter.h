@@ -72,6 +72,7 @@ public:
 	FVector GetPerfectDodgeOrigin() const { return PerfectDodgeOrigin; }
 	void HandlePerfectDodge(AActor* InstigatorEnemy);
 	void HandleDeath();
+	void HandleDeath(AActor* DeathInstigator);
 	bool IsDead() const { return bIsDead; }
 	void HandleHitFeedback(ERiftPlayerHitFeedbackPolicy FeedbackPolicy, AActor* DamageInstigator, float DamageValue);
 	void HandlePoiseBroken(AActor* DamageInstigator);
@@ -90,7 +91,7 @@ public:
 	ERiftHitReactDirection GetLastHitReactDirection() const { return LastHitReactDirection; }
 
 	UFUNCTION(NetMulticast, Reliable)
-	void Multicast_PlayDeath();
+	void Multicast_PlayDeath(ERiftHitReactDirection Direction);
 
 	UFUNCTION(NetMulticast, Unreliable)
 	void Multicast_PlayLightHit(
@@ -115,8 +116,11 @@ public:
 	UFUNCTION(Client, Reliable)
 	void Client_SetHeavyHitControlState(bool bInHeavyHit);
 
-	UFUNCTION(BlueprintImplementableEvent, Category="Death")
+	UFUNCTION(BlueprintImplementableEvent, Category="Death", meta=(DeprecatedFunction, DeprecationMessage="Use OnDeathVisual instead."))
 	void OnPlayerDeath();
+
+	UFUNCTION(BlueprintImplementableEvent, Category="Death", meta=(DeprecatedFunction, DeprecationMessage="Use OnDeathVisual instead."))
+	void OnPlayerDeathVisual(ERiftHitReactDirection Direction);
 
 	UFUNCTION(BlueprintImplementableEvent, Category="Damage")
 	void OnPlayerHitDamaged(ERiftHitReactDirection Direction, float DamageValue, AActor* DamageInstigator);

@@ -57,9 +57,6 @@ public:
 	UFUNCTION(NetMulticast, Reliable)
 	void Multicast_PlayDeath(ERiftHitReactDirection Direction);
 
-	UFUNCTION(BlueprintImplementableEvent, Category="Death")
-	void OnDeathVisual(ERiftHitReactDirection Direction);
-
 protected:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Config")
 	TObjectPtr<UEnemyCharacterConfig> EnemyCharacterConfig;

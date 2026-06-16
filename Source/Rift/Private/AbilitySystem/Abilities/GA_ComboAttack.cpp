@@ -29,6 +29,8 @@ UGA_ComboAttack::UGA_ComboAttack()
 
 	ActivationOwnedTags.AddTag(RiftGameplayTags::State_Attacking);
 	ActivationBlockedTags.AddTag(RiftGameplayTags::State_Attacking);
+	ActivationBlockedTags.AddTag(RiftGameplayTags::State_Dead);
+	ActivationBlockedTags.AddTag(RiftGameplayTags::State_Hit_Heavy);
 	bReplicateInputDirectly = true;
 }
 

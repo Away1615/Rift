@@ -46,6 +46,11 @@ ABaseCharacter::ABaseCharacter()
 	}
 }
 
+void ABaseCharacter::OnDeathVisual_Implementation(const ERiftHitReactDirection Direction)
+{
+	static_cast<void>(Direction);
+}
+
 void ABaseCharacter::ApplyWeapons(const TMap<ERiftWeaponSlot, TObjectPtr<UStaticMesh>>& Weapons)
 {
 	WeaponHandLeftMesh->SetStaticMesh(FindWeaponStaticMesh(Weapons, ERiftWeaponSlot::HandLeft));
