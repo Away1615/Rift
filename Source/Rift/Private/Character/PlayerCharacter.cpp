@@ -11,6 +11,7 @@
 #include "AbilitySystem/RiftGameplayTags.h"
 #include "Abilities/GameplayAbility.h"
 #include "Animation/AnimInstance.h"
+#include "Appearance/PlayerAppearanceComponent.h"
 #include "Combat/RiftCombatFeedbackComponent.h"
 #include "Combat/RiftTargetAssistComponent.h"
 #include "Combat/RiftWeaponTraceComponent.h"
@@ -35,7 +36,23 @@ APlayerCharacter::APlayerCharacter()
     TargetAssistComponent = CreateDefaultSubobject<URiftTargetAssistComponent>(TEXT("TargetAssistComponent"));
     WeaponTraceComponent = CreateDefaultSubobject<URiftWeaponTraceComponent>(TEXT("WeaponTraceComponent"));
     CombatFeedbackComponent = CreateDefaultSubobject<URiftCombatFeedbackComponent>(TEXT("CombatFeedbackComponent"));
+    AppearanceComponent = CreateDefaultSubobject<UPlayerAppearanceComponent>(TEXT("AppearanceComponent"));
     InitCameraComponents();
+
+    HairMesh = CreateDefaultSubobject<USkeletalMeshComponent>(TEXT("HairMesh"));
+    HairMesh->SetupAttachment(GetMesh());
+
+    ArmUpperLeftMesh = CreateDefaultSubobject<USkeletalMeshComponent>(TEXT("ArmUpperLeftMesh"));
+    ArmUpperLeftMesh->SetupAttachment(GetMesh());
+
+    ArmUpperRightMesh = CreateDefaultSubobject<USkeletalMeshComponent>(TEXT("ArmUpperRightMesh"));
+    ArmUpperRightMesh->SetupAttachment(GetMesh());
+
+    AppearanceComponent->SetMasterMeshComponent(GetMesh());
+    AppearanceComponent->RegisterAppearanceMeshComponent(ERiftPlayerAppearanceSlot::Hair, HairMesh);
+    AppearanceComponent->RegisterAppearanceMeshComponent(ERiftPlayerAppearanceSlot::ArmUpperLeft, ArmUpperLeftMesh);
+    AppearanceComponent->RegisterAppearanceMeshComponent(ERiftPlayerAppearanceSlot::ArmUpperRight, ArmUpperRightMesh);
+    AppearanceComponent->RefreshLeaderPose();
 }
 
 void APlayerCharacter::Tick(float DeltaTime)
@@ -76,6 +93,19 @@ void APlayerCharacter::SelectPlayerClass_Implementation(UPlayerClassConfig* NewP
     ForceNetUpdate();
 }
 
+void APlayerCharacter::ApplyClassConfigForPreview(UPlayerClassConfig* PreviewClassConfig)
+{
+    if (!PreviewClassConfig) return;
+
+    PlayerClassConfig = PreviewClassConfig;
+    ApplyClassConfigOnAllRoles();
+
+    if (AppearanceComponent)
+    {
+        AppearanceComponent->RefreshLeaderPose();
+    }
+}
+
 void APlayerCharacter::PossessedBy(AController* NewController)
 {
     Super::PossessedBy(NewController);
@@ -104,6 +134,7 @@ void APlayerCharacter::PossessedBy(AController* NewController)
     }
 
     AssemblePlayerClass();
+    ApplyAppearanceFromPlayerState();
 }
 
 void APlayerCharacter::OnRep_PlayerState()
@@ -114,6 +145,8 @@ void APlayerCharacter::OnRep_PlayerState()
     {
         AbilitySystemComponent->InitAbilityActorInfo(GetPlayerState(), this);
     }
+
+    ApplyAppearanceFromPlayerState();
 }
 
 void APlayerCharacter::UnPossessed()
@@ -722,6 +755,17 @@ void APlayerCharacter::AssemblePlayerClass()
     if (!HasAuthority()) return;
 
     ApplyClassConfigOnAuthority();
+}
+
+void APlayerCharacter::ApplyAppearanceFromPlayerState()
+{
+    const ABasePlayerState* RiftPlayerState = GetPlayerState<ABasePlayerState>();
+    if (!AppearanceComponent || !RiftPlayerState)
+    {
+        return;
+    }
+
+    AppearanceComponent->ApplyAppearanceSelection(RiftPlayerState->GetConfirmedAppearanceSelection());
 }
 
 void APlayerCharacter::OnRep_PlayerClassConfig()

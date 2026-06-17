@@ -4,6 +4,7 @@
 
 #include "AbilitySystem/RiftAbilitySystemComponent.h"
 #include "AbilitySystem/RiftGameplayTags.h"
+#include "Appearance/RiftPlayerAppearanceTypes.h"
 #include "Camera/PlayerCameraManager.h"
 #include "InputActionValue.h"
 #include "EnhancedInputComponent.h"
@@ -12,6 +13,7 @@
 #include "Core/RiftLobbyGameMode.h"
 #include "Data/Player/Input/PlayerInputConfig.h"
 #include "Data/Player/PlayerClassConfig.h"
+#include "Engine/DataTable.h"
 #include "Player/BasePlayerState.h"
 
 void ABasePlayerController::BeginPlay()
@@ -156,6 +158,23 @@ void ABasePlayerController::RequestStartLobbyGame()
 	Server_StartLobbyGame();
 }
 
+void ABasePlayerController::RequestFinishCharacterCreation()
+{
+	RequestFinishCharacterCreationWithAppearance(FRiftPlayerAppearanceSelection());
+}
+
+void ABasePlayerController::RequestFinishCharacterCreationWithAppearance(
+	const FRiftPlayerAppearanceSelection& FinalAppearanceSelection)
+{
+	if (HasAuthority())
+	{
+		Server_RequestFinishCharacterCreationWithAppearance_Implementation(FinalAppearanceSelection);
+		return;
+	}
+
+	Server_RequestFinishCharacterCreationWithAppearance(FinalAppearanceSelection);
+}
+
 void ABasePlayerController::Server_SelectPlayerClass_Implementation(UPlayerClassConfig* ClassConfig)
 {
 	if (!ClassConfig)
@@ -189,6 +208,51 @@ void ABasePlayerController::Server_StartLobbyGame_Implementation()
 	LobbyGameMode->StartGameFromLobby(this);
 }
 
+void ABasePlayerController::Server_RequestFinishCharacterCreation_Implementation()
+{
+	Server_RequestFinishCharacterCreationWithAppearance_Implementation(FRiftPlayerAppearanceSelection());
+}
+
+void ABasePlayerController::Server_RequestFinishCharacterCreationWithAppearance_Implementation(
+	FRiftPlayerAppearanceSelection FinalAppearanceSelection)
+{
+	ABasePlayerState* RiftPlayerState = GetPlayerState<ABasePlayerState>();
+	if (!RiftPlayerState)
+	{
+		return;
+	}
+
+	UWorld* World = GetWorld();
+	ARiftLobbyGameMode* LobbyGameMode = World ? World->GetAuthGameMode<ARiftLobbyGameMode>() : nullptr;
+	UPlayerClassConfig* DefaultPlayerClassConfig = LobbyGameMode
+		? LobbyGameMode->GetDefaultPlayerClassConfig()
+		: nullptr;
+	if (!DefaultPlayerClassConfig)
+	{
+		Client_LobbyActionFailed(TEXT("Player class is not configured."));
+		return;
+	}
+
+	if (!RiftPlayerState->GetSelectedPlayerClassConfig())
+	{
+		RiftPlayerState->SetSelectedPlayerClassConfig(DefaultPlayerClassConfig);
+	}
+
+	if (!IsAppearanceSelectionValid(FinalAppearanceSelection))
+	{
+		Client_LobbyActionFailed(TEXT("Invalid appearance selection."));
+		return;
+	}
+
+	RiftPlayerState->SetConfirmedAppearanceSelection(FinalAppearanceSelection);
+	RiftPlayerState->SetLobbyCharacterConfirmed(true);
+
+	if (LobbyGameMode)
+	{
+		LobbyGameMode->RefreshAllPlayersReady();
+	}
+}
+
 void ABasePlayerController::Client_PlayLobbyStartTransition_Implementation(const float Duration)
 {
 	OnLobbyStartTransitionRequested.Broadcast(Duration);
@@ -199,6 +263,70 @@ void ABasePlayerController::Client_LobbyActionFailed_Implementation(const FStrin
 {
 	OnLobbyActionFailedRequested.Broadcast(ErrorMessage);
 	OnLobbyActionFailed(ErrorMessage);
+}
+
+void ABasePlayerController::GetAppearanceOptionsForSlot(
+	const ERiftPlayerAppearanceSlot Slot,
+	TArray<FName>& OutPartIds) const
+{
+	OutPartIds.Empty();
+
+	if (!PlayerAppearanceTable)
+	{
+		return;
+	}
+
+	for (const FName& RowName : PlayerAppearanceTable->GetRowNames())
+	{
+		const FRiftPlayerAppearancePartRow* Row =
+			PlayerAppearanceTable->FindRow<FRiftPlayerAppearancePartRow>(RowName, TEXT(""), false);
+
+		if (Row && Row->Slot == Slot)
+		{
+			OutPartIds.Add(RowName);
+		}
+	}
+}
+
+FText ABasePlayerController::GetAppearancePartDisplayName(const FName PartId) const
+{
+	if (PartId == NAME_None || !PlayerAppearanceTable)
+	{
+		return FText::GetEmpty();
+	}
+
+	const FRiftPlayerAppearancePartRow* Row =
+		PlayerAppearanceTable->FindRow<FRiftPlayerAppearancePartRow>(PartId, TEXT(""), false);
+
+	return Row ? Row->DisplayName : FText::GetEmpty();
+}
+
+bool ABasePlayerController::IsAppearancePartValid(
+	const ERiftPlayerAppearanceSlot Slot,
+	const FName PartId) const
+{
+	if (PartId == NAME_None)
+	{
+		return true;
+	}
+
+	if (!PlayerAppearanceTable)
+	{
+		return false;
+	}
+
+	const FRiftPlayerAppearancePartRow* Row =
+		PlayerAppearanceTable->FindRow<FRiftPlayerAppearancePartRow>(PartId, TEXT(""), false);
+	return Row && Row->Slot == Slot;
+}
+
+bool ABasePlayerController::IsAppearanceSelectionValid(
+	const FRiftPlayerAppearanceSelection& Selection) const
+{
+	return
+		IsAppearancePartValid(ERiftPlayerAppearanceSlot::Hair, Selection.HairId) &&
+		IsAppearancePartValid(ERiftPlayerAppearanceSlot::ArmUpperLeft, Selection.ArmUpperLeftId) &&
+		IsAppearancePartValid(ERiftPlayerAppearanceSlot::ArmUpperRight, Selection.ArmUpperRightId);
 }
 
 APlayerCharacter* ABasePlayerController::GetPlayerCharacter() const

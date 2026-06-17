@@ -10,6 +10,9 @@ namespace RiftGameplayTags
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(State_Dodging);
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(State_Staggered);
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(State_Invincible);
+	UE_DECLARE_GAMEPLAY_TAG_EXTERN(State_Blocking);
+	UE_DECLARE_GAMEPLAY_TAG_EXTERN(State_Intro);
+	UE_DECLARE_GAMEPLAY_TAG_EXTERN(State_Discovering);
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(State_SuperArmor_Red);
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(State_Hit_Heavy);
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(State_Dead);
@@ -19,6 +22,7 @@ namespace RiftGameplayTags
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Ability_Attack_Combo);
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Ability_Attack_Heavy);
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Ability_Enemy_MeleeAttack);
+	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Ability_Enemy_ShieldBlock);
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Ability_Dodge);
 
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(InputTag_Attack_Primary);
@@ -34,4 +38,6 @@ namespace RiftGameplayTags
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(SetByCaller_UltimateCharge);
 
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(GameplayCue_Combat_MeleeHit);
+	UE_DECLARE_GAMEPLAY_TAG_EXTERN(GameplayCue_Combat_BlockedHit);
+	UE_DECLARE_GAMEPLAY_TAG_EXTERN(GameplayCue_Combat_PlayerHit);
 }

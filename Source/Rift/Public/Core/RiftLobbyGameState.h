@@ -6,6 +6,8 @@
 #include "Core/BaseGameState.h"
 #include "RiftLobbyGameState.generated.h"
 
+class UPlayerClassConfig;
+
 UENUM(BlueprintType)
 enum class ERiftLobbyState : uint8
 {
@@ -14,6 +16,7 @@ enum class ERiftLobbyState : uint8
 };
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FRiftLobbyGameStateChangedSignature);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FRiftLobbyAllPlayersReadyChangedSignature, bool, bAllPlayersReady);
 
 UCLASS()
 class RIFT_API ARiftLobbyGameState : public ABaseGameState
@@ -33,9 +36,17 @@ public:
 	UFUNCTION(BlueprintPure, Category="Rift|Lobby")
 	bool IsStarting() const { return LobbyState == ERiftLobbyState::Starting; }
 
+	UFUNCTION(BlueprintPure, Category="Rift|Lobby")
+	UPlayerClassConfig* GetDefaultPlayerClassConfig() const { return DefaultPlayerClassConfig; }
+
+	UFUNCTION(BlueprintPure, Category="Rift|Lobby")
+	bool AreAllPlayersReady() const { return bAllPlayersReady; }
+
 	void SetRoomCode(const FString& NewRoomCode);
 	void SetLobbyState(ERiftLobbyState NewState);
 	void SetStartTransitionDuration(float NewDuration);
+	void SetDefaultPlayerClassConfig(UPlayerClassConfig* NewDefaultPlayerClassConfig);
+	void SetAllPlayersReady(bool bNewAllPlayersReady);
 
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 	virtual void AddPlayerState(APlayerState* PlayerState) override;
@@ -43,6 +54,9 @@ public:
 
 	UPROPERTY(BlueprintAssignable, Category="Rift|Lobby")
 	FRiftLobbyGameStateChangedSignature OnLobbyGameStateChanged;
+
+	UPROPERTY(BlueprintAssignable, Category="Rift|Lobby")
+	FRiftLobbyAllPlayersReadyChangedSignature OnLobbyAllPlayersReadyChanged;
 
 protected:
 	UPROPERTY(ReplicatedUsing=OnRep_RoomCode, BlueprintReadOnly, Category="Rift|Lobby")
@@ -54,6 +68,12 @@ protected:
 	UPROPERTY(ReplicatedUsing=OnRep_StartTransitionDuration, BlueprintReadOnly, Category="Rift|Lobby")
 	float StartTransitionDuration = 0.0f;
 
+	UPROPERTY(ReplicatedUsing=OnRep_DefaultPlayerClassConfig, BlueprintReadOnly, Category="Rift|Lobby")
+	TObjectPtr<UPlayerClassConfig> DefaultPlayerClassConfig;
+
+	UPROPERTY(ReplicatedUsing=OnRep_AllPlayersReady, BlueprintReadOnly, Category="Rift|Lobby")
+	bool bAllPlayersReady = false;
+
 	UFUNCTION()
 	void OnRep_RoomCode();
 
@@ -62,4 +82,10 @@ protected:
 
 	UFUNCTION()
 	void OnRep_StartTransitionDuration();
+
+	UFUNCTION()
+	void OnRep_DefaultPlayerClassConfig();
+
+	UFUNCTION()
+	void OnRep_AllPlayersReady();
 };

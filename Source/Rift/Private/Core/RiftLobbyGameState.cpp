@@ -47,6 +47,31 @@ void ARiftLobbyGameState::SetStartTransitionDuration(const float NewDuration)
 	ForceNetUpdate();
 }
 
+void ARiftLobbyGameState::SetDefaultPlayerClassConfig(UPlayerClassConfig* NewDefaultPlayerClassConfig)
+{
+	if (!HasAuthority() || DefaultPlayerClassConfig == NewDefaultPlayerClassConfig)
+	{
+		return;
+	}
+
+	DefaultPlayerClassConfig = NewDefaultPlayerClassConfig;
+	OnLobbyGameStateChanged.Broadcast();
+	ForceNetUpdate();
+}
+
+void ARiftLobbyGameState::SetAllPlayersReady(const bool bNewAllPlayersReady)
+{
+	if (!HasAuthority() || bAllPlayersReady == bNewAllPlayersReady)
+	{
+		return;
+	}
+
+	bAllPlayersReady = bNewAllPlayersReady;
+	OnLobbyGameStateChanged.Broadcast();
+	OnLobbyAllPlayersReadyChanged.Broadcast(bAllPlayersReady);
+	ForceNetUpdate();
+}
+
 void ARiftLobbyGameState::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
 {
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
@@ -54,6 +79,8 @@ void ARiftLobbyGameState::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& 
 	DOREPLIFETIME(ARiftLobbyGameState, RoomCode);
 	DOREPLIFETIME(ARiftLobbyGameState, LobbyState);
 	DOREPLIFETIME(ARiftLobbyGameState, StartTransitionDuration);
+	DOREPLIFETIME(ARiftLobbyGameState, DefaultPlayerClassConfig);
+	DOREPLIFETIME(ARiftLobbyGameState, bAllPlayersReady);
 }
 
 void ARiftLobbyGameState::AddPlayerState(APlayerState* PlayerState)
@@ -83,4 +110,15 @@ void ARiftLobbyGameState::OnRep_LobbyState()
 void ARiftLobbyGameState::OnRep_StartTransitionDuration()
 {
 	OnLobbyGameStateChanged.Broadcast();
+}
+
+void ARiftLobbyGameState::OnRep_DefaultPlayerClassConfig()
+{
+	OnLobbyGameStateChanged.Broadcast();
+}
+
+void ARiftLobbyGameState::OnRep_AllPlayersReady()
+{
+	OnLobbyGameStateChanged.Broadcast();
+	OnLobbyAllPlayersReadyChanged.Broadcast(bAllPlayersReady);
 }

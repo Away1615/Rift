@@ -3,6 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include <cfloat>
 #include "AbilitySystemInterface.h"
 #include "Character/BaseCharacter.h"
 #include "Combat/RiftHitReactionTypes.h"
@@ -43,16 +44,25 @@ public:
 	UFUNCTION(BlueprintPure, Category="Animation")
 	bool IsDeadForAnimation() const;
 
+	UFUNCTION(BlueprintPure, Category="Combat|Blocking")
+	bool IsBlocking() const;
+
 	UFUNCTION(BlueprintPure, Category="Animation")
 	ERiftHitReactDirection GetLastHitReactDirection() const { return LastHitReactDirection; }
 
 	void HandlePoiseHit(bool bPoiseBroken, const FVector& InstigatorLocation);
 	void HandleDeath(AActor* Killer);
+	void SetBlockingState(bool bInBlocking);
 	bool IsDeadForAI() const { return bIsDead; }
 	bool IsStaggeredForAI() const;
 	bool IsAttackingForAI() const;
+	bool IsIntroForAI() const;
+	bool IsDiscoveringForAI() const;
 	bool CanStartMeleeAttack(AActor* TargetActor) const;
 	bool TryStartMeleeAttack(AActor* TargetActor);
+	bool CanStartShieldBlock(AActor* TargetActor) const;
+	bool TryStartShieldBlock(AActor* TargetActor);
+	void TryPlayDiscoverReaction(AActor* TargetActor);
 
 	void BeginAttackHitWindow();
 	void TickAttackHitWindow();
@@ -63,6 +73,12 @@ public:
 
 	UFUNCTION(NetMulticast, Reliable)
 	void Multicast_PlayDeath(ERiftHitReactDirection Direction);
+
+	UFUNCTION(NetMulticast, Reliable)
+	void Multicast_PlaySpawnIntro();
+
+	UFUNCTION(NetMulticast, Reliable)
+	void Multicast_PlayDiscover();
 
 protected:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Config")
@@ -89,7 +105,16 @@ private:
 	void ApplyWeaponsFromConfig();
 	void GrantAbilities();
 	void StopAIMovement();
+	void StartEnemyBehavior();
+	void StartSpawnIntroOrAI();
+	void FinishSpawnIntro();
+	void PlaySpawnIntroMontage();
+	bool CanPlayDiscoverReaction(AActor* TargetActor) const;
+	void FinishDiscoverReaction();
+	void PlayDiscoverMontage();
 	void SetStaggeredState(bool bInStaggered);
+	void SetIntroState(bool bInIntro);
+	void SetDiscoveringState(bool bInDiscovering);
 	void EnterStaggered(float Duration);
 	void ExitStaggered();
 	void GrantKillReward(AActor* Killer);
@@ -97,9 +122,14 @@ private:
 	void RestorePoise();
 
 	FTimerHandle StaggeredTimerHandle;
+	FTimerHandle SpawnIntroTimerHandle;
+	FTimerHandle DiscoverTimerHandle;
 	FTimerHandle DeathDespawnTimerHandle;
 	FTimerHandle PoiseRegenTimerHandle;
 	float NextAttackTime = 0.0f;
+	float LastShieldBlockTime = -FLT_MAX;
+	bool bHasStartedEnemyBehavior = false;
+	bool bHasPlayedDiscoverReaction = false;
 	bool bIsDead = false;
 	ERiftHitReactDirection LastHitReactDirection = ERiftHitReactDirection::Front;
 	TSet<TObjectKey<AActor>> HitPlayersThisAttack;

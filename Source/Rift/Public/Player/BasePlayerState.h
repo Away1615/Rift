@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "AbilitySystemInterface.h"
+#include "Appearance/RiftPlayerAppearanceTypes.h"
 #include "GameFramework/PlayerState.h"
 #include "BasePlayerState.generated.h"
 
@@ -36,6 +37,12 @@ public:
 	UFUNCTION(BlueprintPure, Category="Rift|Lobby")
 	bool IsRoomHost() const { return bIsRoomHost; }
 
+	UFUNCTION(BlueprintPure, Category="Rift|Lobby")
+	int32 GetLobbySlotIndex() const { return LobbySlotIndex; }
+
+	UFUNCTION(BlueprintPure, Category="Rift|Lobby")
+	bool IsLobbyCharacterConfirmed() const { return bIsLobbyCharacterConfirmed; }
+
 	UFUNCTION(BlueprintPure, Category="Rift|Respawn")
 	bool IsWaitingForRespawn() const { return bIsWaitingForRespawn; }
 
@@ -45,8 +52,14 @@ public:
 	UFUNCTION(BlueprintPure, Category="Rift|Respawn")
 	float GetRespawnRemainingTime() const;
 
+	UFUNCTION(BlueprintPure, Category="Rift|Appearance")
+	FRiftPlayerAppearanceSelection GetConfirmedAppearanceSelection() const { return ConfirmedAppearanceSelection; }
+
 	void SetSelectedPlayerClassConfig(UPlayerClassConfig* NewPlayerClassConfig);
 	void SetIsRoomHost(bool bNewIsRoomHost);
+	void SetLobbySlotIndex(int32 NewLobbySlotIndex);
+	void SetLobbyCharacterConfirmed(bool bConfirmed);
+	void SetConfirmedAppearanceSelection(const FRiftPlayerAppearanceSelection& NewAppearanceSelection);
 	void SetRespawnState(bool bWaiting, float EndServerTime, float Duration);
 
 	UPROPERTY(BlueprintAssignable, Category="Rift|Lobby")
@@ -71,6 +84,16 @@ protected:
 	UPROPERTY(ReplicatedUsing=OnRep_IsRoomHost, BlueprintReadOnly, Category="Rift|Lobby")
 	bool bIsRoomHost = false;
 
+	UPROPERTY(ReplicatedUsing=OnRep_LobbySlotIndex, BlueprintReadOnly, Category="Rift|Lobby")
+	int32 LobbySlotIndex = INDEX_NONE;
+
+	UPROPERTY(ReplicatedUsing=OnRep_IsLobbyCharacterConfirmed, BlueprintReadOnly, Category="Rift|Lobby")
+	bool bIsLobbyCharacterConfirmed = false;
+
+	// Final public appearance written only after lobby character creation is confirmed.
+	UPROPERTY(ReplicatedUsing=OnRep_ConfirmedAppearanceSelection, BlueprintReadOnly, Category="Rift|Appearance")
+	FRiftPlayerAppearanceSelection ConfirmedAppearanceSelection;
+
 	UPROPERTY(ReplicatedUsing=OnRep_RespawnState, BlueprintReadOnly, Category="Rift|Respawn")
 	bool bIsWaitingForRespawn = false;
 
@@ -85,6 +108,15 @@ protected:
 
 	UFUNCTION()
 	void OnRep_IsRoomHost();
+
+	UFUNCTION()
+	void OnRep_LobbySlotIndex();
+
+	UFUNCTION()
+	void OnRep_IsLobbyCharacterConfirmed();
+
+	UFUNCTION()
+	void OnRep_ConfirmedAppearanceSelection();
 
 	UFUNCTION()
 	void OnRep_RespawnState();

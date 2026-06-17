@@ -3,6 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Appearance/RiftPlayerAppearanceTypes.h"
 #include "Blueprint/UserWidget.h"
 #include "RiftLobbyWidget.generated.h"
 
@@ -26,6 +27,36 @@ public:
 	UFUNCTION(BlueprintCallable, Category="Rift|Lobby")
 	UPlayerClassConfig* GetSelectedPlayerClass() const;
 
+	UFUNCTION(BlueprintPure, Category="Rift|Lobby")
+	int32 GetLocalLobbySlotIndex() const;
+
+	UFUNCTION(BlueprintPure, Category="Rift|Lobby")
+	ABasePlayerState* GetPlayerStateByLobbySlotIndex(int32 SlotIndex) const;
+
+	UFUNCTION(BlueprintPure, Category="Rift|Lobby")
+	bool IsLocalLobbyCharacterConfirmed() const;
+
+	UFUNCTION(BlueprintPure, Category="Rift|Lobby")
+	bool IsPlayerStateLobbyCharacterConfirmed(ABasePlayerState* PlayerState) const;
+
+	UFUNCTION(BlueprintCallable, Category="Rift|Lobby|Appearance")
+	void SetLocalDraftAppearancePart(ERiftPlayerAppearanceSlot AppearanceSlot, FName PartId);
+
+	UFUNCTION(BlueprintPure, Category="Rift|Lobby|Appearance")
+	FRiftPlayerAppearanceSelection GetLocalDraftAppearanceSelection() const { return LocalDraftAppearanceSelection; }
+
+	UFUNCTION(BlueprintCallable, Category="Rift|Lobby|Appearance")
+	void ResetLocalDraftAppearance();
+
+	UFUNCTION(BlueprintCallable, Category="Rift|Lobby")
+	void RequestFinishLocalCharacterCreation();
+
+	UFUNCTION(BlueprintPure, Category="Rift|Lobby")
+	UPlayerClassConfig* GetLobbyDefaultPlayerClassConfig() const;
+
+	UFUNCTION(BlueprintPure, Category="Rift|Lobby")
+	bool AreAllPlayersReady() const;
+
 	UFUNCTION(BlueprintCallable, Category="Rift|Lobby")
 	void SelectPlayerClass(UPlayerClassConfig* ClassConfig);
 
@@ -34,6 +65,9 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category="Rift|Lobby")
 	void RefreshLobbyState();
+
+	UPROPERTY(BlueprintReadWrite, Category="Rift|Lobby|Appearance")
+	FRiftPlayerAppearanceSelection LocalDraftAppearanceSelection;
 
 protected:
 	virtual void NativeConstruct() override;
@@ -47,6 +81,9 @@ protected:
 
 	UFUNCTION(BlueprintImplementableEvent, Category="Rift|Lobby")
 	void OnLobbyError(const FString& ErrorMessage);
+
+	UFUNCTION(BlueprintImplementableEvent, Category="Rift|Lobby|Appearance")
+	void OnLocalDraftAppearanceChanged(const FRiftPlayerAppearanceSelection& NewLocalDraftAppearanceSelection);
 
 private:
 	ABasePlayerController* GetRiftPlayerController() const;

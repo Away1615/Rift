@@ -29,6 +29,12 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Animation")
 	TSubclassOf<UAnimInstance> AnimInstanceClass;
 
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Spawn")
+	TObjectPtr<UAnimMontage> SpawnIntroMontage;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Discover")
+	TObjectPtr<UAnimMontage> DiscoverMontage;
+
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Hit")
 	TObjectPtr<UAnimMontage> HitMontage;
 

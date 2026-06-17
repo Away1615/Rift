@@ -24,6 +24,8 @@ void ARiftLobbyGameMode::InitGameState()
 	Super::InitGameState();
 
 	SyncRoomCodeToGameState();
+	SyncDefaultPlayerClassConfigToGameState();
+	RefreshAllPlayersReady();
 }
 
 void ARiftLobbyGameMode::PostLogin(APlayerController* NewPlayer)
@@ -31,15 +33,31 @@ void ARiftLobbyGameMode::PostLogin(APlayerController* NewPlayer)
 	Super::PostLogin(NewPlayer);
 
 	ABasePlayerState* RiftPlayerState = NewPlayer ? NewPlayer->GetPlayerState<ABasePlayerState>() : nullptr;
+	ABasePlayerController* RiftPlayerController = Cast<ABasePlayerController>(NewPlayer);
+	if (RiftPlayerState)
+	{
+		AssignLobbySlot(RiftPlayerState);
+		if (RiftPlayerState->GetLobbySlotIndex() == INDEX_NONE)
+		{
+			FailLobbyAction(RiftPlayerController, TEXT("Lobby is full."));
+		}
+
+		if (!RiftPlayerState->GetSelectedPlayerClassConfig() && DefaultPlayerClassConfig)
+		{
+			RiftPlayerState->SetSelectedPlayerClassConfig(DefaultPlayerClassConfig);
+		}
+	}
+
 	if (RiftPlayerState && !HasRoomHost())
 	{
 		RiftPlayerState->SetIsRoomHost(true);
 	}
 
 	SyncRoomCodeToGameState();
+	SyncDefaultPlayerClassConfigToGameState();
+	RefreshAllPlayersReady();
 
 	const ARiftLobbyGameState* LobbyGameState = GetGameState<ARiftLobbyGameState>();
-	ABasePlayerController* RiftPlayerController = Cast<ABasePlayerController>(NewPlayer);
 	if (LobbyGameState && LobbyGameState->IsStarting() && RiftPlayerController)
 	{
 		RiftPlayerController->Client_PlayLobbyStartTransition(LobbyGameState->GetStartTransitionDuration());
@@ -48,8 +66,9 @@ void ARiftLobbyGameMode::PostLogin(APlayerController* NewPlayer)
 
 void ARiftLobbyGameMode::Logout(AController* Exiting)
 {
-	const ABasePlayerState* ExitingPlayerState = Exiting ? Exiting->GetPlayerState<ABasePlayerState>() : nullptr;
+	ABasePlayerState* ExitingPlayerState = Exiting ? Exiting->GetPlayerState<ABasePlayerState>() : nullptr;
 	const bool bWasRoomHost = ExitingPlayerState && ExitingPlayerState->IsRoomHost();
+	ReleaseLobbySlot(ExitingPlayerState);
 
 	Super::Logout(Exiting);
 
@@ -58,6 +77,8 @@ void ARiftLobbyGameMode::Logout(AController* Exiting)
 	{
 		AssignFirstAvailableHost();
 	}
+
+	RefreshAllPlayersReady();
 }
 
 void ARiftLobbyGameMode::StartGameFromLobby(ABasePlayerController* RequestingController)
@@ -85,9 +106,15 @@ void ARiftLobbyGameMode::StartGameFromLobby(ABasePlayerController* RequestingCon
 		return;
 	}
 
+	if (!DefaultPlayerClassConfig)
+	{
+		FailLobbyAction(RequestingController, TEXT("Player class is not configured."));
+		return;
+	}
+
 	if (!AreAllPlayersReadyForGameplay())
 	{
-		FailLobbyAction(RequestingController, TEXT("All players must select a class before starting."));
+		FailLobbyAction(RequestingController, TEXT("Not all players have finished character creation."));
 		return;
 	}
 
@@ -188,6 +215,56 @@ void ARiftLobbyGameMode::FailLobbyAction(
 	}
 }
 
+int32 ARiftLobbyGameMode::FindAvailableLobbySlotIndex() const
+{
+	const AGameStateBase* CurrentGameState = GameState;
+	if (!CurrentGameState)
+	{
+		return INDEX_NONE;
+	}
+
+	for (int32 CandidateSlotIndex = 0; CandidateSlotIndex < 4; ++CandidateSlotIndex)
+	{
+		bool bIsOccupied = false;
+		for (APlayerState* PlayerState : CurrentGameState->PlayerArray)
+		{
+			const ABasePlayerState* RiftPlayerState = Cast<ABasePlayerState>(PlayerState);
+			if (RiftPlayerState && RiftPlayerState->GetLobbySlotIndex() == CandidateSlotIndex)
+			{
+				bIsOccupied = true;
+				break;
+			}
+		}
+
+		if (!bIsOccupied)
+		{
+			return CandidateSlotIndex;
+		}
+	}
+
+	return INDEX_NONE;
+}
+
+void ARiftLobbyGameMode::AssignLobbySlot(ABasePlayerState* PlayerState)
+{
+	if (!PlayerState)
+	{
+		return;
+	}
+
+	PlayerState->SetLobbySlotIndex(FindAvailableLobbySlotIndex());
+}
+
+void ARiftLobbyGameMode::ReleaseLobbySlot(ABasePlayerState* PlayerState)
+{
+	if (!PlayerState)
+	{
+		return;
+	}
+
+	PlayerState->SetLobbySlotIndex(INDEX_NONE);
+}
+
 void ARiftLobbyGameMode::AssignFirstAvailableHost()
 {
 	AGameStateBase* CurrentGameState = GameState;
@@ -219,6 +296,17 @@ void ARiftLobbyGameMode::AssignFirstAvailableHost()
 	}
 }
 
+void ARiftLobbyGameMode::RefreshAllPlayersReady()
+{
+	ARiftLobbyGameState* LobbyGameState = GetGameState<ARiftLobbyGameState>();
+	if (!LobbyGameState)
+	{
+		return;
+	}
+
+	LobbyGameState->SetAllPlayersReady(AreAllPlayersConfirmed());
+}
+
 void ARiftLobbyGameMode::SyncRoomCodeToGameState() const
 {
 	ARiftLobbyGameState* LobbyGameState = GetGameState<ARiftLobbyGameState>();
@@ -229,6 +317,17 @@ void ARiftLobbyGameMode::SyncRoomCodeToGameState() const
 	}
 
 	LobbyGameState->SetRoomCode(RiftGameInstance->GetCurrentRoomCode());
+}
+
+void ARiftLobbyGameMode::SyncDefaultPlayerClassConfigToGameState() const
+{
+	ARiftLobbyGameState* LobbyGameState = GetGameState<ARiftLobbyGameState>();
+	if (!LobbyGameState)
+	{
+		return;
+	}
+
+	LobbyGameState->SetDefaultPlayerClassConfig(DefaultPlayerClassConfig);
 }
 
 bool ARiftLobbyGameMode::HasRoomHost() const
@@ -251,10 +350,10 @@ bool ARiftLobbyGameMode::HasRoomHost() const
 	return false;
 }
 
-bool ARiftLobbyGameMode::AreAllPlayersReadyForGameplay() const
+bool ARiftLobbyGameMode::AreAllPlayersConfirmed() const
 {
 	const AGameStateBase* CurrentGameState = GameState;
-	if (!CurrentGameState)
+	if (!CurrentGameState || CurrentGameState->PlayerArray.Num() <= 0)
 	{
 		return false;
 	}
@@ -262,7 +361,29 @@ bool ARiftLobbyGameMode::AreAllPlayersReadyForGameplay() const
 	for (APlayerState* PlayerState : CurrentGameState->PlayerArray)
 	{
 		const ABasePlayerState* RiftPlayerState = Cast<ABasePlayerState>(PlayerState);
-		if (!RiftPlayerState || !RiftPlayerState->GetSelectedPlayerClassConfig())
+		if (!RiftPlayerState || !RiftPlayerState->IsLobbyCharacterConfirmed())
+		{
+			return false;
+		}
+	}
+
+	return true;
+}
+
+bool ARiftLobbyGameMode::AreAllPlayersReadyForGameplay() const
+{
+	const AGameStateBase* CurrentGameState = GameState;
+	if (!CurrentGameState || !DefaultPlayerClassConfig)
+	{
+		return false;
+	}
+
+	for (APlayerState* PlayerState : CurrentGameState->PlayerArray)
+	{
+		const ABasePlayerState* RiftPlayerState = Cast<ABasePlayerState>(PlayerState);
+		if (!RiftPlayerState ||
+			!RiftPlayerState->GetSelectedPlayerClassConfig() ||
+			!RiftPlayerState->IsLobbyCharacterConfirmed())
 		{
 			return false;
 		}

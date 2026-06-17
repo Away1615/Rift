@@ -3,12 +3,14 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Appearance/RiftPlayerAppearanceTypes.h"
 #include "GameFramework/PlayerController.h"
 #include "Data/Player/Input/PlayerInputConfig.h"
 #include "BasePlayerController.generated.h"
 
 struct FInputActionValue;
 class APlayerCharacter;
+class UDataTable;
 class UPlayerInputConfig;
 class UPlayerClassConfig;
 
@@ -30,11 +32,23 @@ public:
 	UFUNCTION(BlueprintCallable, Category="Rift|Lobby")
 	void RequestStartLobbyGame();
 
+	UFUNCTION(BlueprintCallable, Category="Rift|Lobby")
+	void RequestFinishCharacterCreation();
+
+	UFUNCTION(BlueprintCallable, Category="Rift|Lobby")
+	void RequestFinishCharacterCreationWithAppearance(const FRiftPlayerAppearanceSelection& FinalAppearanceSelection);
+
 	UFUNCTION(Server, Reliable)
 	void Server_SelectPlayerClass(UPlayerClassConfig* ClassConfig);
 
 	UFUNCTION(Server, Reliable)
 	void Server_StartLobbyGame();
+
+	UFUNCTION(Server, Reliable)
+	void Server_RequestFinishCharacterCreation();
+
+	UFUNCTION(Server, Reliable)
+	void Server_RequestFinishCharacterCreationWithAppearance(FRiftPlayerAppearanceSelection FinalAppearanceSelection);
 
 	UFUNCTION(Client, Reliable)
 	void Client_PlayLobbyStartTransition(float Duration);
@@ -54,6 +68,15 @@ public:
 	UFUNCTION(BlueprintImplementableEvent, Category="Rift|Lobby")
 	void OnLobbyActionFailed(const FString& ErrorMessage);
 
+	UFUNCTION(BlueprintCallable, Category="Rift|Appearance")
+	void GetAppearanceOptionsForSlot(ERiftPlayerAppearanceSlot Slot, TArray<FName>& OutPartIds) const;
+
+	UFUNCTION(BlueprintPure, Category="Rift|Appearance")
+	FText GetAppearancePartDisplayName(FName PartId) const;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Appearance")
+	TObjectPtr<UDataTable> PlayerAppearanceTable;
+
 protected:
 	virtual void BeginPlay() override;
 	virtual void SetupInputComponent() override;
@@ -64,6 +87,9 @@ protected:
 	TObjectPtr<UPlayerInputConfig> DefaultInputConfig;
 
 private:
+	bool IsAppearancePartValid(ERiftPlayerAppearanceSlot Slot, FName PartId) const;
+	bool IsAppearanceSelectionValid(const FRiftPlayerAppearanceSelection& Selection) const;
+
 	void HandleMoveInput(const FInputActionValue& InputActionValue);
 	void HandleLookInput(const FInputActionValue& InputActionValue);
 	void HandlePrimaryAttackInput(const FInputActionValue& InputActionValue);

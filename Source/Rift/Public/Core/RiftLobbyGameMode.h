@@ -8,6 +8,8 @@
 #include "RiftLobbyGameMode.generated.h"
 
 class ABasePlayerController;
+class ABasePlayerState;
+class UPlayerClassConfig;
 
 UCLASS()
 class RIFT_API ARiftLobbyGameMode : public AGameModeBase
@@ -24,18 +26,29 @@ public:
 	UFUNCTION(BlueprintCallable, Category="Rift|Lobby")
 	void StartGameFromLobby(ABasePlayerController* RequestingController);
 
+	UPlayerClassConfig* GetDefaultPlayerClassConfig() const { return DefaultPlayerClassConfig; }
+	void RefreshAllPlayersReady();
+
 protected:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Rift|Lobby")
 	float StartTransitionDuration = 3.0f;
 
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Rift|Lobby")
+	TObjectPtr<UPlayerClassConfig> DefaultPlayerClassConfig;
+
 private:
 	void SyncRoomCodeToGameState() const;
+	void SyncDefaultPlayerClassConfigToGameState() const;
 	void BeginStartTransition();
 	void NotifyPlayersStartTransition() const;
 	void TravelToGameplayMap();
 	void FailLobbyAction(ABasePlayerController* RequestingController, const FString& ErrorMessage) const;
+	int32 FindAvailableLobbySlotIndex() const;
+	void AssignLobbySlot(ABasePlayerState* PlayerState);
+	void ReleaseLobbySlot(ABasePlayerState* PlayerState);
 	void AssignFirstAvailableHost();
 	bool HasRoomHost() const;
+	bool AreAllPlayersConfirmed() const;
 	bool AreAllPlayersReadyForGameplay() const;
 
 	FTimerHandle StartGameTravelTimerHandle;

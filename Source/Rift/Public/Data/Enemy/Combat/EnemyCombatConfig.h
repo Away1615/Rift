@@ -42,4 +42,13 @@ public:
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Poise")
 	float PoiseBreakStaggerDuration = 1.2f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Blocking")
+	float BlockingPoiseDamageMultiplier = 0.5f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="ShieldBlock")
+	TObjectPtr<UAnimMontage> ShieldBlockMontage;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="ShieldBlock")
+	float ShieldBlockCooldown = 3.0f;
 };

@@ -215,6 +215,8 @@ void URiftWeaponTraceComponent::ProcessPlayerHit(const ERiftWeaponSlot Slot, con
 	UAbilitySystemComponent* TargetAbilitySystemComponent = EnemyCharacter->GetAbilitySystemComponent();
 	if (!SourceAbilitySystemComponent || !TargetAbilitySystemComponent) return;
 
+	const bool bWasBlocked = EnemyCharacter->IsBlocking();
+
 	FGameplayEffectContextHandle EffectContext = SourceAbilitySystemComponent->MakeEffectContext();
 	EffectContext.AddInstigator(PlayerCharacter, PlayerCharacter);
 	EffectContext.AddSourceObject(PlayerCharacter);
@@ -261,7 +263,10 @@ void URiftWeaponTraceComponent::ProcessPlayerHit(const ERiftWeaponSlot Slot, con
 	CueParameters.Normal = Hit.ImpactNormal.GetSafeNormal();
 	CueParameters.Instigator = PlayerCharacter;
 	CueParameters.EffectCauser = PlayerCharacter;
-	TargetAbilitySystemComponent->ExecuteGameplayCue(RiftGameplayTags::GameplayCue_Combat_MeleeHit, CueParameters);
+	const FGameplayTag CueTag = bWasBlocked
+		? RiftGameplayTags::GameplayCue_Combat_BlockedHit
+		: RiftGameplayTags::GameplayCue_Combat_MeleeHit;
+	TargetAbilitySystemComponent->ExecuteGameplayCue(CueTag, CueParameters);
 
 	if (URiftCombatFeedbackComponent* FeedbackComponent = PlayerCharacter->GetCombatFeedbackComponent())
 	{

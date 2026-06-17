@@ -13,6 +13,7 @@
 #include "AbilitySystemInterface.h"
 #include "Character/PlayerCharacter.h"
 #include "Animation/AnimInstance.h"
+#include "Animation/AnimMontage.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Components/WidgetComponent.h"
@@ -90,11 +91,7 @@ void AEnemyCharacter::BeginPlay()
 	{
 		ApplyCommonAttributesFromConfig();
 		GrantAbilities();
-
-		if (ARiftEnemyAIController* RiftAIController = Cast<ARiftEnemyAIController>(GetController()))
-		{
-			RiftAIController->StartEnemyBehavior(this);
-		}
+		StartSpawnIntroOrAI();
 	}
 
 	if (HealthBarWidgetComp)
@@ -148,6 +145,12 @@ bool AEnemyCharacter::IsDeadForAnimation() const
 	return bIsDead;
 }
 
+bool AEnemyCharacter::IsBlocking() const
+{
+	return AbilitySystemComponent &&
+		AbilitySystemComponent->HasMatchingGameplayTag(RiftGameplayTags::State_Blocking);
+}
+
 bool AEnemyCharacter::IsStaggeredForAI() const
 {
 	return IsStaggeredForAnimation();
@@ -159,11 +162,33 @@ bool AEnemyCharacter::IsAttackingForAI() const
 		AbilitySystemComponent->HasMatchingGameplayTag(RiftGameplayTags::State_Attacking);
 }
 
+bool AEnemyCharacter::IsIntroForAI() const
+{
+	return AbilitySystemComponent &&
+		AbilitySystemComponent->HasMatchingGameplayTag(RiftGameplayTags::State_Intro);
+}
+
+bool AEnemyCharacter::IsDiscoveringForAI() const
+{
+	return AbilitySystemComponent &&
+		AbilitySystemComponent->HasMatchingGameplayTag(RiftGameplayTags::State_Discovering);
+}
+
 bool AEnemyCharacter::CanStartMeleeAttack(AActor* TargetActor) const
 {
 	const UEnemyCombatConfig* CombatConfig = GetEnemyCombatConfig();
 	const UWorld* World = GetWorld();
-	if (!HasAuthority() || bIsDead || !AbilitySystemComponent || !CombatConfig || !TargetActor || !World) return false;
+	if (!HasAuthority() ||
+		bIsDead ||
+		IsIntroForAI() ||
+		IsDiscoveringForAI() ||
+		!AbilitySystemComponent ||
+		!CombatConfig ||
+		!TargetActor ||
+		!World)
+	{
+		return false;
+	}
 
 	const APlayerCharacter* PlayerTarget = Cast<APlayerCharacter>(TargetActor);
 	if (PlayerTarget && PlayerTarget->IsDead()) return false;
@@ -177,6 +202,8 @@ bool AEnemyCharacter::CanStartMeleeAttack(AActor* TargetActor) const
 		!bIsDead &&
 		AbilitySystemComponent &&
 		!IsStaggeredForAI() &&
+		!IsIntroForAI() &&
+		!IsDiscoveringForAI() &&
 		!IsAttackingForAI();
 }
 
@@ -205,6 +232,97 @@ bool AEnemyCharacter::TryStartMeleeAttack(AActor* TargetActor)
 	}
 
 	return bActivated;
+}
+
+bool AEnemyCharacter::CanStartShieldBlock(AActor* TargetActor) const
+{
+	const UEnemyCombatConfig* CombatConfig = GetEnemyCombatConfig();
+	const UWorld* World = GetWorld();
+	if (!HasAuthority() ||
+		!TargetActor ||
+		bIsDead ||
+		IsStaggeredForAI() ||
+		IsIntroForAI() ||
+		IsDiscoveringForAI() ||
+		IsBlocking() ||
+		!CombatConfig ||
+		!CombatConfig->ShieldBlockMontage ||
+		!AbilitySystemComponent ||
+		!World)
+	{
+		return false;
+	}
+
+	const float ShieldBlockCooldown = FMath::Max(0.0f, CombatConfig->ShieldBlockCooldown);
+	if (World->GetTimeSeconds() < LastShieldBlockTime + ShieldBlockCooldown)
+	{
+		return false;
+	}
+
+	return true;
+}
+
+bool AEnemyCharacter::TryStartShieldBlock(AActor* TargetActor)
+{
+	if (!CanStartShieldBlock(TargetActor)) return false;
+
+	FGameplayTagContainer ShieldBlockTags;
+	ShieldBlockTags.AddTag(RiftGameplayTags::Ability_Enemy_ShieldBlock);
+	const bool bActivated = AbilitySystemComponent->TryActivateAbilitiesByTag(ShieldBlockTags);
+	if (bActivated)
+	{
+		if (const UWorld* World = GetWorld())
+		{
+			LastShieldBlockTime = World->GetTimeSeconds();
+		}
+	}
+
+	return bActivated;
+}
+
+bool AEnemyCharacter::CanPlayDiscoverReaction(AActor* TargetActor) const
+{
+	return HasAuthority() &&
+		TargetActor &&
+		!bIsDead &&
+		!bHasPlayedDiscoverReaction &&
+		!IsStaggeredForAI() &&
+		!IsIntroForAI() &&
+		!IsDiscoveringForAI();
+}
+
+void AEnemyCharacter::TryPlayDiscoverReaction(AActor* TargetActor)
+{
+	if (!CanPlayDiscoverReaction(TargetActor)) return;
+
+	bHasPlayedDiscoverReaction = true;
+
+	const UEnemyAnimationConfig* AnimationConfig = EnemyCharacterConfig ? EnemyCharacterConfig->EnemyAnimationConfig : nullptr;
+	UAnimMontage* DiscoverMontage = AnimationConfig ? AnimationConfig->DiscoverMontage : nullptr;
+	if (!DiscoverMontage) return;
+
+	SetDiscoveringState(true);
+	StopAIMovement();
+	Multicast_PlayDiscover();
+
+	const float DiscoverDuration = DiscoverMontage->GetPlayLength();
+	if (DiscoverDuration <= 0.0f)
+	{
+		FinishDiscoverReaction();
+		return;
+	}
+
+	if (UWorld* World = GetWorld())
+	{
+		World->GetTimerManager().ClearTimer(DiscoverTimerHandle);
+		World->GetTimerManager().SetTimer(
+			DiscoverTimerHandle,
+			this,
+			&AEnemyCharacter::FinishDiscoverReaction,
+			DiscoverDuration,
+			false
+		);
+	}
 }
 
 void AEnemyCharacter::HandlePoiseHit(const bool bPoiseBroken, const FVector& InstigatorLocation)
@@ -325,6 +443,24 @@ void AEnemyCharacter::TickAttackHitWindow()
 			*DamageSpecHandle.Data.Get(),
 			TargetAbilitySystemComponent
 		);
+
+		FVector HitNormal = GetActorLocation() - PlayerCharacter->GetActorLocation();
+		HitNormal.Z = 0.0f;
+		if (!HitNormal.Normalize())
+		{
+			HitNormal = -GetActorForwardVector();
+		}
+
+		FGameplayCueParameters CueParameters;
+		CueParameters.Location = PlayerCharacter->GetActorLocation();
+		CueParameters.Normal = HitNormal;
+		CueParameters.Instigator = this;
+		CueParameters.EffectCauser = this;
+		TargetAbilitySystemComponent->ExecuteGameplayCue(
+			RiftGameplayTags::GameplayCue_Combat_PlayerHit,
+			CueParameters
+		);
+
 		PlayerCharacter->HandleHitFeedback(
 			CombatConfig->PlayerHitFeedbackPolicy,
 			this,
@@ -365,11 +501,24 @@ void AEnemyCharacter::Multicast_PlayHit_Implementation(const ERiftHitReactDirect
 	AnimInstance->Montage_JumpToSection(GetHitReactSectionName(Direction), HitMontage);
 }
 
+void AEnemyCharacter::Multicast_PlaySpawnIntro_Implementation()
+{
+	PlaySpawnIntroMontage();
+}
+
+void AEnemyCharacter::Multicast_PlayDiscover_Implementation()
+{
+	PlayDiscoverMontage();
+}
+
 void AEnemyCharacter::HandleDeath(AActor* Killer)
 {
 	if (bIsDead || !HasAuthority()) return;
 
 	bIsDead = true;
+	SetBlockingState(false);
+	SetIntroState(false);
+	SetDiscoveringState(false);
 
 	if (HealthBarWidgetComp)
 	{
@@ -377,6 +526,8 @@ void AEnemyCharacter::HandleDeath(AActor* Killer)
 	}
 
 	GetWorldTimerManager().ClearTimer(StaggeredTimerHandle);
+	GetWorldTimerManager().ClearTimer(SpawnIntroTimerHandle);
+	GetWorldTimerManager().ClearTimer(DiscoverTimerHandle);
 	GetWorldTimerManager().ClearTimer(PoiseRegenTimerHandle);
 	HitPlayersThisAttack.Reset();
 	CustomTimeDilation = 1.0f;
@@ -535,6 +686,97 @@ void AEnemyCharacter::GrantAbilities()
 	}
 }
 
+void AEnemyCharacter::StartEnemyBehavior()
+{
+	if (!HasAuthority() || bHasStartedEnemyBehavior || bIsDead) return;
+
+	if (ARiftEnemyAIController* RiftAIController = Cast<ARiftEnemyAIController>(GetController()))
+	{
+		bHasStartedEnemyBehavior = true;
+		RiftAIController->StartEnemyBehavior(this);
+	}
+}
+
+void AEnemyCharacter::StartSpawnIntroOrAI()
+{
+	if (!HasAuthority() || bIsDead) return;
+
+	const UEnemyAnimationConfig* AnimationConfig = EnemyCharacterConfig ? EnemyCharacterConfig->EnemyAnimationConfig : nullptr;
+	UAnimMontage* SpawnIntroMontage = AnimationConfig ? AnimationConfig->SpawnIntroMontage : nullptr;
+	if (!SpawnIntroMontage)
+	{
+		StartEnemyBehavior();
+		return;
+	}
+
+	SetIntroState(true);
+	StopAIMovement();
+	Multicast_PlaySpawnIntro();
+
+	const float SpawnIntroDuration = SpawnIntroMontage->GetPlayLength();
+	if (SpawnIntroDuration <= 0.0f)
+	{
+		FinishSpawnIntro();
+		return;
+	}
+
+	if (UWorld* World = GetWorld())
+	{
+		World->GetTimerManager().SetTimer(
+			SpawnIntroTimerHandle,
+			this,
+			&AEnemyCharacter::FinishSpawnIntro,
+			SpawnIntroDuration,
+			false
+		);
+	}
+}
+
+void AEnemyCharacter::FinishSpawnIntro()
+{
+	if (!HasAuthority()) return;
+
+	SetIntroState(false);
+	StartEnemyBehavior();
+}
+
+void AEnemyCharacter::PlaySpawnIntroMontage()
+{
+	const UEnemyAnimationConfig* AnimationConfig = EnemyCharacterConfig ? EnemyCharacterConfig->EnemyAnimationConfig : nullptr;
+	UAnimMontage* SpawnIntroMontage = AnimationConfig ? AnimationConfig->SpawnIntroMontage : nullptr;
+	if (!SpawnIntroMontage) return;
+
+	USkeletalMeshComponent* CharacterMesh = GetMesh();
+	if (!CharacterMesh) return;
+
+	UAnimInstance* AnimInstance = CharacterMesh->GetAnimInstance();
+	if (!AnimInstance) return;
+
+	AnimInstance->Montage_Play(SpawnIntroMontage);
+}
+
+void AEnemyCharacter::FinishDiscoverReaction()
+{
+	if (!HasAuthority()) return;
+
+	SetDiscoveringState(false);
+}
+
+void AEnemyCharacter::PlayDiscoverMontage()
+{
+	const UEnemyAnimationConfig* AnimationConfig = EnemyCharacterConfig ? EnemyCharacterConfig->EnemyAnimationConfig : nullptr;
+	UAnimMontage* DiscoverMontage = AnimationConfig ? AnimationConfig->DiscoverMontage : nullptr;
+	if (!DiscoverMontage) return;
+
+	USkeletalMeshComponent* CharacterMesh = GetMesh();
+	if (!CharacterMesh) return;
+
+	UAnimInstance* AnimInstance = CharacterMesh->GetAnimInstance();
+	if (!AnimInstance) return;
+
+	AnimInstance->Montage_Play(DiscoverMontage);
+}
+
 void AEnemyCharacter::StopAIMovement()
 {
 	if (AController* EnemyController = GetController())
@@ -552,9 +794,49 @@ void AEnemyCharacter::SetStaggeredState(const bool bInStaggered)
 	AbilitySystemComponent->SetReplicatedLooseGameplayTagCount(RiftGameplayTags::State_Staggered, NewCount);
 }
 
+void AEnemyCharacter::SetIntroState(const bool bInIntro)
+{
+	if (!AbilitySystemComponent) return;
+	if (bInIntro && (bIsDead || IsStaggeredForAI())) return;
+
+	const int32 NewCount = bInIntro ? 1 : 0;
+	AbilitySystemComponent->SetLooseGameplayTagCount(RiftGameplayTags::State_Intro, NewCount);
+	AbilitySystemComponent->SetReplicatedLooseGameplayTagCount(RiftGameplayTags::State_Intro, NewCount);
+}
+
+void AEnemyCharacter::SetDiscoveringState(const bool bInDiscovering)
+{
+	if (!AbilitySystemComponent) return;
+	if (bInDiscovering && (bIsDead || IsStaggeredForAI() || IsIntroForAI())) return;
+
+	const int32 NewCount = bInDiscovering ? 1 : 0;
+	AbilitySystemComponent->SetLooseGameplayTagCount(RiftGameplayTags::State_Discovering, NewCount);
+	AbilitySystemComponent->SetReplicatedLooseGameplayTagCount(RiftGameplayTags::State_Discovering, NewCount);
+}
+
+void AEnemyCharacter::SetBlockingState(const bool bInBlocking)
+{
+	if (!AbilitySystemComponent) return;
+	if (bInBlocking && (bIsDead || IsStaggeredForAI())) return;
+
+	const int32 NewCount = bInBlocking ? 1 : 0;
+	AbilitySystemComponent->SetLooseGameplayTagCount(RiftGameplayTags::State_Blocking, NewCount);
+	AbilitySystemComponent->SetReplicatedLooseGameplayTagCount(RiftGameplayTags::State_Blocking, NewCount);
+}
+
 void AEnemyCharacter::EnterStaggered(const float Duration)
 {
 	if (!HasAuthority() || bIsDead || !AbilitySystemComponent) return;
+
+	SetBlockingState(false);
+	SetIntroState(false);
+	SetDiscoveringState(false);
+
+	if (UWorld* World = GetWorld())
+	{
+		World->GetTimerManager().ClearTimer(SpawnIntroTimerHandle);
+		World->GetTimerManager().ClearTimer(DiscoverTimerHandle);
+	}
 
 	FGameplayTagContainer AttackTags;
 	AttackTags.AddTag(RiftGameplayTags::Ability_Enemy_MeleeAttack);
@@ -586,6 +868,7 @@ void AEnemyCharacter::ExitStaggered()
 	}
 
 	CustomTimeDilation = 1.0f;
+	StartEnemyBehavior();
 }
 
 void AEnemyCharacter::RestorePoise()

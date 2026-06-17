@@ -40,6 +40,9 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="AI")
 	TObjectPtr<UBehaviorTree> BehaviorTree;
 
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="AI")
+	float TargetSearchRadius = 1500.0f;
+
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Weapon")
 	TMap<ERiftWeaponSlot, TObjectPtr<UStaticMesh>> Weapons;
 

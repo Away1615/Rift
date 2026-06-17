@@ -34,6 +34,9 @@ void ABasePlayerState::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& Out
 
 	DOREPLIFETIME(ABasePlayerState, SelectedPlayerClassConfig);
 	DOREPLIFETIME(ABasePlayerState, bIsRoomHost);
+	DOREPLIFETIME(ABasePlayerState, LobbySlotIndex);
+	DOREPLIFETIME(ABasePlayerState, bIsLobbyCharacterConfirmed);
+	DOREPLIFETIME(ABasePlayerState, ConfirmedAppearanceSelection);
 	DOREPLIFETIME(ABasePlayerState, bIsWaitingForRespawn);
 	DOREPLIFETIME(ABasePlayerState, RespawnEndServerTime);
 	DOREPLIFETIME(ABasePlayerState, RespawnDuration);
@@ -51,6 +54,9 @@ void ABasePlayerState::CopyProperties(APlayerState* PlayerState)
 
 	NewPlayerState->SelectedPlayerClassConfig = SelectedPlayerClassConfig;
 	NewPlayerState->bIsRoomHost = bIsRoomHost;
+	NewPlayerState->LobbySlotIndex = LobbySlotIndex;
+	NewPlayerState->bIsLobbyCharacterConfirmed = bIsLobbyCharacterConfirmed;
+	NewPlayerState->ConfirmedAppearanceSelection = ConfirmedAppearanceSelection;
 }
 
 void ABasePlayerState::SetSelectedPlayerClassConfig(UPlayerClassConfig* NewPlayerClassConfig)
@@ -73,6 +79,30 @@ void ABasePlayerState::SetIsRoomHost(const bool bNewIsRoomHost)
 	}
 
 	bIsRoomHost = bNewIsRoomHost;
+	OnLobbyPlayerStateChanged.Broadcast();
+	ForceNetUpdate();
+}
+
+void ABasePlayerState::SetLobbySlotIndex(const int32 NewLobbySlotIndex)
+{
+	if (!HasAuthority() || LobbySlotIndex == NewLobbySlotIndex)
+	{
+		return;
+	}
+
+	LobbySlotIndex = NewLobbySlotIndex;
+	OnLobbyPlayerStateChanged.Broadcast();
+	ForceNetUpdate();
+}
+
+void ABasePlayerState::SetLobbyCharacterConfirmed(const bool bConfirmed)
+{
+	if (!HasAuthority() || bIsLobbyCharacterConfirmed == bConfirmed)
+	{
+		return;
+	}
+
+	bIsLobbyCharacterConfirmed = bConfirmed;
 	OnLobbyPlayerStateChanged.Broadcast();
 	ForceNetUpdate();
 }
@@ -121,12 +151,46 @@ void ABasePlayerState::SetRespawnState(const bool bWaiting, const float EndServe
 	ForceNetUpdate();
 }
 
+void ABasePlayerState::SetConfirmedAppearanceSelection(const FRiftPlayerAppearanceSelection& NewAppearanceSelection)
+{
+	if (!HasAuthority())
+	{
+		return;
+	}
+
+	if (ConfirmedAppearanceSelection.HairId == NewAppearanceSelection.HairId &&
+		ConfirmedAppearanceSelection.ArmUpperLeftId == NewAppearanceSelection.ArmUpperLeftId &&
+		ConfirmedAppearanceSelection.ArmUpperRightId == NewAppearanceSelection.ArmUpperRightId)
+	{
+		return;
+	}
+
+	ConfirmedAppearanceSelection = NewAppearanceSelection;
+	OnLobbyPlayerStateChanged.Broadcast();
+	ForceNetUpdate();
+}
+
+void ABasePlayerState::OnRep_ConfirmedAppearanceSelection()
+{
+	OnLobbyPlayerStateChanged.Broadcast();
+}
+
 void ABasePlayerState::OnRep_SelectedPlayerClassConfig()
 {
 	OnLobbyPlayerStateChanged.Broadcast();
 }
 
 void ABasePlayerState::OnRep_IsRoomHost()
+{
+	OnLobbyPlayerStateChanged.Broadcast();
+}
+
+void ABasePlayerState::OnRep_LobbySlotIndex()
+{
+	OnLobbyPlayerStateChanged.Broadcast();
+}
+
+void ABasePlayerState::OnRep_IsLobbyCharacterConfirmed()
 {
 	OnLobbyPlayerStateChanged.Broadcast();
 }

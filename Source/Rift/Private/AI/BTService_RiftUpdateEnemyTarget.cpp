@@ -4,6 +4,7 @@
 #include "BehaviorTree/BlackboardComponent.h"
 #include "Character/EnemyCharacter.h"
 #include "Character/PlayerCharacter.h"
+#include "Data/Enemy/EnemyCharacterConfig.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
 
@@ -48,9 +49,18 @@ void UBTService_RiftUpdateEnemyTarget::UpdateEnemyTarget(UBehaviorTreeComponent&
 		return;
 	}
 
+	if (EnemyCharacter->IsIntroForAI() || EnemyCharacter->IsDiscoveringForAI())
+	{
+		AIController->StopMovement();
+		return;
+	}
+
 	APlayerCharacter* ClosestPlayer = nullptr;
 	float ClosestDistanceSq = TNumericLimits<float>::Max();
 	const FVector EnemyLocation = EnemyCharacter->GetActorLocation();
+	const UEnemyCharacterConfig* CharacterConfig = EnemyCharacter->GetEnemyCharacterConfig();
+	const float TargetSearchRadius = CharacterConfig ? CharacterConfig->TargetSearchRadius : 0.0f;
+	const float TargetSearchRadiusSq = FMath::Square(TargetSearchRadius);
 
 	for (TActorIterator<APlayerCharacter> It(World); It; ++It)
 	{
@@ -61,6 +71,8 @@ void UBTService_RiftUpdateEnemyTarget::UpdateEnemyTarget(UBehaviorTreeComponent&
 		FVector ToPlayer = PlayerCharacter->GetActorLocation() - EnemyLocation;
 		ToPlayer.Z = 0.0f;
 		const float DistanceSq = ToPlayer.SizeSquared();
+		if (TargetSearchRadius > 0.0f && DistanceSq > TargetSearchRadiusSq) continue;
+
 		if (DistanceSq < ClosestDistanceSq)
 		{
 			ClosestDistanceSq = DistanceSq;
@@ -74,6 +86,12 @@ void UBTService_RiftUpdateEnemyTarget::UpdateEnemyTarget(UBehaviorTreeComponent&
 		BlackboardComponent->SetValueAsFloat(DistanceToTargetKey.SelectedKeyName, 0.0f);
 		AIController->StopMovement();
 		return;
+	}
+
+	AActor* PreviousTargetActor = Cast<AActor>(BlackboardComponent->GetValueAsObject(TargetActorKey.SelectedKeyName));
+	if (!PreviousTargetActor)
+	{
+		EnemyCharacter->TryPlayDiscoverReaction(ClosestPlayer);
 	}
 
 	BlackboardComponent->SetValueAsObject(TargetActorKey.SelectedKeyName, ClosestPlayer);

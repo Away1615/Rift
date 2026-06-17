@@ -3,6 +3,7 @@
 #include "AbilitySystem/Attributes/RiftEnemyAttributeSet.h"
 
 #include "Character/EnemyCharacter.h"
+#include "Data/Enemy/Combat/EnemyCombatConfig.h"
 #include "GameplayEffectExtension.h"
 #include "Net/UnrealNetwork.h"
 
@@ -38,11 +39,17 @@ void URiftEnemyAttributeSet::PostGameplayEffectExecute(const FGameplayEffectModC
 
 		if (DamageValue > 0.0f)
 		{
+			AEnemyCharacter* Enemy = Cast<AEnemyCharacter>(GetOwningActor());
+			if (Enemy && Enemy->IsBlocking())
+			{
+				return;
+			}
+
 			SetHealth(FMath::Clamp(GetHealth() - DamageValue, 0.0f, GetMaxHealth()));
 			if (GetHealth() <= 0.0f)
 			{
 				AActor* Killer = Data.EffectSpec.GetContext().GetInstigator();
-				if (AEnemyCharacter* Enemy = Cast<AEnemyCharacter>(GetOwningActor()))
+				if (Enemy)
 				{
 					Enemy->HandleDeath(Killer);
 				}
@@ -52,8 +59,19 @@ void URiftEnemyAttributeSet::PostGameplayEffectExecute(const FGameplayEffectModC
 
 	if (Data.EvaluatedData.Attribute == GetPoiseDamageAttribute())
 	{
-		const float PoiseDamageValue = GetPoiseDamage();
+		float PoiseDamageValue = GetPoiseDamage();
 		SetPoiseDamage(0.0f);
+
+		AEnemyCharacter* Enemy = Cast<AEnemyCharacter>(GetOwningActor());
+		if (Enemy && Enemy->IsBlocking())
+		{
+			const UEnemyCombatConfig* CombatConfig = Enemy->GetEnemyCombatConfig();
+			const float BlockingPoiseDamageMultiplier = CombatConfig
+				? FMath::Clamp(CombatConfig->BlockingPoiseDamageMultiplier, 0.0f, 1.0f)
+				: 0.5f;
+			PoiseDamageValue *= BlockingPoiseDamageMultiplier;
+		}
+
 		if (PoiseDamageValue <= 0.0f) return;
 
 		float NewPoise = GetPoise() - PoiseDamageValue;
@@ -72,7 +90,7 @@ void URiftEnemyAttributeSet::PostGameplayEffectExecute(const FGameplayEffectModC
 			InstigatorLocation = Instigator->GetActorLocation();
 		}
 
-		if (AEnemyCharacter* Enemy = Cast<AEnemyCharacter>(GetOwningActor()))
+		if (Enemy)
 		{
 			Enemy->HandlePoiseHit(bPoiseBroken, InstigatorLocation);
 		}

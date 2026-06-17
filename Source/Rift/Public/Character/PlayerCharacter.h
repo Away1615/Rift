@@ -18,9 +18,11 @@ class UPlayerAnimationConfig;
 class UPlayerClassConfig;
 class UAbilitySystemComponent;
 class UAnimMontage;
+class USkeletalMeshComponent;
 class URiftTargetAssistComponent;
 class URiftWeaponTraceComponent;
 class URiftCombatFeedbackComponent;
+class UPlayerAppearanceComponent;
 
 UENUM(BlueprintType)
 enum class ERiftCharacterFacingMode : uint8
@@ -160,6 +162,9 @@ public:
 	UFUNCTION(BlueprintCallable, Server, Reliable, Category="Class")
 	void SelectPlayerClass(UPlayerClassConfig* NewPlayerClassConfig);
 
+	UFUNCTION(BlueprintCallable, Category="Lobby|Preview")
+	void ApplyClassConfigForPreview(UPlayerClassConfig* PreviewClassConfig);
+
 	UFUNCTION(BlueprintPure, Category="Animation")
 	UPlayerAnimationConfig* GetPlayerAnimationConfig() const;
 
@@ -187,6 +192,18 @@ protected:
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Combat")
 	TObjectPtr<URiftCombatFeedbackComponent> CombatFeedbackComponent;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Appearance", meta=(AllowPrivateAccess="true"))
+	TObjectPtr<UPlayerAppearanceComponent> AppearanceComponent;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Appearance")
+	TObjectPtr<USkeletalMeshComponent> HairMesh;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Appearance")
+	TObjectPtr<USkeletalMeshComponent> ArmUpperLeftMesh;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Appearance")
+	TObjectPtr<USkeletalMeshComponent> ArmUpperRightMesh;
 
 	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category="Locomotion")
 	FVector2D MovementInputVector = FVector2D::ZeroVector;
@@ -220,6 +237,7 @@ private:
 	void InitCameraComponents();
 
 	void AssemblePlayerClass();
+	void ApplyAppearanceFromPlayerState();
 	void ApplyClassConfigOnAllRoles();
 	void ApplyClassConfigOnAuthority();
 	void ApplyCommonAttributesFromConfig();

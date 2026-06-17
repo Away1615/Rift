@@ -53,6 +53,99 @@ UPlayerClassConfig* URiftLobbyWidget::GetSelectedPlayerClass() const
 	return RiftPlayerState ? RiftPlayerState->GetSelectedPlayerClassConfig() : nullptr;
 }
 
+int32 URiftLobbyWidget::GetLocalLobbySlotIndex() const
+{
+	const ABasePlayerController* RiftPlayerController = GetRiftPlayerController();
+	const ABasePlayerState* RiftPlayerState = RiftPlayerController
+		? RiftPlayerController->GetPlayerState<ABasePlayerState>()
+		: nullptr;
+
+	return RiftPlayerState ? RiftPlayerState->GetLobbySlotIndex() : INDEX_NONE;
+}
+
+ABasePlayerState* URiftLobbyWidget::GetPlayerStateByLobbySlotIndex(const int32 SlotIndex) const
+{
+	if (SlotIndex < 0 || SlotIndex > 3)
+	{
+		return nullptr;
+	}
+
+	const UWorld* World = GetWorld();
+	const ARiftLobbyGameState* LobbyGameState = World ? World->GetGameState<ARiftLobbyGameState>() : nullptr;
+	if (!LobbyGameState)
+	{
+		return nullptr;
+	}
+
+	for (APlayerState* PlayerState : LobbyGameState->PlayerArray)
+	{
+		ABasePlayerState* RiftPlayerState = Cast<ABasePlayerState>(PlayerState);
+		if (RiftPlayerState && RiftPlayerState->GetLobbySlotIndex() == SlotIndex)
+		{
+			return RiftPlayerState;
+		}
+	}
+
+	return nullptr;
+}
+
+bool URiftLobbyWidget::IsLocalLobbyCharacterConfirmed() const
+{
+	const ABasePlayerController* RiftPlayerController = GetRiftPlayerController();
+	const ABasePlayerState* RiftPlayerState = RiftPlayerController
+		? RiftPlayerController->GetPlayerState<ABasePlayerState>()
+		: nullptr;
+
+	return RiftPlayerState && RiftPlayerState->IsLobbyCharacterConfirmed();
+}
+
+bool URiftLobbyWidget::IsPlayerStateLobbyCharacterConfirmed(ABasePlayerState* PlayerState) const
+{
+	return PlayerState && PlayerState->IsLobbyCharacterConfirmed();
+}
+
+void URiftLobbyWidget::SetLocalDraftAppearancePart(const ERiftPlayerAppearanceSlot AppearanceSlot, const FName PartId)
+{
+	if (LocalDraftAppearanceSelection.GetPartId(AppearanceSlot) == PartId)
+	{
+		return;
+	}
+
+	LocalDraftAppearanceSelection.SetPartId(AppearanceSlot, PartId);
+	OnLocalDraftAppearanceChanged(LocalDraftAppearanceSelection);
+}
+
+void URiftLobbyWidget::ResetLocalDraftAppearance()
+{
+	LocalDraftAppearanceSelection = FRiftPlayerAppearanceSelection();
+	OnLocalDraftAppearanceChanged(LocalDraftAppearanceSelection);
+}
+
+void URiftLobbyWidget::RequestFinishLocalCharacterCreation()
+{
+	ABasePlayerController* RiftPlayerController = GetRiftPlayerController();
+	if (!RiftPlayerController)
+	{
+		return;
+	}
+
+	RiftPlayerController->RequestFinishCharacterCreationWithAppearance(LocalDraftAppearanceSelection);
+}
+
+UPlayerClassConfig* URiftLobbyWidget::GetLobbyDefaultPlayerClassConfig() const
+{
+	const UWorld* World = GetWorld();
+	const ARiftLobbyGameState* LobbyGameState = World ? World->GetGameState<ARiftLobbyGameState>() : nullptr;
+	return LobbyGameState ? LobbyGameState->GetDefaultPlayerClassConfig() : nullptr;
+}
+
+bool URiftLobbyWidget::AreAllPlayersReady() const
+{
+	const UWorld* World = GetWorld();
+	const ARiftLobbyGameState* LobbyGameState = World ? World->GetGameState<ARiftLobbyGameState>() : nullptr;
+	return LobbyGameState && LobbyGameState->AreAllPlayersReady();
+}
+
 void URiftLobbyWidget::SelectPlayerClass(UPlayerClassConfig* ClassConfig)
 {
 	if (!ClassConfig)
