@@ -8,6 +8,7 @@
 #include "RiftGameplayGameMode.generated.h"
 
 class ABasePlayerState;
+class APlayerController;
 class APlayerCharacter;
 
 UCLASS()
@@ -19,6 +20,8 @@ public:
 	UFUNCTION(BlueprintCallable, Category="Rift|Respawn")
 	void NotifyPlayerDied(APlayerCharacter* DeadPlayer);
 
+	virtual void PostLogin(APlayerController* NewPlayer) override;
+	virtual void HandleStartingNewPlayer_Implementation(APlayerController* NewPlayer) override;
 	virtual void Logout(AController* Exiting) override;
 
 protected:
@@ -26,6 +29,7 @@ protected:
 	float PlayerRespawnDelay = 10.0f;
 
 private:
+	void ApplyCachedLobbySelection(APlayerController* PlayerController) const;
 	void StartPlayerRespawn(APlayerCharacter* DeadPlayer);
 	void FinishPlayerRespawn(ABasePlayerState* PlayerState);
 

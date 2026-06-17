@@ -24,6 +24,7 @@
 #include "Engine/World.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Net/UnrealNetwork.h"
+#include "Player/BasePlayerController.h"
 #include "Player/BasePlayerState.h"
 #include "TimerManager.h"
 
@@ -123,10 +124,40 @@ void APlayerCharacter::PossessedBy(AController* NewController)
 
     if (HasAuthority())
     {
-        const ABasePlayerState* RiftPlayerState = GetPlayerState<ABasePlayerState>();
+        ABasePlayerState* RiftPlayerState = GetPlayerState<ABasePlayerState>();
         UPlayerClassConfig* SelectedPlayerClassConfig = RiftPlayerState
             ? RiftPlayerState->GetSelectedPlayerClassConfig()
             : nullptr;
+        UE_LOG(
+            LogTemp,
+            Warning,
+            TEXT("RiftLobbySelection PossessedBy Character=%s Controller=%s PlayerStateClass=%s SelectedClass=%s"),
+            *GetNameSafe(this),
+            *GetNameSafe(NewController),
+            RiftPlayerState ? *GetNameSafe(RiftPlayerState->GetClass()) : TEXT("None"),
+            *GetNameSafe(SelectedPlayerClassConfig)
+        );
+
+        if (!SelectedPlayerClassConfig)
+        {
+            if (ABasePlayerController* RiftPlayerController = Cast<ABasePlayerController>(NewController))
+            {
+                RiftPlayerController->ApplyCachedLobbySelectionToPlayerState();
+                RiftPlayerState = GetPlayerState<ABasePlayerState>();
+                SelectedPlayerClassConfig = RiftPlayerState
+                    ? RiftPlayerState->GetSelectedPlayerClassConfig()
+                    : nullptr;
+                UE_LOG(
+                    LogTemp,
+                    Warning,
+                    TEXT("RiftLobbySelection PossessedByFallback Character=%s PlayerState=%s SelectedClass=%s"),
+                    *GetNameSafe(this),
+                    *GetNameSafe(RiftPlayerState),
+                    *GetNameSafe(SelectedPlayerClassConfig)
+                );
+            }
+        }
+
         if (SelectedPlayerClassConfig)
         {
             PlayerClassConfig = SelectedPlayerClassConfig;

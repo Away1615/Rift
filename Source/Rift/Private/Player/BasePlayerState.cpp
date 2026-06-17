@@ -49,6 +49,14 @@ void ABasePlayerState::CopyProperties(APlayerState* PlayerState)
 	ABasePlayerState* NewPlayerState = Cast<ABasePlayerState>(PlayerState);
 	if (!NewPlayerState)
 	{
+		UE_LOG(
+			LogTemp,
+			Warning,
+			TEXT("RiftLobbySelection CopyProperties skipped Old=%s New=%s NewClass=%s"),
+			*GetNameSafe(this),
+			*GetNameSafe(PlayerState),
+			PlayerState ? *GetNameSafe(PlayerState->GetClass()) : TEXT("None")
+		);
 		return;
 	}
 
@@ -57,6 +65,23 @@ void ABasePlayerState::CopyProperties(APlayerState* PlayerState)
 	NewPlayerState->LobbySlotIndex = LobbySlotIndex;
 	NewPlayerState->bIsLobbyCharacterConfirmed = bIsLobbyCharacterConfirmed;
 	NewPlayerState->ConfirmedAppearanceSelection = ConfirmedAppearanceSelection;
+
+	const bool bHasConfirmedAppearance =
+		!ConfirmedAppearanceSelection.HairId.IsNone() ||
+		!ConfirmedAppearanceSelection.ArmUpperLeftId.IsNone() ||
+		!ConfirmedAppearanceSelection.ArmUpperRightId.IsNone();
+	UE_LOG(
+		LogTemp,
+		Warning,
+		TEXT("RiftLobbySelection CopyProperties Old=%s New=%s SelectedClass=%s HasConfirmedAppearance=%s Hair=%s ArmUpperLeft=%s ArmUpperRight=%s"),
+		*GetNameSafe(this),
+		*GetNameSafe(NewPlayerState),
+		*GetNameSafe(SelectedPlayerClassConfig),
+		bHasConfirmedAppearance ? TEXT("true") : TEXT("false"),
+		*ConfirmedAppearanceSelection.HairId.ToString(),
+		*ConfirmedAppearanceSelection.ArmUpperLeftId.ToString(),
+		*ConfirmedAppearanceSelection.ArmUpperRightId.ToString()
+	);
 }
 
 void ABasePlayerState::SetSelectedPlayerClassConfig(UPlayerClassConfig* NewPlayerClassConfig)

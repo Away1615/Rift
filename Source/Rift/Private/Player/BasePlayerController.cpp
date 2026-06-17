@@ -301,6 +301,59 @@ FText ABasePlayerController::GetAppearancePartDisplayName(const FName PartId) co
 	return Row ? Row->DisplayName : FText::GetEmpty();
 }
 
+void ABasePlayerController::CacheLobbySelectionForGameplay(
+	UPlayerClassConfig* ClassConfig,
+	const FRiftPlayerAppearanceSelection& AppearanceSelection
+)
+{
+	PendingGameplayPlayerClassConfig = ClassConfig;
+	PendingGameplayAppearanceSelection = AppearanceSelection;
+
+	const bool bHasConfirmedAppearance =
+		!AppearanceSelection.HairId.IsNone() ||
+		!AppearanceSelection.ArmUpperLeftId.IsNone() ||
+		!AppearanceSelection.ArmUpperRightId.IsNone();
+	UE_LOG(
+		LogTemp,
+		Warning,
+		TEXT("RiftLobbySelection Cache Controller=%s Class=%s HasAppearance=%s Hair=%s ArmUpperLeft=%s ArmUpperRight=%s"),
+		*GetNameSafe(this),
+		*GetNameSafe(ClassConfig),
+		bHasConfirmedAppearance ? TEXT("true") : TEXT("false"),
+		*AppearanceSelection.HairId.ToString(),
+		*AppearanceSelection.ArmUpperLeftId.ToString(),
+		*AppearanceSelection.ArmUpperRightId.ToString()
+	);
+}
+
+void ABasePlayerController::ApplyCachedLobbySelectionToPlayerState()
+{
+	ABasePlayerState* RiftPlayerState = GetPlayerState<ABasePlayerState>();
+	if (!RiftPlayerState)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("RiftLobbySelection ApplyCached skipped: Controller=%s has no BasePlayerState."), *GetNameSafe(this));
+		return;
+	}
+
+	UE_LOG(
+		LogTemp,
+		Warning,
+		TEXT("RiftLobbySelection ApplyCached Controller=%s PlayerState=%s CurrentClass=%s PendingClass=%s"),
+		*GetNameSafe(this),
+		*GetNameSafe(RiftPlayerState),
+		*GetNameSafe(RiftPlayerState->GetSelectedPlayerClassConfig()),
+		*GetNameSafe(PendingGameplayPlayerClassConfig)
+	);
+
+	if (!PendingGameplayPlayerClassConfig)
+	{
+		return;
+	}
+
+	RiftPlayerState->SetSelectedPlayerClassConfig(PendingGameplayPlayerClassConfig);
+	RiftPlayerState->SetConfirmedAppearanceSelection(PendingGameplayAppearanceSelection);
+}
+
 bool ABasePlayerController::IsAppearancePartValid(
 	const ERiftPlayerAppearanceSlot Slot,
 	const FName PartId) const

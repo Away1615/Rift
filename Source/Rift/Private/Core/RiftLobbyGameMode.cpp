@@ -5,6 +5,7 @@
 
 #include "Core/RiftGameInstance.h"
 #include "Core/RiftLobbyGameState.h"
+#include "Data/Player/PlayerClassConfig.h"
 #include "Engine/World.h"
 #include "Player/BasePlayerController.h"
 #include "Player/BasePlayerState.h"
@@ -197,6 +198,55 @@ void ARiftLobbyGameMode::TravelToGameplayMap()
 	if (!World)
 	{
 		return;
+	}
+
+	const AGameStateBase* CurrentGameState = GameState;
+	if (CurrentGameState)
+	{
+		for (APlayerState* PlayerState : CurrentGameState->PlayerArray)
+		{
+			const ABasePlayerState* RiftPlayerState = Cast<ABasePlayerState>(PlayerState);
+			if (!RiftPlayerState)
+			{
+				continue;
+			}
+
+			const FRiftPlayerAppearanceSelection ConfirmedAppearanceSelection =
+				RiftPlayerState->GetConfirmedAppearanceSelection();
+			const bool bHasConfirmedAppearance =
+				!ConfirmedAppearanceSelection.HairId.IsNone() ||
+				!ConfirmedAppearanceSelection.ArmUpperLeftId.IsNone() ||
+				!ConfirmedAppearanceSelection.ArmUpperRightId.IsNone();
+			UE_LOG(
+				LogTemp,
+				Warning,
+				TEXT("RiftLobbySelection BeforeTravel PlayerState=%s SelectedClass=%s Confirmed=%s HasAppearance=%s Hair=%s ArmUpperLeft=%s ArmUpperRight=%s"),
+				*GetNameSafe(RiftPlayerState),
+				*GetNameSafe(RiftPlayerState->GetSelectedPlayerClassConfig()),
+				RiftPlayerState->IsLobbyCharacterConfirmed() ? TEXT("true") : TEXT("false"),
+				bHasConfirmedAppearance ? TEXT("true") : TEXT("false"),
+				*ConfirmedAppearanceSelection.HairId.ToString(),
+				*ConfirmedAppearanceSelection.ArmUpperLeftId.ToString(),
+				*ConfirmedAppearanceSelection.ArmUpperRightId.ToString()
+			);
+		}
+	}
+
+	for (FConstPlayerControllerIterator Iterator = World->GetPlayerControllerIterator(); Iterator; ++Iterator)
+	{
+		ABasePlayerController* RiftPlayerController = Cast<ABasePlayerController>(Iterator->Get());
+		ABasePlayerState* RiftPlayerState = RiftPlayerController
+			? RiftPlayerController->GetPlayerState<ABasePlayerState>()
+			: nullptr;
+		if (!RiftPlayerController || !RiftPlayerState || !RiftPlayerState->GetSelectedPlayerClassConfig())
+		{
+			continue;
+		}
+
+		RiftPlayerController->CacheLobbySelectionForGameplay(
+			RiftPlayerState->GetSelectedPlayerClassConfig(),
+			RiftPlayerState->GetConfirmedAppearanceSelection()
+		);
 	}
 
 	World->ServerTravel(RiftGameInstance->GetGameplayMapPath() + TEXT("?listen"));

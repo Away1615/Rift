@@ -4,9 +4,11 @@
 #include "Core/RiftGameplayGameMode.h"
 
 #include "Character/PlayerCharacter.h"
+#include "Data/Player/PlayerClassConfig.h"
 #include "Engine/World.h"
 #include "GameFramework/GameStateBase.h"
 #include "GameFramework/PlayerController.h"
+#include "Player/BasePlayerController.h"
 #include "Player/BasePlayerState.h"
 
 void ARiftGameplayGameMode::NotifyPlayerDied(APlayerCharacter* DeadPlayer)
@@ -17,6 +19,18 @@ void ARiftGameplayGameMode::NotifyPlayerDied(APlayerCharacter* DeadPlayer)
 	}
 
 	StartPlayerRespawn(DeadPlayer);
+}
+
+void ARiftGameplayGameMode::PostLogin(APlayerController* NewPlayer)
+{
+	Super::PostLogin(NewPlayer);
+	ApplyCachedLobbySelection(NewPlayer);
+}
+
+void ARiftGameplayGameMode::HandleStartingNewPlayer_Implementation(APlayerController* NewPlayer)
+{
+	ApplyCachedLobbySelection(NewPlayer);
+	Super::HandleStartingNewPlayer_Implementation(NewPlayer);
 }
 
 void ARiftGameplayGameMode::Logout(AController* Exiting)
@@ -37,6 +51,27 @@ void ARiftGameplayGameMode::Logout(AController* Exiting)
 	}
 
 	Super::Logout(Exiting);
+}
+
+void ARiftGameplayGameMode::ApplyCachedLobbySelection(APlayerController* PlayerController) const
+{
+	ABasePlayerController* RiftPlayerController = Cast<ABasePlayerController>(PlayerController);
+	if (!RiftPlayerController)
+	{
+		return;
+	}
+
+	RiftPlayerController->ApplyCachedLobbySelectionToPlayerState();
+
+	const ABasePlayerState* RiftPlayerState = RiftPlayerController->GetPlayerState<ABasePlayerState>();
+	UE_LOG(
+		LogTemp,
+		Warning,
+		TEXT("RiftLobbySelection GameplayApply Controller=%s PlayerState=%s SelectedClass=%s"),
+		*GetNameSafe(RiftPlayerController),
+		*GetNameSafe(RiftPlayerState),
+		RiftPlayerState ? *GetNameSafe(RiftPlayerState->GetSelectedPlayerClassConfig()) : TEXT("None")
+	);
 }
 
 void ARiftGameplayGameMode::StartPlayerRespawn(APlayerCharacter* DeadPlayer)

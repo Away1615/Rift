@@ -74,6 +74,12 @@ public:
 	UFUNCTION(BlueprintPure, Category="Rift|Appearance")
 	FText GetAppearancePartDisplayName(FName PartId) const;
 
+	void CacheLobbySelectionForGameplay(
+		UPlayerClassConfig* ClassConfig,
+		const FRiftPlayerAppearanceSelection& AppearanceSelection
+	);
+	void ApplyCachedLobbySelectionToPlayerState();
+
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Appearance")
 	TObjectPtr<UDataTable> PlayerAppearanceTable;
 
@@ -87,6 +93,12 @@ protected:
 	TObjectPtr<UPlayerInputConfig> DefaultInputConfig;
 
 private:
+	UPROPERTY()
+	TObjectPtr<UPlayerClassConfig> PendingGameplayPlayerClassConfig;
+
+	UPROPERTY()
+	FRiftPlayerAppearanceSelection PendingGameplayAppearanceSelection;
+
 	bool IsAppearancePartValid(ERiftPlayerAppearanceSlot Slot, FName PartId) const;
 	bool IsAppearanceSelectionValid(const FRiftPlayerAppearanceSelection& Selection) const;
 
