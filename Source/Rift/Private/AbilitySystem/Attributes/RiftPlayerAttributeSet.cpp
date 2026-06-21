@@ -8,7 +8,7 @@
 #include "GameplayEffectExtension.h"
 #include "Net/UnrealNetwork.h"
 
-static IRiftAttributeReactionReceiver* GetAttributeReactionReceiver(
+static IRiftAttributeReactionReceiver* GetPlayerAttributeReactionReceiver(
 	const FGameplayEffectModCallbackData& Data
 )
 {
@@ -61,7 +61,7 @@ void URiftPlayerAttributeSet::PostGameplayEffectExecute(const FGameplayEffectMod
 			SetHealth(FMath::Clamp(GetHealth() - DamageValue, 0.0f, GetMaxHealth()));
 			if (GetHealth() <= 0.0f)
 			{
-				if (IRiftAttributeReactionReceiver* Receiver = GetAttributeReactionReceiver(Data))
+				if (IRiftAttributeReactionReceiver* Receiver = GetPlayerAttributeReactionReceiver(Data))
 				{
 					Receiver->HandleAttributeDeath(Data.EffectSpec.GetContext().GetInstigator());
 				}

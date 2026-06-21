@@ -11,7 +11,7 @@ public class Rift : ModuleRules
 		PublicDependencyModuleNames.AddRange(new string[] {
 			"Core", "CoreUObject", "Engine", "InputCore", "EnhancedInput", "UMG",
 			"GameplayAbilities", "GameplayTags", "GameplayTasks",
-			"AIModule", "NavigationSystem", "Niagara"
+			"AIModule", "NavigationSystem", "Niagara", "MotionWarping"
 			});
 
 		PrivateDependencyModuleNames.AddRange(new string[] { "OnlineSubsystem" });

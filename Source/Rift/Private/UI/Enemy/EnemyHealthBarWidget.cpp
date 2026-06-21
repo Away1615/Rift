@@ -22,6 +22,8 @@ void UEnemyHealthBarWidget::NativeDestruct()
 	{
 		ASC->GetGameplayAttributeValueChangeDelegate(URiftEnemyAttributeSet::GetHealthAttribute()).RemoveAll(this);
 		ASC->GetGameplayAttributeValueChangeDelegate(URiftEnemyAttributeSet::GetMaxHealthAttribute()).RemoveAll(this);
+		ASC->GetGameplayAttributeValueChangeDelegate(URiftEnemyAttributeSet::GetPoiseAttribute()).RemoveAll(this);
+		ASC->GetGameplayAttributeValueChangeDelegate(URiftEnemyAttributeSet::GetMaxPoiseAttribute()).RemoveAll(this);
 	}
 
 	Super::NativeDestruct();
@@ -37,6 +39,14 @@ void UEnemyHealthBarWidget::BindToAbilitySystem(UAbilitySystemComponent* ASC)
 		this,
 		&UEnemyHealthBarWidget::HandleHealthChanged
 	);
+	ASC->GetGameplayAttributeValueChangeDelegate(URiftEnemyAttributeSet::GetPoiseAttribute()).AddUObject(
+		this,
+		&UEnemyHealthBarWidget::HandlePoiseChanged
+	);
+	ASC->GetGameplayAttributeValueChangeDelegate(URiftEnemyAttributeSet::GetMaxPoiseAttribute()).AddUObject(
+		this,
+		&UEnemyHealthBarWidget::HandlePoiseChanged
+	);
 }
 
 void UEnemyHealthBarWidget::RefreshAll()
@@ -48,6 +58,10 @@ void UEnemyHealthBarWidget::RefreshAll()
 		ASC->GetNumericAttribute(URiftEnemyAttributeSet::GetHealthAttribute()),
 		ASC->GetNumericAttribute(URiftEnemyAttributeSet::GetMaxHealthAttribute())
 	);
+	OnPoiseChanged(
+		ASC->GetNumericAttribute(URiftEnemyAttributeSet::GetPoiseAttribute()),
+		ASC->GetNumericAttribute(URiftEnemyAttributeSet::GetMaxPoiseAttribute())
+	);
 }
 
 void UEnemyHealthBarWidget::HandleHealthChanged(const FOnAttributeChangeData&)
@@ -58,5 +72,16 @@ void UEnemyHealthBarWidget::HandleHealthChanged(const FOnAttributeChangeData&)
 	OnHealthChanged(
 		ASC->GetNumericAttribute(URiftEnemyAttributeSet::GetHealthAttribute()),
 		ASC->GetNumericAttribute(URiftEnemyAttributeSet::GetMaxHealthAttribute())
+	);
+}
+
+void UEnemyHealthBarWidget::HandlePoiseChanged(const FOnAttributeChangeData&)
+{
+	UAbilitySystemComponent* ASC = AbilitySystemComponent.Get();
+	if (!ASC) return;
+
+	OnPoiseChanged(
+		ASC->GetNumericAttribute(URiftEnemyAttributeSet::GetPoiseAttribute()),
+		ASC->GetNumericAttribute(URiftEnemyAttributeSet::GetMaxPoiseAttribute())
 	);
 }

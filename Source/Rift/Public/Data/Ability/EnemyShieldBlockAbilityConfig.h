@@ -22,4 +22,13 @@ public:
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="ShieldBlock", meta=(ClampMin="0.0", ClampMax="1.0"))
 	float BlockingPoiseDamageMultiplier = 0.5f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="ShieldBlock")
+	float ShieldBlockRange = 250.0f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="ShieldBlock")
+	float ShieldBlockFrontAngleDegrees = 100.0f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="ShieldBlock", meta=(ClampMin="0.0", ClampMax="1.0"))
+	float ShieldBlockChance = 0.35f;
 };

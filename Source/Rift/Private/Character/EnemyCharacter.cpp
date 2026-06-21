@@ -182,6 +182,12 @@ bool AEnemyCharacter::IsBlocking() const
 		AbilitySystemComponent->HasMatchingGameplayTag(RiftGameplayTags::State_Blocking);
 }
 
+bool AEnemyCharacter::IsEnemySuperArmor() const
+{
+	return AbilitySystemComponent &&
+		AbilitySystemComponent->HasMatchingGameplayTag(RiftGameplayTags::State_Enemy_SuperArmor);
+}
+
 bool AEnemyCharacter::IsStaggeredForAI() const
 {
 	return IsStaggeredForAnimation();
@@ -208,7 +214,6 @@ bool AEnemyCharacter::CanStartMeleeAttack(AActor* TargetActor) const
 		IsIntroForAI() ||
 		!AbilitySystemComponent ||
 		!MeleeConfig ||
-		!MeleeConfig->AttackMontage ||
 		!TargetActor ||
 		!World)
 	{
@@ -218,23 +223,29 @@ bool AEnemyCharacter::CanStartMeleeAttack(AActor* TargetActor) const
 	const APlayerCharacter* PlayerTarget = Cast<APlayerCharacter>(TargetActor);
 	if (PlayerTarget && PlayerTarget->IsDead()) return false;
 
-	FVector ToTarget = TargetActor->GetActorLocation() - GetActorLocation();
-	ToTarget.Z = 0.0f;
-	if (ToTarget.SizeSquared() > FMath::Square(MeleeConfig->AttackRange)) return false;
+	if (IsStaggeredForAI() || IsBlocking() || IsAttackingForAI()) return false;
 	if (World->GetTimeSeconds() < NextAttackTime) return false;
 
-	return HasAuthority() &&
-		!bIsDead &&
-		AbilitySystemComponent &&
-		!IsStaggeredForAI() &&
-		!IsIntroForAI() &&
-		!IsBlocking() &&
-		!IsAttackingForAI();
+	FRiftEnemyMeleeAttackVariant TempVariant;
+	return TrySelectMeleeAttackVariant(TargetActor, TempVariant);
 }
 
 bool AEnemyCharacter::TryStartMeleeAttack(AActor* TargetActor)
 {
 	if (!CanStartMeleeAttack(TargetActor)) return false;
+
+	FRiftEnemyMeleeAttackVariant SelectedVariant;
+	if (!TrySelectMeleeAttackVariant(TargetActor, SelectedVariant)) return false;
+
+	CurrentMeleeAttackVariant = SelectedVariant;
+	bHasCurrentMeleeAttackVariant = true;
+	CurrentMeleeAttackTarget = TargetActor;
+
+	StopAIMovement();
+	if (UCharacterMovementComponent* Movement = GetCharacterMovement())
+	{
+		Movement->StopMovementImmediately();
+	}
 
 	FVector ToTarget = TargetActor->GetActorLocation() - GetActorLocation();
 	ToTarget.Z = 0.0f;
@@ -248,15 +259,67 @@ bool AEnemyCharacter::TryStartMeleeAttack(AActor* TargetActor)
 	const bool bActivated = AbilitySystemComponent->TryActivateAbilitiesByTag(AttackTags);
 	if (bActivated)
 	{
-		const UEnemyMeleeAttackAbilityConfig* MeleeConfig = GetEnemyMeleeAttackAbilityConfig();
-		const UWorld* World = GetWorld();
-		if (MeleeConfig && World)
+		if (const UWorld* World = GetWorld())
 		{
-			NextAttackTime = World->GetTimeSeconds() + MeleeConfig->AttackCooldown;
+			NextAttackTime = World->GetTimeSeconds() + CurrentMeleeAttackVariant.AttackCooldown;
 		}
+	}
+	else
+	{
+		bHasCurrentMeleeAttackVariant = false;
+		CurrentMeleeAttackTarget.Reset();
 	}
 
 	return bActivated;
+}
+
+const FRiftEnemyMeleeAttackVariant* AEnemyCharacter::GetCurrentMeleeAttackVariant() const
+{
+	return bHasCurrentMeleeAttackVariant ? &CurrentMeleeAttackVariant : nullptr;
+}
+
+AActor* AEnemyCharacter::GetCurrentMeleeAttackTarget() const
+{
+	return CurrentMeleeAttackTarget.Get();
+}
+
+bool AEnemyCharacter::TrySelectMeleeAttackVariant(AActor* TargetActor, FRiftEnemyMeleeAttackVariant& OutVariant) const
+{
+	const UEnemyMeleeAttackAbilityConfig* MeleeConfig = GetEnemyMeleeAttackAbilityConfig();
+	if (!MeleeConfig || !TargetActor) return false;
+
+	FVector ToTarget = TargetActor->GetActorLocation() - GetActorLocation();
+	ToTarget.Z = 0.0f;
+	const float DistanceSq = ToTarget.SizeSquared();
+
+	if (MeleeConfig->AttackVariants.IsEmpty()) return false;
+
+	TArray<const FRiftEnemyMeleeAttackVariant*> EligibleVariants;
+	float TotalWeight = 0.0f;
+	for (const FRiftEnemyMeleeAttackVariant& Variant : MeleeConfig->AttackVariants)
+	{
+		if (!Variant.AttackMontage || Variant.Weight <= 0.0f) continue;
+		if (DistanceSq < FMath::Square(Variant.MinRange) || DistanceSq > FMath::Square(Variant.MaxRange)) continue;
+
+		EligibleVariants.Add(&Variant);
+		TotalWeight += Variant.Weight;
+	}
+
+	if (EligibleVariants.IsEmpty() || TotalWeight <= 0.0f) return false;
+
+	float RandomWeight = FMath::FRandRange(0.0f, TotalWeight);
+	for (const FRiftEnemyMeleeAttackVariant* Variant : EligibleVariants)
+	{
+		RandomWeight -= Variant->Weight;
+		if (RandomWeight <= 0.0f)
+		{
+			OutVariant = *Variant;
+			return true;
+		}
+	}
+
+	OutVariant = *EligibleVariants.Last();
+	return true;
 }
 
 bool AEnemyCharacter::CanStartShieldBlock(AActor* TargetActor) const
@@ -284,12 +347,42 @@ bool AEnemyCharacter::CanStartShieldBlock(AActor* TargetActor) const
 		return false;
 	}
 
+	FVector ToTarget = TargetActor->GetActorLocation() - GetActorLocation();
+	ToTarget.Z = 0.0f;
+	if (ToTarget.SizeSquared() > FMath::Square(ShieldBlockConfig->ShieldBlockRange))
+	{
+		return false;
+	}
+
+	if (!ToTarget.Normalize())
+	{
+		return false;
+	}
+
+	const float HalfAngleRad = FMath::DegreesToRadians(ShieldBlockConfig->ShieldBlockFrontAngleDegrees * 0.5f);
+	const float ForwardDot = FVector::DotProduct(GetActorForwardVector(), ToTarget);
+	if (ForwardDot < FMath::Cos(HalfAngleRad))
+	{
+		return false;
+	}
+
 	return true;
 }
 
 bool AEnemyCharacter::TryStartShieldBlock(AActor* TargetActor)
 {
 	if (!CanStartShieldBlock(TargetActor)) return false;
+
+	const UEnemyShieldBlockAbilityConfig* ShieldBlockConfig = GetEnemyShieldBlockAbilityConfig();
+	const float BlockChance = ShieldBlockConfig ? FMath::Clamp(ShieldBlockConfig->ShieldBlockChance, 0.0f, 1.0f) : 0.0f;
+	if (FMath::FRand() > BlockChance) return false;
+
+	FVector ToTarget = TargetActor->GetActorLocation() - GetActorLocation();
+	ToTarget.Z = 0.0f;
+	if (ToTarget.Normalize())
+	{
+		SetActorRotation(ToTarget.ToOrientationRotator());
+	}
 
 	FGameplayTagContainer ShieldBlockTags;
 	ShieldBlockTags.AddTag(RiftGameplayTags::Ability_Enemy_ShieldBlock);
@@ -336,7 +429,18 @@ void AEnemyCharacter::HandlePoiseHit(const bool bPoiseBroken, const FVector& Ins
 		return;
 	}
 
-	if (IsBlocking())
+	const bool bWasBlocking = IsBlocking();
+	if (IsEnemySuperArmor())
+	{
+		return;
+	}
+
+	if (TryStartHitRetreat(InstigatorLocation, bWasBlocking))
+	{
+		return;
+	}
+
+	if (bWasBlocking)
 	{
 		return;
 	}
@@ -392,8 +496,11 @@ void AEnemyCharacter::TickAttackHitWindow()
 	const UEnemyMeleeAttackAbilityConfig* MeleeConfig = GetEnemyMeleeAttackAbilityConfig();
 	if (!World || !MeleeConfig || !AbilitySystemComponent) return;
 
-	const FVector HitboxCenter = GetActorLocation() + GetActorForwardVector() * MeleeConfig->HitboxForwardOffset;
-	const float HitboxRadius = FMath::Max(0.0f, MeleeConfig->HitboxRadius);
+	const FRiftEnemyMeleeAttackVariant* CurrentVariant = GetCurrentMeleeAttackVariant();
+	if (!CurrentVariant) return;
+
+	const FVector HitboxCenter = GetActorLocation() + GetActorForwardVector() * CurrentVariant->HitboxForwardOffset;
+	const float HitboxRadius = FMath::Max(0.0f, CurrentVariant->HitboxRadius);
 	if (HitboxRadius <= 0.0f) return;
 
 	TArray<FOverlapResult> OverlapResults;
@@ -440,14 +547,14 @@ void AEnemyCharacter::TickAttackHitWindow()
 		HitPlayersThisAttack.Add(PlayerKey);
 		DamageSpecHandle.Data->SetSetByCallerMagnitude(
 			RiftGameplayTags::SetByCaller_Damage,
-			MeleeConfig->AttackDamage
+			CurrentVariant->AttackDamage
 		);
 		AbilitySystemComponent->ApplyGameplayEffectSpecToTarget(
 			*DamageSpecHandle.Data.Get(),
 			TargetAbilitySystemComponent
 		);
 
-		if (MeleeConfig->CombatCueConfig && !bTargetInvincible)
+		if (CurrentVariant->CombatCueConfig && !bTargetInvincible)
 		{
 			FVector ImpactNormal = (PlayerCharacter->GetActorLocation() - GetActorLocation()).GetSafeNormal();
 			if (ImpactNormal.IsNearlyZero())
@@ -458,7 +565,7 @@ void AEnemyCharacter::TickAttackHitWindow()
 			const FVector ImpactLocation =
 				PlayerCharacter->GetActorLocation() + FVector::UpVector * PlayerCharacter->GetSimpleCollisionHalfHeight();
 			PlayerCharacter->Multicast_PlayCombatImpact(
-				MeleeConfig->CombatCueConfig,
+				CurrentVariant->CombatCueConfig,
 				ImpactLocation,
 				ImpactNormal,
 				bTargetBlocking
@@ -468,9 +575,9 @@ void AEnemyCharacter::TickAttackHitWindow()
 		if (!bTargetBlocking && !bTargetInvincible)
 		{
 			PlayerCharacter->HandlePlayerHitReaction(
-				MeleeConfig->PlayerHitReaction,
+				CurrentVariant->PlayerHitReaction,
 				this,
-				MeleeConfig->AttackDamage
+				CurrentVariant->AttackDamage
 			);
 		}
 	}
@@ -486,6 +593,76 @@ void AEnemyCharacter::EndAttackHitWindow()
 	if (!HasAuthority() || bIsDead) return;
 
 	HitPlayersThisAttack.Reset();
+}
+
+bool AEnemyCharacter::CanStartHitRetreat() const
+{
+	const UWorld* World = GetWorld();
+	if (!HasAuthority() ||
+		bIsDead ||
+		bIsHitRetreating ||
+		IsStaggeredForAI() ||
+		IsIntroForAI() ||
+		!EnemyCharacterConfig ||
+		!EnemyCharacterConfig->HitRetreatMontage ||
+		!AbilitySystemComponent ||
+		!World)
+	{
+		return false;
+	}
+
+	const float RetreatCooldown = FMath::Max(0.0f, EnemyCharacterConfig->HitRetreatCooldown);
+	if (World->GetTimeSeconds() < LastHitRetreatTime + RetreatCooldown)
+	{
+		return false;
+	}
+
+	return true;
+}
+
+bool AEnemyCharacter::TryStartHitRetreat(const FVector& InstigatorLocation, const bool bWasBlocking)
+{
+	if (!CanStartHitRetreat()) return false;
+
+	const float RetreatChance = FMath::Clamp(
+		bWasBlocking ? EnemyCharacterConfig->BlockingHitRetreatChance : EnemyCharacterConfig->HitRetreatChance,
+		0.0f,
+		1.0f
+	);
+	if (RetreatChance <= 0.0f) return false;
+	if (FMath::FRand() > RetreatChance) return false;
+
+	FVector ToInstigator = InstigatorLocation - GetActorLocation();
+	ToInstigator.Z = 0.0f;
+	if (ToInstigator.Normalize())
+	{
+		SetActorRotation(ToInstigator.ToOrientationRotator());
+	}
+
+	StopAIMovement();
+	if (UCharacterMovementComponent* Movement = GetCharacterMovement())
+	{
+		Movement->StopMovementImmediately();
+	}
+
+	if (bWasBlocking)
+	{
+		SetBlockingState(false);
+		SetCurrentBlockingPoiseDamageMultiplier(1.0f);
+
+		FGameplayTagContainer ShieldBlockTags;
+		ShieldBlockTags.AddTag(RiftGameplayTags::Ability_Enemy_ShieldBlock);
+		AbilitySystemComponent->CancelAbilities(&ShieldBlockTags);
+	}
+
+	if (const UWorld* World = GetWorld())
+	{
+		LastHitRetreatTime = World->GetTimeSeconds();
+	}
+
+	SetHitRetreatState(true);
+	Multicast_PlayHitRetreat();
+	return true;
 }
 
 void AEnemyCharacter::Multicast_PlayHit_Implementation(const ERiftHitReactDirection Direction)
@@ -531,6 +708,29 @@ void AEnemyCharacter::Multicast_PlayStaggered_Implementation()
 	}
 }
 
+void AEnemyCharacter::Multicast_PlayHitRetreat_Implementation()
+{
+	UAnimMontage* RetreatMontage = EnemyCharacterConfig ? EnemyCharacterConfig->HitRetreatMontage : nullptr;
+	if (!RetreatMontage) return;
+
+	USkeletalMeshComponent* CharacterMesh = GetMesh();
+	if (!CharacterMesh) return;
+
+	UAnimInstance* AnimInstance = CharacterMesh->GetAnimInstance();
+	if (!AnimInstance) return;
+
+	AnimInstance->Montage_Play(RetreatMontage);
+
+	if (HasAuthority())
+	{
+		ActiveHitRetreatMontage = RetreatMontage;
+
+		FOnMontageEnded EndDelegate;
+		EndDelegate.BindUObject(this, &AEnemyCharacter::OnHitRetreatMontageEnded);
+		AnimInstance->Montage_SetEndDelegate(EndDelegate, RetreatMontage);
+	}
+}
+
 void AEnemyCharacter::HandleDeath(AActor* Killer)
 {
 	if (bIsDead || !HasAuthority()) return;
@@ -539,6 +739,8 @@ void AEnemyCharacter::HandleDeath(AActor* Killer)
 	SetBlockingState(false);
 	SetCurrentBlockingPoiseDamageMultiplier(1.0f);
 	SetIntroState(false);
+	SetHitRetreatState(false);
+	SetEnemySuperArmorState(false);
 
 	if (HealthBarWidgetComp)
 	{
@@ -550,6 +752,8 @@ void AEnemyCharacter::HandleDeath(AActor* Killer)
 	GetWorldTimerManager().ClearTimer(PoiseRegenTimerHandle);
 	ActiveSpawnIntroMontage.Reset();
 	ActiveStaggeredMontage.Reset();
+	ActiveHitRetreatMontage.Reset();
+	CurrentMeleeAttackTarget.Reset();
 	HitPlayersThisAttack.Reset();
 	CustomTimeDilation = 1.0f;
 
@@ -825,6 +1029,30 @@ void AEnemyCharacter::SetBlockingState(const bool bInBlocking)
 	AbilitySystemComponent->SetReplicatedLooseGameplayTagCount(RiftGameplayTags::State_Blocking, NewCount);
 }
 
+void AEnemyCharacter::SetEnemySuperArmorState(const bool bInSuperArmor)
+{
+	if (!AbilitySystemComponent) return;
+	if (bInSuperArmor && (bIsDead || IsStaggeredForAI())) return;
+
+	const int32 NewCount = bInSuperArmor ? 1 : 0;
+	AbilitySystemComponent->SetLooseGameplayTagCount(RiftGameplayTags::State_Enemy_SuperArmor, NewCount);
+	AbilitySystemComponent->SetReplicatedLooseGameplayTagCount(RiftGameplayTags::State_Enemy_SuperArmor, NewCount);
+}
+
+void AEnemyCharacter::SetHitRetreatState(const bool bInRetreating)
+{
+	if (!AbilitySystemComponent) return;
+	if (bIsHitRetreating == bInRetreating) return;
+
+	bIsHitRetreating = bInRetreating;
+
+	// Reuses State_Attacking as a "busy" flag so the BT cannot re-trigger melee
+	// attack or shield block while the retreat montage is still playing.
+	const int32 NewCount = bInRetreating ? 1 : 0;
+	AbilitySystemComponent->SetLooseGameplayTagCount(RiftGameplayTags::State_Attacking, NewCount);
+	AbilitySystemComponent->SetReplicatedLooseGameplayTagCount(RiftGameplayTags::State_Attacking, NewCount);
+}
+
 void AEnemyCharacter::EnterStaggered(const float Duration)
 {
 	if (!HasAuthority() || bIsDead || !AbilitySystemComponent) return;
@@ -837,6 +1065,9 @@ void AEnemyCharacter::EnterStaggered(const float Duration)
 	SetBlockingState(false);
 	SetCurrentBlockingPoiseDamageMultiplier(1.0f);
 	SetIntroState(false);
+	SetEnemySuperArmorState(false);
+	SetHitRetreatState(false);
+	ActiveHitRetreatMontage.Reset();
 
 	if (UWorld* World = GetWorld())
 	{
@@ -897,6 +1128,18 @@ void AEnemyCharacter::OnStaggeredMontageEnded(UAnimMontage* Montage, bool bInter
 	if (bIsDead) return;
 
 	ExitStaggered();
+}
+
+void AEnemyCharacter::OnHitRetreatMontageEnded(UAnimMontage* Montage, bool bInterrupted)
+{
+	if (!HasAuthority()) return;
+	if (!Montage || ActiveHitRetreatMontage.Get() != Montage) return;
+
+	ActiveHitRetreatMontage.Reset();
+	SetHitRetreatState(false);
+	if (bIsDead) return;
+
+	StartEnemyBehavior();
 }
 
 void AEnemyCharacter::RestorePoise()

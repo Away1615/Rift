@@ -15,7 +15,7 @@
 
 namespace
 {
-	constexpr int32 MaxLobbyDisplaySlots = 4;
+	constexpr int32 MaxLobbyWidgetDisplaySlots = 4;
 }
 
 void URiftLobbyWidget::NativeConstruct()
@@ -78,7 +78,7 @@ int32 URiftLobbyWidget::GetLocalLobbySlotIndex() const
 
 ABasePlayerState* URiftLobbyWidget::GetPlayerStateByLobbySlotIndex(const int32 SlotIndex) const
 {
-	if (SlotIndex < 0 || SlotIndex >= MaxLobbyDisplaySlots)
+	if (SlotIndex < 0 || SlotIndex >= MaxLobbyWidgetDisplaySlots)
 	{
 		return nullptr;
 	}

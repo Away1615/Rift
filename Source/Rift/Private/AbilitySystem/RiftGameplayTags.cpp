@@ -14,6 +14,7 @@ namespace RiftGameplayTags
 	UE_DEFINE_GAMEPLAY_TAG(State_Attack_RapidSlashReady, "State.Attack.RapidSlashReady");
 	UE_DEFINE_GAMEPLAY_TAG(State_Intro, "State.Intro");
 	UE_DEFINE_GAMEPLAY_TAG(State_Enemy_Intro, "State.Enemy.Intro");
+	UE_DEFINE_GAMEPLAY_TAG(State_Enemy_SuperArmor, "State.Enemy.SuperArmor");
 	UE_DEFINE_GAMEPLAY_TAG(State_SuperArmor_Red, "State.SuperArmor.Red");
 	UE_DEFINE_GAMEPLAY_TAG(State_Hit_Light, "State.Hit.Light");
 	UE_DEFINE_GAMEPLAY_TAG(State_Hit_Heavy, "State.Hit.Heavy");

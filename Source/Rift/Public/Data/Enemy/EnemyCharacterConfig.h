@@ -59,6 +59,18 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Animation")
 	TObjectPtr<UAnimMontage> DeathMontage;
 
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="HitReaction|Retreat")
+	TObjectPtr<UAnimMontage> HitRetreatMontage;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="HitReaction|Retreat")
+	float HitRetreatCooldown = 1.2f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="HitReaction|Retreat", meta=(ClampMin="0.0", ClampMax="1.0"))
+	float HitRetreatChance = 0.2f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="HitReaction|Retreat", meta=(ClampMin="0.0", ClampMax="1.0"))
+	float BlockingHitRetreatChance = 0.8f;
+
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="AI")
 	TObjectPtr<UBehaviorTree> BehaviorTree;
 

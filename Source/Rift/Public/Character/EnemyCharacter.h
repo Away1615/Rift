@@ -8,11 +8,11 @@
 #include "AbilitySystem/RiftAttributeReactionReceiver.h"
 #include "Character/BaseCharacter.h"
 #include "Combat/RiftHitReactionTypes.h"
+#include "Data/Ability/EnemyMeleeAttackAbilityConfig.h"
 #include "TimerManager.h"
 #include "EnemyCharacter.generated.h"
 
 class UEnemyCharacterConfig;
-class UEnemyMeleeAttackAbilityConfig;
 class UEnemyShieldBlockAbilityConfig;
 class UAbilitySystemComponent;
 class UAnimMontage;
@@ -51,6 +51,9 @@ public:
 	UFUNCTION(BlueprintPure, Category="Combat|Blocking")
 	bool IsBlocking() const;
 
+	UFUNCTION(BlueprintPure, Category="Combat|SuperArmor")
+	bool IsEnemySuperArmor() const;
+
 	UFUNCTION(BlueprintPure, Category="Animation")
 	ERiftHitReactDirection GetLastHitReactDirection() const { return LastHitReactDirection; }
 
@@ -62,6 +65,7 @@ public:
 	virtual float GetAttributeBlockingPoiseDamageMultiplier() const override;
 	void SetCurrentBlockingPoiseDamageMultiplier(float NewMultiplier);
 	void SetBlockingState(bool bInBlocking);
+	void SetEnemySuperArmorState(bool bInSuperArmor);
 	bool IsDeadForAI() const { return bIsDead; }
 	bool IsStaggeredForAI() const;
 	bool IsAttackingForAI() const;
@@ -70,6 +74,8 @@ public:
 	bool TryStartMeleeAttack(AActor* TargetActor);
 	bool CanStartShieldBlock(AActor* TargetActor) const;
 	bool TryStartShieldBlock(AActor* TargetActor);
+	const FRiftEnemyMeleeAttackVariant* GetCurrentMeleeAttackVariant() const;
+	AActor* GetCurrentMeleeAttackTarget() const;
 
 	void BeginAttackHitWindow();
 	void TickAttackHitWindow();
@@ -86,6 +92,9 @@ public:
 
 	UFUNCTION(NetMulticast, Reliable)
 	void Multicast_PlayStaggered();
+
+	UFUNCTION(NetMulticast, Reliable)
+	void Multicast_PlayHitRetreat();
 
 	UFUNCTION(BlueprintImplementableEvent, Category="Combat|DamageNumber")
 	void OnDamageNumber(float DamageAmount, bool bBlocked, FVector WorldLocation);
@@ -122,12 +131,17 @@ private:
 	void OnSpawnIntroMontageEnded(UAnimMontage* Montage, bool bInterrupted);
 	void SetStaggeredState(bool bInStaggered);
 	void SetIntroState(bool bInIntro);
+	void SetHitRetreatState(bool bInRetreating);
 	void EnterStaggered(float Duration);
 	void ExitStaggered();
 	void OnStaggeredMontageEnded(UAnimMontage* Montage, bool bInterrupted);
 	void GrantKillReward(AActor* Killer);
 	void FinishDeath();
 	void RestorePoise();
+	bool TrySelectMeleeAttackVariant(AActor* TargetActor, FRiftEnemyMeleeAttackVariant& OutVariant) const;
+	bool CanStartHitRetreat() const;
+	bool TryStartHitRetreat(const FVector& InstigatorLocation, bool bWasBlocking);
+	void OnHitRetreatMontageEnded(UAnimMontage* Montage, bool bInterrupted);
 
 	FTimerHandle StaggeredTimerHandle;
 	FTimerHandle SpawnIntroTimerHandle;
@@ -135,11 +149,17 @@ private:
 	FTimerHandle PoiseRegenTimerHandle;
 	float NextAttackTime = 0.0f;
 	float LastShieldBlockTime = -FLT_MAX;
+	float LastHitRetreatTime = -FLT_MAX;
 	float CurrentBlockingPoiseDamageMultiplier = 1.0f;
 	bool bHasStartedEnemyBehavior = false;
 	bool bIsDead = false;
+	bool bIsHitRetreating = false;
+	bool bHasCurrentMeleeAttackVariant = false;
 	ERiftHitReactDirection LastHitReactDirection = ERiftHitReactDirection::Front;
 	TWeakObjectPtr<UAnimMontage> ActiveSpawnIntroMontage;
 	TWeakObjectPtr<UAnimMontage> ActiveStaggeredMontage;
+	TWeakObjectPtr<UAnimMontage> ActiveHitRetreatMontage;
+	TWeakObjectPtr<AActor> CurrentMeleeAttackTarget;
 	TSet<TObjectKey<AActor>> HitPlayersThisAttack;
+	FRiftEnemyMeleeAttackVariant CurrentMeleeAttackVariant;
 };

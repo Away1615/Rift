@@ -8,22 +8,28 @@
 class UAnimMontage;
 class URiftCombatCueConfig;
 
-UCLASS(BlueprintType, PrioritizeCategories=("Ability", "Melee", "Damage", "Feedback", "Poise"))
-class RIFT_API UEnemyMeleeAttackAbilityConfig : public URiftAbilityConfig
+USTRUCT(BlueprintType)
+struct FRiftEnemyMeleeAttackVariant
 {
 	GENERATED_BODY()
 
-public:
-	UEnemyMeleeAttackAbilityConfig();
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Melee")
+	FName AttackName;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Melee")
 	TObjectPtr<UAnimMontage> AttackMontage;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Melee")
-	float AttackRange = 200.0f;
+	float MinRange = 0.0f;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Melee")
-	float AttackCooldown = 2.5f;
+	float MaxRange = 200.0f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Melee")
+	float AttackCooldown = 2.0f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Melee")
+	float Weight = 1.0f;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Melee")
 	float HitboxRadius = 120.0f;
@@ -39,6 +45,27 @@ public:
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Feedback")
 	TObjectPtr<URiftCombatCueConfig> CombatCueConfig;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="MotionWarping")
+	bool bUseMotionWarping = false;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="MotionWarping", meta=(EditCondition="bUseMotionWarping"))
+	FName MotionWarpTargetName = TEXT("EnemyMeleeTarget");
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="MotionWarping", meta=(EditCondition="bUseMotionWarping", ClampMin="0.0"))
+	float MotionWarpStopDistance = 120.0f;
+};
+
+UCLASS(BlueprintType, PrioritizeCategories=("Ability", "Melee", "Damage", "Feedback", "Poise"))
+class RIFT_API UEnemyMeleeAttackAbilityConfig : public URiftAbilityConfig
+{
+	GENERATED_BODY()
+
+public:
+	UEnemyMeleeAttackAbilityConfig();
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Melee")
+	TArray<FRiftEnemyMeleeAttackVariant> AttackVariants;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Poise")
 	float PoiseBreakStaggerDuration = 1.2f;

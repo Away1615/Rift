@@ -41,17 +41,19 @@ void UBTService_RiftUpdateEnemyTarget::UpdateEnemyTarget(UBehaviorTreeComponent&
 	UBlackboardComponent* BlackboardComponent = OwnerComp.GetBlackboardComponent();
 	if (!AIController || !EnemyCharacter || !World || !BlackboardComponent) return;
 
-	if (EnemyCharacter->IsDeadForAI() || EnemyCharacter->IsStaggeredForAI())
+	if (EnemyCharacter->IsDeadForAI() || EnemyCharacter->IsStaggeredForAI() || EnemyCharacter->IsAttackingForAI())
 	{
 		BlackboardComponent->ClearValue(TargetActorKey.SelectedKeyName);
 		BlackboardComponent->SetValueAsFloat(DistanceToTargetKey.SelectedKeyName, 0.0f);
 		AIController->StopMovement();
+		AIController->ClearFocus(EAIFocusPriority::Gameplay);
 		return;
 	}
 
 	if (EnemyCharacter->IsIntroForAI())
 	{
 		AIController->StopMovement();
+		AIController->ClearFocus(EAIFocusPriority::Gameplay);
 		return;
 	}
 
@@ -85,6 +87,7 @@ void UBTService_RiftUpdateEnemyTarget::UpdateEnemyTarget(UBehaviorTreeComponent&
 		BlackboardComponent->ClearValue(TargetActorKey.SelectedKeyName);
 		BlackboardComponent->SetValueAsFloat(DistanceToTargetKey.SelectedKeyName, 0.0f);
 		AIController->StopMovement();
+		AIController->ClearFocus(EAIFocusPriority::Gameplay);
 		return;
 	}
 
@@ -93,4 +96,5 @@ void UBTService_RiftUpdateEnemyTarget::UpdateEnemyTarget(UBehaviorTreeComponent&
 		DistanceToTargetKey.SelectedKeyName,
 		FMath::Sqrt(ClosestDistanceSq)
 	);
+	AIController->SetFocus(ClosestPlayer);
 }
