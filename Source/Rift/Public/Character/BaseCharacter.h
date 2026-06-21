@@ -10,6 +10,7 @@
 
 class UStaticMesh;
 class UStaticMeshComponent;
+class URiftCombatCueConfig;
 
 UCLASS(Abstract)
 class RIFT_API ABaseCharacter : public ACharacter
@@ -21,6 +22,14 @@ public:
 
 	void ApplyWeapons(const TMap<ERiftWeaponSlot, TObjectPtr<UStaticMesh>>& Weapons);
 	UStaticMeshComponent* GetWeaponMesh(ERiftWeaponSlot Slot) const;
+
+	UFUNCTION(NetMulticast, Unreliable)
+	void Multicast_PlayCombatImpact(
+		URiftCombatCueConfig* CombatCueConfig,
+		FVector_NetQuantize ImpactLocation,
+		FVector_NetQuantizeNormal ImpactNormal,
+		bool bBlocked
+	);
 
 	UFUNCTION(BlueprintNativeEvent, Category="Death")
 	void OnDeathVisual(ERiftHitReactDirection Direction);

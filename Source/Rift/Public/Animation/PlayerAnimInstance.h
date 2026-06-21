@@ -8,7 +8,6 @@
 #include "PlayerAnimInstance.generated.h"
 
 class APlayerCharacter;
-class UPlayerAnimationConfig;
 
 /**
  *
@@ -27,9 +26,6 @@ protected:
 
 	UPROPERTY(BlueprintReadOnly, Category="Character")
 	TObjectPtr<APlayerCharacter> PlayerCharacter;
-
-	UPROPERTY(BlueprintReadOnly, Category="Animation")
-	TObjectPtr<UPlayerAnimationConfig> AnimationConfig;
 
 	UPROPERTY(BlueprintReadOnly, Category="Hit")
 	ERiftHitReactDirection LastHitReactDirection = ERiftHitReactDirection::Front;

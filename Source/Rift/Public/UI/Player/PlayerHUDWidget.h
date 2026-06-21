@@ -27,9 +27,6 @@ protected:
 	void OnHealthChanged(float Current, float Max);
 
 	UFUNCTION(BlueprintImplementableEvent, Category="HUD")
-	void OnStaminaChanged(float Current, float Max);
-
-	UFUNCTION(BlueprintImplementableEvent, Category="HUD")
 	void OnUltimateChargeChanged(float Current, float Max);
 
 	UFUNCTION(BlueprintImplementableEvent, Category="HUD|Respawn")
@@ -45,7 +42,6 @@ private:
 	void UnbindFromPlayerState();
 	void RefreshAll();
 	void HandleHealthChanged(const FOnAttributeChangeData& Data);
-	void HandleStaminaChanged(const FOnAttributeChangeData& Data);
 	void HandleUltimateChargeChanged(const FOnAttributeChangeData& Data);
 
 	UFUNCTION()

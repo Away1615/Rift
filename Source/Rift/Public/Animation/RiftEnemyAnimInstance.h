@@ -8,8 +8,7 @@
 #include "RiftEnemyAnimInstance.generated.h"
 
 class AEnemyCharacter;
-class UAnimSequence;
-class UEnemyAnimationConfig;
+class UEnemyCharacterConfig;
 
 UCLASS()
 class RIFT_API URiftEnemyAnimInstance : public UAnimInstance
@@ -30,7 +29,7 @@ protected:
 	TObjectPtr<AEnemyCharacter> EnemyCharacter;
 
 	UPROPERTY(BlueprintReadOnly, Category="Animation")
-	TObjectPtr<UEnemyAnimationConfig> AnimationConfig;
+	TObjectPtr<UEnemyCharacterConfig> EnemyConfig;
 
 	UPROPERTY(BlueprintReadOnly, Category="State")
 	bool bIsDead = false;
@@ -40,13 +39,4 @@ protected:
 
 	UPROPERTY(BlueprintReadOnly, Category="Hit")
 	ERiftHitReactDirection LastHitReactDirection = ERiftHitReactDirection::Front;
-
-	UPROPERTY(BlueprintReadOnly, Category="Staggered")
-	TObjectPtr<UAnimSequence> StaggeredStartSequence;
-
-	UPROPERTY(BlueprintReadOnly, Category="Staggered")
-	TObjectPtr<UAnimSequence> StaggeredLoopSequence;
-
-	UPROPERTY(BlueprintReadOnly, Category="Staggered")
-	TObjectPtr<UAnimSequence> StaggeredEndSequence;
 };

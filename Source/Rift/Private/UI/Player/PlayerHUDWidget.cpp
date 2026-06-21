@@ -24,8 +24,6 @@ void UPlayerHUDWidget::NativeDestruct()
 	{
 		ASC->GetGameplayAttributeValueChangeDelegate(URiftPlayerAttributeSet::GetHealthAttribute()).RemoveAll(this);
 		ASC->GetGameplayAttributeValueChangeDelegate(URiftPlayerAttributeSet::GetMaxHealthAttribute()).RemoveAll(this);
-		ASC->GetGameplayAttributeValueChangeDelegate(URiftPlayerAttributeSet::GetStaminaAttribute()).RemoveAll(this);
-		ASC->GetGameplayAttributeValueChangeDelegate(URiftPlayerAttributeSet::GetMaxStaminaAttribute()).RemoveAll(this);
 		ASC->GetGameplayAttributeValueChangeDelegate(URiftResourceAttributeSet::GetUltimateChargeAttribute()).RemoveAll(this);
 		ASC->GetGameplayAttributeValueChangeDelegate(URiftResourceAttributeSet::GetMaxUltimateChargeAttribute()).RemoveAll(this);
 	}
@@ -89,14 +87,6 @@ void UPlayerHUDWidget::BindToAbilitySystem(UAbilitySystemComponent* ASC)
 		this,
 		&UPlayerHUDWidget::HandleHealthChanged
 	);
-	ASC->GetGameplayAttributeValueChangeDelegate(URiftPlayerAttributeSet::GetStaminaAttribute()).AddUObject(
-		this,
-		&UPlayerHUDWidget::HandleStaminaChanged
-	);
-	ASC->GetGameplayAttributeValueChangeDelegate(URiftPlayerAttributeSet::GetMaxStaminaAttribute()).AddUObject(
-		this,
-		&UPlayerHUDWidget::HandleStaminaChanged
-	);
 	ASC->GetGameplayAttributeValueChangeDelegate(URiftResourceAttributeSet::GetUltimateChargeAttribute()).AddUObject(
 		this,
 		&UPlayerHUDWidget::HandleUltimateChargeChanged
@@ -142,10 +132,6 @@ void UPlayerHUDWidget::RefreshAll()
 	OnHealthChanged(
 		ASC->GetNumericAttribute(URiftPlayerAttributeSet::GetHealthAttribute()),
 		ASC->GetNumericAttribute(URiftPlayerAttributeSet::GetMaxHealthAttribute())
-	);
-	OnStaminaChanged(
-		ASC->GetNumericAttribute(URiftPlayerAttributeSet::GetStaminaAttribute()),
-		ASC->GetNumericAttribute(URiftPlayerAttributeSet::GetMaxStaminaAttribute())
 	);
 	OnUltimateChargeChanged(
 		ASC->GetNumericAttribute(URiftResourceAttributeSet::GetUltimateChargeAttribute()),
@@ -209,17 +195,6 @@ void UPlayerHUDWidget::HandleHealthChanged(const FOnAttributeChangeData&)
 	OnHealthChanged(
 		ASC->GetNumericAttribute(URiftPlayerAttributeSet::GetHealthAttribute()),
 		ASC->GetNumericAttribute(URiftPlayerAttributeSet::GetMaxHealthAttribute())
-	);
-}
-
-void UPlayerHUDWidget::HandleStaminaChanged(const FOnAttributeChangeData&)
-{
-	UAbilitySystemComponent* ASC = AbilitySystemComponent.Get();
-	if (!ASC) return;
-
-	OnStaminaChanged(
-		ASC->GetNumericAttribute(URiftPlayerAttributeSet::GetStaminaAttribute()),
-		ASC->GetNumericAttribute(URiftPlayerAttributeSet::GetMaxStaminaAttribute())
 	);
 }
 

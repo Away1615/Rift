@@ -3,9 +3,6 @@
 #include "Camera/PlayerCameraManager.h"
 #include "Camera/RiftHitCameraShake.h"
 #include "Character/PlayerCharacter.h"
-#include "Combat/RiftWeaponTraceComponent.h"
-#include "Data/Player/Combat/PlayerCombatConfig.h"
-#include "Data/Player/PlayerClassConfig.h"
 #include "Engine/World.h"
 #include "GameFramework/PlayerController.h"
 #include "TimerManager.h"
@@ -16,37 +13,39 @@ URiftCombatFeedbackComponent::URiftCombatFeedbackComponent()
 	SetIsReplicatedByDefault(true);
 }
 
-void URiftCombatFeedbackComponent::Multicast_PlayMeleeHitFeedback_Implementation(AActor* HitEnemy)
+void URiftCombatFeedbackComponent::Multicast_PlayMeleeHitFeedback_Implementation(
+	AActor* HitEnemy,
+	const bool bPlayHitStop,
+	const FRiftMeleeHitStopConfig HitStopConfig,
+	const bool bPlayCameraShake,
+	TSubclassOf<UCameraShakeBase> CameraShakeClass,
+	const FVector2D CameraShakeDir
+)
 {
 	APlayerCharacter* OwnerCharacter = Cast<APlayerCharacter>(GetOwner());
 	if (!OwnerCharacter) return;
 
-	const UPlayerClassConfig* ClassConfig = OwnerCharacter->GetPlayerClassConfig();
-	const UPlayerCombatConfig* CombatConfig = ClassConfig ? ClassConfig->PlayerCombatConfig : nullptr;
-	if (!CombatConfig) return;
-
-	const float TimeDilation = FMath::Clamp(CombatConfig->HitStopTimeDilation, 0.01f, 1.0f);
-	const float Duration = FMath::Max(0.0f, CombatConfig->HitStopDuration);
-	if (Duration > 0.0f)
+	if (bPlayHitStop && HitStopConfig.bEnableHitStop)
 	{
-		ApplyHitStopToActor(OwnerCharacter, TimeDilation, Duration);
-
-		if (HitEnemy)
+		const float TimeDilation = FMath::Clamp(HitStopConfig.TimeDilation, 0.01f, 1.0f);
+		const float Duration = FMath::Max(0.0f, HitStopConfig.Duration);
+		if (Duration > 0.0f)
 		{
-			ApplyHitStopToActor(HitEnemy, TimeDilation, Duration);
+			ApplyHitStopToActor(OwnerCharacter, TimeDilation, Duration);
+
+			if (HitEnemy)
+			{
+				ApplyHitStopToActor(HitEnemy, TimeDilation, Duration);
+			}
 		}
 	}
 
+	if (!bPlayCameraShake) return;
 	if (!OwnerCharacter->IsLocallyControlled()) return;
 
 	APlayerController* PlayerController = Cast<APlayerController>(OwnerCharacter->GetController());
 	if (!PlayerController || !PlayerController->PlayerCameraManager) return;
 
-	URiftWeaponTraceComponent* WeaponTraceComponent = OwnerCharacter->GetWeaponTraceComponent();
-	if (!WeaponTraceComponent) return;
-
-	TSubclassOf<UCameraShakeBase> CameraShakeClass = WeaponTraceComponent->GetIncomingCameraShake();
-	FVector2D ShakeDirection = WeaponTraceComponent->GetIncomingCameraShakeDir();
 	if (!CameraShakeClass) return;
 
 	UCameraShakeBase* CameraShake = PlayerController->PlayerCameraManager->StartCameraShake(CameraShakeClass, 1.0f);
@@ -54,7 +53,7 @@ void URiftCombatFeedbackComponent::Multicast_PlayMeleeHitFeedback_Implementation
 	{
 		if (URiftHitCameraShakePattern* Pattern = Cast<URiftHitCameraShakePattern>(CameraShake->GetRootShakePattern()))
 		{
-			Pattern->SetShakeDirection(ShakeDirection);
+			Pattern->SetShakeDirection(CameraShakeDir);
 		}
 	}
 }

@@ -8,7 +8,6 @@
 #include "AbilitySystem/Effects/GE_GainResource.h"
 #include "AbilitySystem/RiftAbilitySystemComponent.h"
 #include "AbilitySystem/Attributes/RiftEnemyAttributeSet.h"
-#include "AbilitySystem/Attributes/RiftPlayerAttributeSet.h"
 #include "AbilitySystem/RiftGameplayTags.h"
 #include "AbilitySystemInterface.h"
 #include "Character/PlayerCharacter.h"
@@ -17,8 +16,9 @@
 #include "Components/SkeletalMeshComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Components/WidgetComponent.h"
-#include "Data/Enemy/Animation/EnemyAnimationConfig.h"
-#include "Data/Enemy/Combat/EnemyCombatConfig.h"
+#include "Data/Ability/EnemyMeleeAttackAbilityConfig.h"
+#include "Data/Ability/EnemyShieldBlockAbilityConfig.h"
+#include "Data/Ability/RiftAbilityConfig.h"
 #include "Data/Enemy/EnemyCharacterConfig.h"
 #include "Debug/Logger.h"
 #include "Debug/RiftDebugCVars.h"
@@ -64,7 +64,7 @@ AEnemyCharacter::AEnemyCharacter()
 void AEnemyCharacter::PostInitializeComponents()
 {
 	Super::PostInitializeComponents();
-	ApplyAnimationConfig();
+	ApplyPresentationConfig();
 	ApplyWeaponsFromConfig();
 }
 
@@ -129,9 +129,40 @@ UAbilitySystemComponent* AEnemyCharacter::GetAbilitySystemComponent() const
 	return AbilitySystemComponent;
 }
 
-const UEnemyCombatConfig* AEnemyCharacter::GetEnemyCombatConfig() const
+const UEnemyMeleeAttackAbilityConfig* AEnemyCharacter::GetEnemyMeleeAttackAbilityConfig() const
 {
-	return EnemyCharacterConfig ? EnemyCharacterConfig->EnemyCombatConfig : nullptr;
+	if (!EnemyCharacterConfig)
+	{
+		return nullptr;
+	}
+
+	for (const URiftAbilityConfig* AbilityConfig : EnemyCharacterConfig->AbilityConfigs)
+	{
+		if (const UEnemyMeleeAttackAbilityConfig* MeleeConfig = Cast<UEnemyMeleeAttackAbilityConfig>(AbilityConfig))
+		{
+			return MeleeConfig;
+		}
+	}
+
+	return nullptr;
+}
+
+const UEnemyShieldBlockAbilityConfig* AEnemyCharacter::GetEnemyShieldBlockAbilityConfig() const
+{
+	if (!EnemyCharacterConfig)
+	{
+		return nullptr;
+	}
+
+	for (const URiftAbilityConfig* AbilityConfig : EnemyCharacterConfig->AbilityConfigs)
+	{
+		if (const UEnemyShieldBlockAbilityConfig* ShieldBlockConfig = Cast<UEnemyShieldBlockAbilityConfig>(AbilityConfig))
+		{
+			return ShieldBlockConfig;
+		}
+	}
+
+	return nullptr;
 }
 
 bool AEnemyCharacter::IsStaggeredForAnimation() const
@@ -165,25 +196,19 @@ bool AEnemyCharacter::IsAttackingForAI() const
 bool AEnemyCharacter::IsIntroForAI() const
 {
 	return AbilitySystemComponent &&
-		AbilitySystemComponent->HasMatchingGameplayTag(RiftGameplayTags::State_Intro);
-}
-
-bool AEnemyCharacter::IsDiscoveringForAI() const
-{
-	return AbilitySystemComponent &&
-		AbilitySystemComponent->HasMatchingGameplayTag(RiftGameplayTags::State_Discovering);
+		AbilitySystemComponent->HasMatchingGameplayTag(RiftGameplayTags::State_Enemy_Intro);
 }
 
 bool AEnemyCharacter::CanStartMeleeAttack(AActor* TargetActor) const
 {
-	const UEnemyCombatConfig* CombatConfig = GetEnemyCombatConfig();
+	const UEnemyMeleeAttackAbilityConfig* MeleeConfig = GetEnemyMeleeAttackAbilityConfig();
 	const UWorld* World = GetWorld();
 	if (!HasAuthority() ||
 		bIsDead ||
 		IsIntroForAI() ||
-		IsDiscoveringForAI() ||
 		!AbilitySystemComponent ||
-		!CombatConfig ||
+		!MeleeConfig ||
+		!MeleeConfig->AttackMontage ||
 		!TargetActor ||
 		!World)
 	{
@@ -195,7 +220,7 @@ bool AEnemyCharacter::CanStartMeleeAttack(AActor* TargetActor) const
 
 	FVector ToTarget = TargetActor->GetActorLocation() - GetActorLocation();
 	ToTarget.Z = 0.0f;
-	if (ToTarget.SizeSquared() > FMath::Square(CombatConfig->AttackRange)) return false;
+	if (ToTarget.SizeSquared() > FMath::Square(MeleeConfig->AttackRange)) return false;
 	if (World->GetTimeSeconds() < NextAttackTime) return false;
 
 	return HasAuthority() &&
@@ -203,7 +228,7 @@ bool AEnemyCharacter::CanStartMeleeAttack(AActor* TargetActor) const
 		AbilitySystemComponent &&
 		!IsStaggeredForAI() &&
 		!IsIntroForAI() &&
-		!IsDiscoveringForAI() &&
+		!IsBlocking() &&
 		!IsAttackingForAI();
 }
 
@@ -223,11 +248,11 @@ bool AEnemyCharacter::TryStartMeleeAttack(AActor* TargetActor)
 	const bool bActivated = AbilitySystemComponent->TryActivateAbilitiesByTag(AttackTags);
 	if (bActivated)
 	{
-		const UEnemyCombatConfig* CombatConfig = GetEnemyCombatConfig();
+		const UEnemyMeleeAttackAbilityConfig* MeleeConfig = GetEnemyMeleeAttackAbilityConfig();
 		const UWorld* World = GetWorld();
-		if (CombatConfig && World)
+		if (MeleeConfig && World)
 		{
-			NextAttackTime = World->GetTimeSeconds() + CombatConfig->AttackCooldown;
+			NextAttackTime = World->GetTimeSeconds() + MeleeConfig->AttackCooldown;
 		}
 	}
 
@@ -236,24 +261,24 @@ bool AEnemyCharacter::TryStartMeleeAttack(AActor* TargetActor)
 
 bool AEnemyCharacter::CanStartShieldBlock(AActor* TargetActor) const
 {
-	const UEnemyCombatConfig* CombatConfig = GetEnemyCombatConfig();
+	const UEnemyShieldBlockAbilityConfig* ShieldBlockConfig = GetEnemyShieldBlockAbilityConfig();
 	const UWorld* World = GetWorld();
 	if (!HasAuthority() ||
 		!TargetActor ||
 		bIsDead ||
 		IsStaggeredForAI() ||
 		IsIntroForAI() ||
-		IsDiscoveringForAI() ||
+		IsAttackingForAI() ||
 		IsBlocking() ||
-		!CombatConfig ||
-		!CombatConfig->ShieldBlockMontage ||
+		!ShieldBlockConfig ||
+		!ShieldBlockConfig->ShieldBlockMontage ||
 		!AbilitySystemComponent ||
 		!World)
 	{
 		return false;
 	}
 
-	const float ShieldBlockCooldown = FMath::Max(0.0f, CombatConfig->ShieldBlockCooldown);
+	const float ShieldBlockCooldown = FMath::Max(0.0f, ShieldBlockConfig->ShieldBlockCooldown);
 	if (World->GetTimeSeconds() < LastShieldBlockTime + ShieldBlockCooldown)
 	{
 		return false;
@@ -278,51 +303,6 @@ bool AEnemyCharacter::TryStartShieldBlock(AActor* TargetActor)
 	}
 
 	return bActivated;
-}
-
-bool AEnemyCharacter::CanPlayDiscoverReaction(AActor* TargetActor) const
-{
-	return HasAuthority() &&
-		TargetActor &&
-		!bIsDead &&
-		!bHasPlayedDiscoverReaction &&
-		!IsStaggeredForAI() &&
-		!IsIntroForAI() &&
-		!IsDiscoveringForAI();
-}
-
-void AEnemyCharacter::TryPlayDiscoverReaction(AActor* TargetActor)
-{
-	if (!CanPlayDiscoverReaction(TargetActor)) return;
-
-	bHasPlayedDiscoverReaction = true;
-
-	const UEnemyAnimationConfig* AnimationConfig = EnemyCharacterConfig ? EnemyCharacterConfig->EnemyAnimationConfig : nullptr;
-	UAnimMontage* DiscoverMontage = AnimationConfig ? AnimationConfig->DiscoverMontage : nullptr;
-	if (!DiscoverMontage) return;
-
-	SetDiscoveringState(true);
-	StopAIMovement();
-	Multicast_PlayDiscover();
-
-	const float DiscoverDuration = DiscoverMontage->GetPlayLength();
-	if (DiscoverDuration <= 0.0f)
-	{
-		FinishDiscoverReaction();
-		return;
-	}
-
-	if (UWorld* World = GetWorld())
-	{
-		World->GetTimerManager().ClearTimer(DiscoverTimerHandle);
-		World->GetTimerManager().SetTimer(
-			DiscoverTimerHandle,
-			this,
-			&AEnemyCharacter::FinishDiscoverReaction,
-			DiscoverDuration,
-			false
-		);
-	}
 }
 
 void AEnemyCharacter::HandlePoiseHit(const bool bPoiseBroken, const FVector& InstigatorLocation)
@@ -350,15 +330,51 @@ void AEnemyCharacter::HandlePoiseHit(const bool bPoiseBroken, const FVector& Ins
 
 	if (bPoiseBroken)
 	{
-		const UEnemyCombatConfig* CombatConfig = EnemyCharacterConfig ? EnemyCharacterConfig->EnemyCombatConfig : nullptr;
-		const float StaggeredDuration = CombatConfig ? CombatConfig->PoiseBreakStaggerDuration : 1.2f;
+		const UEnemyMeleeAttackAbilityConfig* MeleeConfig = GetEnemyMeleeAttackAbilityConfig();
+		const float StaggeredDuration = MeleeConfig ? MeleeConfig->PoiseBreakStaggerDuration : 1.2f;
 		EnterStaggered(StaggeredDuration);
+		return;
 	}
-	else
+
+	if (IsBlocking())
 	{
-		const ERiftHitReactDirection Direction = CalculateHitReactDirection(this, InstigatorLocation);
-		Multicast_PlayHit(Direction);
+		return;
 	}
+
+	const ERiftHitReactDirection Direction = CalculateHitReactDirection(this, InstigatorLocation);
+	Multicast_PlayHit(Direction);
+}
+
+void AEnemyCharacter::HandleAttributeDeath(AActor* DeathInstigator)
+{
+	HandleDeath(DeathInstigator);
+}
+
+void AEnemyCharacter::HandleAttributePoiseHit(const bool bPoiseBroken, AActor* DamageInstigator)
+{
+	const FVector InstigatorLocation = DamageInstigator
+		? DamageInstigator->GetActorLocation()
+		: FVector::ZeroVector;
+	HandlePoiseHit(bPoiseBroken, InstigatorLocation);
+}
+
+void AEnemyCharacter::HandleAttributeDamageNumber(
+	const float DamageAmount,
+	const bool bBlocked,
+	const FVector& WorldLocation
+)
+{
+	OnDamageNumber(DamageAmount, bBlocked, WorldLocation);
+}
+
+float AEnemyCharacter::GetAttributeBlockingPoiseDamageMultiplier() const
+{
+	return FMath::Clamp(CurrentBlockingPoiseDamageMultiplier, 0.0f, 1.0f);
+}
+
+void AEnemyCharacter::SetCurrentBlockingPoiseDamageMultiplier(const float NewMultiplier)
+{
+	CurrentBlockingPoiseDamageMultiplier = FMath::Clamp(NewMultiplier, 0.0f, 1.0f);
 }
 
 void AEnemyCharacter::BeginAttackHitWindow()
@@ -373,11 +389,11 @@ void AEnemyCharacter::TickAttackHitWindow()
 	if (!HasAuthority() || bIsDead) return;
 
 	UWorld* World = GetWorld();
-	const UEnemyCombatConfig* CombatConfig = EnemyCharacterConfig ? EnemyCharacterConfig->EnemyCombatConfig : nullptr;
-	if (!World || !CombatConfig || !AbilitySystemComponent) return;
+	const UEnemyMeleeAttackAbilityConfig* MeleeConfig = GetEnemyMeleeAttackAbilityConfig();
+	if (!World || !MeleeConfig || !AbilitySystemComponent) return;
 
-	const FVector HitboxCenter = GetActorLocation() + GetActorForwardVector() * CombatConfig->HitboxForwardOffset;
-	const float HitboxRadius = FMath::Max(0.0f, CombatConfig->HitboxRadius);
+	const FVector HitboxCenter = GetActorLocation() + GetActorForwardVector() * MeleeConfig->HitboxForwardOffset;
+	const float HitboxRadius = FMath::Max(0.0f, MeleeConfig->HitboxRadius);
 	if (HitboxRadius <= 0.0f) return;
 
 	TArray<FOverlapResult> OverlapResults;
@@ -407,6 +423,9 @@ void AEnemyCharacter::TickAttackHitWindow()
 		UAbilitySystemComponent* TargetAbilitySystemComponent = PlayerCharacter->GetAbilitySystemComponent();
 		if (!TargetAbilitySystemComponent) continue;
 
+		const bool bTargetBlocking = TargetAbilitySystemComponent->HasMatchingGameplayTag(RiftGameplayTags::State_Blocking);
+		const bool bTargetInvincible = TargetAbilitySystemComponent->HasMatchingGameplayTag(RiftGameplayTags::State_Invincible);
+
 		FGameplayEffectContextHandle EffectContext = AbilitySystemComponent->MakeEffectContext();
 		EffectContext.AddInstigator(this, this);
 		EffectContext.AddSourceObject(this);
@@ -421,51 +440,39 @@ void AEnemyCharacter::TickAttackHitWindow()
 		HitPlayersThisAttack.Add(PlayerKey);
 		DamageSpecHandle.Data->SetSetByCallerMagnitude(
 			RiftGameplayTags::SetByCaller_Damage,
-			CombatConfig->AttackDamage
-		);
-		float PlayerPoiseDamage = CombatConfig->AttackPoiseDamage;
-		if (CombatConfig->bForcePlayerPoiseBreak)
-		{
-			const float CurrentPoise = TargetAbilitySystemComponent->GetNumericAttribute(
-				URiftPlayerAttributeSet::GetPoiseAttribute()
-			);
-			PlayerPoiseDamage = FMath::Max(PlayerPoiseDamage, CurrentPoise);
-			if (PlayerPoiseDamage <= 0.0f)
-			{
-				PlayerPoiseDamage = 1.0f;
-			}
-		}
-		DamageSpecHandle.Data->SetSetByCallerMagnitude(
-			RiftGameplayTags::SetByCaller_PoiseDamage,
-			PlayerPoiseDamage
+			MeleeConfig->AttackDamage
 		);
 		AbilitySystemComponent->ApplyGameplayEffectSpecToTarget(
 			*DamageSpecHandle.Data.Get(),
 			TargetAbilitySystemComponent
 		);
 
-		FVector HitNormal = GetActorLocation() - PlayerCharacter->GetActorLocation();
-		HitNormal.Z = 0.0f;
-		if (!HitNormal.Normalize())
+		if (MeleeConfig->CombatCueConfig && !bTargetInvincible)
 		{
-			HitNormal = -GetActorForwardVector();
+			FVector ImpactNormal = (PlayerCharacter->GetActorLocation() - GetActorLocation()).GetSafeNormal();
+			if (ImpactNormal.IsNearlyZero())
+			{
+				ImpactNormal = FVector::UpVector;
+			}
+
+			const FVector ImpactLocation =
+				PlayerCharacter->GetActorLocation() + FVector::UpVector * PlayerCharacter->GetSimpleCollisionHalfHeight();
+			PlayerCharacter->Multicast_PlayCombatImpact(
+				MeleeConfig->CombatCueConfig,
+				ImpactLocation,
+				ImpactNormal,
+				bTargetBlocking
+			);
 		}
 
-		FGameplayCueParameters CueParameters;
-		CueParameters.Location = PlayerCharacter->GetActorLocation();
-		CueParameters.Normal = HitNormal;
-		CueParameters.Instigator = this;
-		CueParameters.EffectCauser = this;
-		TargetAbilitySystemComponent->ExecuteGameplayCue(
-			RiftGameplayTags::GameplayCue_Combat_PlayerHit,
-			CueParameters
-		);
-
-		PlayerCharacter->HandleHitFeedback(
-			CombatConfig->PlayerHitFeedbackPolicy,
-			this,
-			CombatConfig->AttackDamage
-		);
+		if (!bTargetBlocking && !bTargetInvincible)
+		{
+			PlayerCharacter->HandlePlayerHitReaction(
+				MeleeConfig->PlayerHitReaction,
+				this,
+				MeleeConfig->AttackDamage
+			);
+		}
 	}
 
 	if (RiftDebugCVars::IsCombatDebugEnabled())
@@ -485,10 +492,7 @@ void AEnemyCharacter::Multicast_PlayHit_Implementation(const ERiftHitReactDirect
 {
 	LastHitReactDirection = Direction;
 
-	const UEnemyAnimationConfig* AnimationConfig = EnemyCharacterConfig ? EnemyCharacterConfig->EnemyAnimationConfig : nullptr;
-	if (!AnimationConfig) return;
-
-	UAnimMontage* HitMontage = AnimationConfig->HitMontage;
+	UAnimMontage* HitMontage = EnemyCharacterConfig ? EnemyCharacterConfig->HitMontage : nullptr;
 	if (!HitMontage) return;
 
 	USkeletalMeshComponent* CharacterMesh = GetMesh();
@@ -506,9 +510,25 @@ void AEnemyCharacter::Multicast_PlaySpawnIntro_Implementation()
 	PlaySpawnIntroMontage();
 }
 
-void AEnemyCharacter::Multicast_PlayDiscover_Implementation()
+void AEnemyCharacter::Multicast_PlayStaggered_Implementation()
 {
-	PlayDiscoverMontage();
+	UAnimMontage* StaggeredMontage = EnemyCharacterConfig ? EnemyCharacterConfig->StaggeredMontage : nullptr;
+	if (!StaggeredMontage) return;
+
+	USkeletalMeshComponent* CharacterMesh = GetMesh();
+	if (!CharacterMesh) return;
+
+	UAnimInstance* AnimInstance = CharacterMesh->GetAnimInstance();
+	if (!AnimInstance) return;
+
+	AnimInstance->Montage_Play(StaggeredMontage);
+
+	if (HasAuthority())
+	{
+		FOnMontageEnded EndDelegate;
+		EndDelegate.BindUObject(this, &AEnemyCharacter::OnStaggeredMontageEnded);
+		AnimInstance->Montage_SetEndDelegate(EndDelegate, StaggeredMontage);
+	}
 }
 
 void AEnemyCharacter::HandleDeath(AActor* Killer)
@@ -517,8 +537,8 @@ void AEnemyCharacter::HandleDeath(AActor* Killer)
 
 	bIsDead = true;
 	SetBlockingState(false);
+	SetCurrentBlockingPoiseDamageMultiplier(1.0f);
 	SetIntroState(false);
-	SetDiscoveringState(false);
 
 	if (HealthBarWidgetComp)
 	{
@@ -527,8 +547,9 @@ void AEnemyCharacter::HandleDeath(AActor* Killer)
 
 	GetWorldTimerManager().ClearTimer(StaggeredTimerHandle);
 	GetWorldTimerManager().ClearTimer(SpawnIntroTimerHandle);
-	GetWorldTimerManager().ClearTimer(DiscoverTimerHandle);
 	GetWorldTimerManager().ClearTimer(PoiseRegenTimerHandle);
+	ActiveSpawnIntroMontage.Reset();
+	ActiveStaggeredMontage.Reset();
 	HitPlayersThisAttack.Reset();
 	CustomTimeDilation = 1.0f;
 
@@ -604,8 +625,7 @@ void AEnemyCharacter::Multicast_PlayDeath_Implementation(const ERiftHitReactDire
 		HealthBarWidgetComp->SetVisibility(false);
 	}
 
-	const UEnemyAnimationConfig* AnimationConfig = EnemyCharacterConfig ? EnemyCharacterConfig->EnemyAnimationConfig : nullptr;
-	UAnimMontage* DeathMontage = AnimationConfig ? AnimationConfig->DeathMontage : nullptr;
+	UAnimMontage* DeathMontage = EnemyCharacterConfig ? EnemyCharacterConfig->DeathMontage : nullptr;
 	if (DeathMontage)
 	{
 		if (USkeletalMeshComponent* CharacterMesh = GetMesh())
@@ -626,7 +646,7 @@ void AEnemyCharacter::FinishDeath()
 	Destroy();
 }
 
-void AEnemyCharacter::ApplyAnimationConfig() const
+void AEnemyCharacter::ApplyPresentationConfig() const
 {
 	if (!EnemyCharacterConfig)
 	{
@@ -638,33 +658,22 @@ void AEnemyCharacter::ApplyAnimationConfig() const
 		return;
 	}
 
-	const UEnemyAnimationConfig* AnimationConfig = EnemyCharacterConfig->EnemyAnimationConfig;
-	if (!AnimationConfig)
-	{
-		FLogger::Error(
-			this,
-			FString::Printf(TEXT("%s has no EnemyAnimationConfig."), *GetName()),
-			ELogSystem::Animation
-		);
-		return;
-	}
-
 	USkeletalMeshComponent* CharacterMesh = GetMesh();
 	if (!CharacterMesh) return;
 
-	if (AnimationConfig->SkeletalMesh)
+	if (EnemyCharacterConfig->SkeletalMesh)
 	{
-		CharacterMesh->SetSkeletalMesh(AnimationConfig->SkeletalMesh);
+		CharacterMesh->SetSkeletalMesh(EnemyCharacterConfig->SkeletalMesh);
 	}
 
-	if (AnimationConfig->HeadMesh && Head)
+	if (EnemyCharacterConfig->HeadMesh && Head)
 	{
-		Head->SetStaticMesh(AnimationConfig->HeadMesh);
+		Head->SetStaticMesh(EnemyCharacterConfig->HeadMesh);
 	}
 
-	if (AnimationConfig->AnimInstanceClass)
+	if (EnemyCharacterConfig->AnimClass)
 	{
-		CharacterMesh->SetAnimInstanceClass(AnimationConfig->AnimInstanceClass);
+		CharacterMesh->SetAnimInstanceClass(EnemyCharacterConfig->AnimClass);
 	}
 }
 
@@ -678,11 +687,17 @@ void AEnemyCharacter::GrantAbilities()
 {
 	if (!HasAuthority() || !EnemyCharacterConfig || !AbilitySystemComponent) return;
 
-	for (const TSubclassOf<UGameplayAbility>& AbilityClass : EnemyCharacterConfig->GrantedAbilities)
+	TSet<UClass*> GrantedAbilityClasses;
+	for (URiftAbilityConfig* AbilityConfig : EnemyCharacterConfig->AbilityConfigs)
 	{
-		if (!AbilityClass) continue;
+		if (!AbilityConfig || !AbilityConfig->AbilityClass) continue;
 
-		AbilitySystemComponent->GiveAbility(FGameplayAbilitySpec(AbilityClass));
+		UClass* AbilityClass = AbilityConfig->AbilityClass.Get();
+		if (!AbilityClass || GrantedAbilityClasses.Contains(AbilityClass)) continue;
+
+		const FGameplayAbilitySpec AbilitySpec(AbilityConfig->AbilityClass, 1, INDEX_NONE, AbilityConfig);
+		AbilitySystemComponent->GiveAbility(AbilitySpec);
+		GrantedAbilityClasses.Add(AbilityClass);
 	}
 }
 
@@ -701,8 +716,7 @@ void AEnemyCharacter::StartSpawnIntroOrAI()
 {
 	if (!HasAuthority() || bIsDead) return;
 
-	const UEnemyAnimationConfig* AnimationConfig = EnemyCharacterConfig ? EnemyCharacterConfig->EnemyAnimationConfig : nullptr;
-	UAnimMontage* SpawnIntroMontage = AnimationConfig ? AnimationConfig->SpawnIntroMontage : nullptr;
+	UAnimMontage* SpawnIntroMontage = EnemyCharacterConfig ? EnemyCharacterConfig->SpawnIntroMontage : nullptr;
 	if (!SpawnIntroMontage)
 	{
 		StartEnemyBehavior();
@@ -736,14 +750,15 @@ void AEnemyCharacter::FinishSpawnIntro()
 {
 	if (!HasAuthority()) return;
 
+	GetWorldTimerManager().ClearTimer(SpawnIntroTimerHandle);
+	ActiveSpawnIntroMontage.Reset();
 	SetIntroState(false);
 	StartEnemyBehavior();
 }
 
 void AEnemyCharacter::PlaySpawnIntroMontage()
 {
-	const UEnemyAnimationConfig* AnimationConfig = EnemyCharacterConfig ? EnemyCharacterConfig->EnemyAnimationConfig : nullptr;
-	UAnimMontage* SpawnIntroMontage = AnimationConfig ? AnimationConfig->SpawnIntroMontage : nullptr;
+	UAnimMontage* SpawnIntroMontage = EnemyCharacterConfig ? EnemyCharacterConfig->SpawnIntroMontage : nullptr;
 	if (!SpawnIntroMontage) return;
 
 	USkeletalMeshComponent* CharacterMesh = GetMesh();
@@ -753,28 +768,24 @@ void AEnemyCharacter::PlaySpawnIntroMontage()
 	if (!AnimInstance) return;
 
 	AnimInstance->Montage_Play(SpawnIntroMontage);
+
+	if (HasAuthority())
+	{
+		ActiveSpawnIntroMontage = SpawnIntroMontage;
+
+		FOnMontageEnded EndDelegate;
+		EndDelegate.BindUObject(this, &AEnemyCharacter::OnSpawnIntroMontageEnded);
+		AnimInstance->Montage_SetEndDelegate(EndDelegate, SpawnIntroMontage);
+	}
 }
 
-void AEnemyCharacter::FinishDiscoverReaction()
+void AEnemyCharacter::OnSpawnIntroMontageEnded(UAnimMontage* Montage, bool bInterrupted)
 {
 	if (!HasAuthority()) return;
+	if (!Montage || ActiveSpawnIntroMontage.Get() != Montage) return;
+	if (bIsDead) return;
 
-	SetDiscoveringState(false);
-}
-
-void AEnemyCharacter::PlayDiscoverMontage()
-{
-	const UEnemyAnimationConfig* AnimationConfig = EnemyCharacterConfig ? EnemyCharacterConfig->EnemyAnimationConfig : nullptr;
-	UAnimMontage* DiscoverMontage = AnimationConfig ? AnimationConfig->DiscoverMontage : nullptr;
-	if (!DiscoverMontage) return;
-
-	USkeletalMeshComponent* CharacterMesh = GetMesh();
-	if (!CharacterMesh) return;
-
-	UAnimInstance* AnimInstance = CharacterMesh->GetAnimInstance();
-	if (!AnimInstance) return;
-
-	AnimInstance->Montage_Play(DiscoverMontage);
+	FinishSpawnIntro();
 }
 
 void AEnemyCharacter::StopAIMovement()
@@ -800,18 +811,8 @@ void AEnemyCharacter::SetIntroState(const bool bInIntro)
 	if (bInIntro && (bIsDead || IsStaggeredForAI())) return;
 
 	const int32 NewCount = bInIntro ? 1 : 0;
-	AbilitySystemComponent->SetLooseGameplayTagCount(RiftGameplayTags::State_Intro, NewCount);
-	AbilitySystemComponent->SetReplicatedLooseGameplayTagCount(RiftGameplayTags::State_Intro, NewCount);
-}
-
-void AEnemyCharacter::SetDiscoveringState(const bool bInDiscovering)
-{
-	if (!AbilitySystemComponent) return;
-	if (bInDiscovering && (bIsDead || IsStaggeredForAI() || IsIntroForAI())) return;
-
-	const int32 NewCount = bInDiscovering ? 1 : 0;
-	AbilitySystemComponent->SetLooseGameplayTagCount(RiftGameplayTags::State_Discovering, NewCount);
-	AbilitySystemComponent->SetReplicatedLooseGameplayTagCount(RiftGameplayTags::State_Discovering, NewCount);
+	AbilitySystemComponent->SetLooseGameplayTagCount(RiftGameplayTags::State_Enemy_Intro, NewCount);
+	AbilitySystemComponent->SetReplicatedLooseGameplayTagCount(RiftGameplayTags::State_Enemy_Intro, NewCount);
 }
 
 void AEnemyCharacter::SetBlockingState(const bool bInBlocking)
@@ -828,26 +829,39 @@ void AEnemyCharacter::EnterStaggered(const float Duration)
 {
 	if (!HasAuthority() || bIsDead || !AbilitySystemComponent) return;
 
+	if (UWorld* World = GetWorld())
+	{
+		World->GetTimerManager().ClearTimer(StaggeredTimerHandle);
+	}
+
 	SetBlockingState(false);
+	SetCurrentBlockingPoiseDamageMultiplier(1.0f);
 	SetIntroState(false);
-	SetDiscoveringState(false);
 
 	if (UWorld* World = GetWorld())
 	{
 		World->GetTimerManager().ClearTimer(SpawnIntroTimerHandle);
-		World->GetTimerManager().ClearTimer(DiscoverTimerHandle);
 	}
+	ActiveSpawnIntroMontage.Reset();
 
 	FGameplayTagContainer AttackTags;
 	AttackTags.AddTag(RiftGameplayTags::Ability_Enemy_MeleeAttack);
+	AttackTags.AddTag(RiftGameplayTags::Ability_Enemy_ShieldBlock);
 	AbilitySystemComponent->CancelAbilities(&AttackTags);
 
 	SetStaggeredState(true);
 	StopAIMovement();
 
+	UAnimMontage* StaggeredMontage = EnemyCharacterConfig ? EnemyCharacterConfig->StaggeredMontage : nullptr;
+	if (StaggeredMontage)
+	{
+		ActiveStaggeredMontage = StaggeredMontage;
+		Multicast_PlayStaggered();
+		return;
+	}
+
 	if (UWorld* World = GetWorld())
 	{
-		World->GetTimerManager().ClearTimer(StaggeredTimerHandle);
 		World->GetTimerManager().SetTimer(
 			StaggeredTimerHandle,
 			this,
@@ -860,7 +874,10 @@ void AEnemyCharacter::EnterStaggered(const float Duration)
 
 void AEnemyCharacter::ExitStaggered()
 {
-	if (!HasAuthority()) return;
+	if (!HasAuthority() || bIsDead) return;
+
+	GetWorldTimerManager().ClearTimer(StaggeredTimerHandle);
+	ActiveStaggeredMontage.Reset();
 
 	if (AbilitySystemComponent)
 	{
@@ -869,6 +886,17 @@ void AEnemyCharacter::ExitStaggered()
 
 	CustomTimeDilation = 1.0f;
 	StartEnemyBehavior();
+}
+
+void AEnemyCharacter::OnStaggeredMontageEnded(UAnimMontage* Montage, bool bInterrupted)
+{
+	if (!HasAuthority()) return;
+	if (!Montage || ActiveStaggeredMontage.Get() != Montage) return;
+
+	ActiveStaggeredMontage.Reset();
+	if (bIsDead) return;
+
+	ExitStaggered();
 }
 
 void AEnemyCharacter::RestorePoise()

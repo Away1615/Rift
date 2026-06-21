@@ -84,11 +84,14 @@ private:
 	bool IsValidRoomCode(const FString& RoomCode) const;
 
 	void HandleCreateSessionComplete(FName SessionName, bool bWasSuccessful);
+	void HandleLobbyMapLoaded(UWorld* LoadedWorld);
 	void HandleFindSessionsForCreateComplete(bool bWasSuccessful);
 	void HandleFindSessionsComplete(bool bWasSuccessful);
 	void HandleJoinSessionComplete(FName SessionName, EOnJoinSessionCompleteResult::Type Result);
 	void HandleDestroySessionComplete(FName SessionName, bool bWasSuccessful);
 
+	void StartCreateSessionForCurrentRoom();
+	void ClearLobbyMapLoadDelegate();
 	void ClearCurrentRoom();
 	void ClearCreateRoomCheck();
 	void ClearJoinRoomSearch();
@@ -104,6 +107,7 @@ private:
 	FOnlineSessionSearchResult PendingJoinSessionResult;
 
 	FDelegateHandle CreateSessionCompleteDelegateHandle;
+	FDelegateHandle PostLoadMapWithWorldDelegateHandle;
 	FDelegateHandle FindSessionsForCreateCompleteDelegateHandle;
 	FDelegateHandle FindSessionsCompleteDelegateHandle;
 	FDelegateHandle JoinSessionCompleteDelegateHandle;

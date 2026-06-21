@@ -3,13 +3,10 @@
 #include "AbilitySystem/Abilities/GA_Dodge.h"
 
 #include "AbilitySystemComponent.h"
-#include "AbilitySystem/Attributes/RiftPlayerAttributeSet.h"
-#include "AbilitySystem/Effects/GE_StaminaCost.h"
 #include "AbilitySystem/RiftGameplayTags.h"
 #include "Abilities/Tasks/AbilityTask_PlayMontageAndWait.h"
 #include "Character/PlayerCharacter.h"
-#include "Data/Player/PlayerClassConfig.h"
-#include "Data/Player/Combat/PlayerCombatConfig.h"
+#include "Data/Ability/DodgeAbilityConfig.h"
 #include "GameFramework/CharacterMovementComponent.h"
 
 UGA_Dodge::UGA_Dodge()
@@ -19,13 +16,14 @@ UGA_Dodge::UGA_Dodge()
 
 	FGameplayTagContainer DodgeAssetTags;
 	DodgeAssetTags.AddTag(RiftGameplayTags::Ability_Dodge);
-	DodgeAssetTags.AddTag(RiftGameplayTags::InputTag_Core);
+	DodgeAssetTags.AddTag(RiftGameplayTags::InputTag_Dodge);
 	SetAssetTags(DodgeAssetTags);
 
 	ActivationOwnedTags.AddTag(RiftGameplayTags::Ability_Dodge);
 	ActivationOwnedTags.AddTag(RiftGameplayTags::State_Dodging);
 	ActivationBlockedTags.AddTag(RiftGameplayTags::Ability_Dodge);
 	ActivationBlockedTags.AddTag(RiftGameplayTags::State_Dead);
+	ActivationBlockedTags.AddTag(RiftGameplayTags::State_Hit_Light);
 	ActivationBlockedTags.AddTag(RiftGameplayTags::State_Hit_Heavy);
 }
 
@@ -54,46 +52,32 @@ void UGA_Dodge::ActivateAbility(
 		return;
 	}
 
-	const UPlayerClassConfig* PlayerClassConfig = PlayerCharacter->GetPlayerClassConfig();
-	const UPlayerCombatConfig* CombatConfig = PlayerClassConfig ? PlayerClassConfig->PlayerCombatConfig : nullptr;
-	if (!CombatConfig || !CombatConfig->DodgeMontage)
+	PlayerCharacter->ClearActionCancelableState();
+
+	const FGameplayAbilitySpec* AbilitySpec = AbilitySystemComponent->FindAbilitySpecFromHandle(Handle);
+	const UDodgeAbilityConfig* DodgeConfig = AbilitySpec
+		? Cast<UDodgeAbilityConfig>(AbilitySpec->SourceObject.Get())
+		: nullptr;
+	if (!DodgeConfig || !DodgeConfig->DodgeMontage)
 	{
+		UE_LOG(
+			LogTemp,
+			Warning,
+			TEXT("Dodge Activate failed: missing DodgeAbilityConfig or DodgeMontage. Character=%s SourceObject=%s"),
+			*GetNameSafe(PlayerCharacter),
+			AbilitySpec ? *GetNameSafe(AbilitySpec->SourceObject.Get()) : TEXT("None")
+		);
 		EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
 		return;
 	}
 
-	const float CurrentStamina = AbilitySystemComponent->GetNumericAttribute(
-		URiftPlayerAttributeSet::GetStaminaAttribute()
-	);
-	if (CurrentStamina < CombatConfig->DodgeStaminaCost)
-	{
-		EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
-		return;
-	}
+	FGameplayTagContainer GuardTags;
+	GuardTags.AddTag(RiftGameplayTags::Ability_Guard);
+	AbilitySystemComponent->CancelAbilities(&GuardTags, nullptr, this);
 
 	FGameplayTagContainer AttackComboTags;
 	AttackComboTags.AddTag(RiftGameplayTags::Ability_Attack_Combo);
 	AbilitySystemComponent->CancelAbilities(&AttackComboTags);
-
-	FGameplayEffectContextHandle EffectContext = AbilitySystemComponent->MakeEffectContext();
-	EffectContext.AddSourceObject(PlayerCharacter);
-
-	FGameplayEffectSpecHandle DodgeCostSpec = AbilitySystemComponent->MakeOutgoingSpec(
-		UGE_StaminaCost::StaticClass(),
-		1.0f,
-		EffectContext
-	);
-	if (!DodgeCostSpec.IsValid())
-	{
-		EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
-		return;
-	}
-
-	DodgeCostSpec.Data->SetSetByCallerMagnitude(
-		RiftGameplayTags::SetByCaller_StaminaCost,
-		-CombatConfig->DodgeStaminaCost
-	);
-	AbilitySystemComponent->ApplyGameplayEffectSpecToSelf(*DodgeCostSpec.Data.Get());
 
 	FVector DodgeDirection = PlayerCharacter->GetCameraRelativeMoveDirection();
 	if (DodgeDirection.IsNearlyZero())
@@ -117,13 +101,14 @@ void UGA_Dodge::ActivateAbility(
 
 	PlayerCharacter->ActivatePerfectDodgeWindow(
 		PlayerCharacter->GetActorLocation(),
-		CombatConfig->PerfectDodgeWindowDuration
+		DodgeConfig->PerfectDodgeWindowDuration,
+		DodgeConfig->PerfectDodgeUltimateChargeReward
 	);
 
 	UAbilityTask_PlayMontageAndWait* MontageTask = UAbilityTask_PlayMontageAndWait::CreatePlayMontageAndWaitProxy(
 		this,
 		NAME_None,
-		CombatConfig->DodgeMontage,
+		DodgeConfig->DodgeMontage,
 		1.0f,
 		NAME_None,
 		true
@@ -155,6 +140,7 @@ void UGA_Dodge::EndAbility(
 	{
 		if (APlayerCharacter* PlayerCharacter = Cast<APlayerCharacter>(ActorInfo->AvatarActor.Get()))
 		{
+			PlayerCharacter->ClearActionCancelableState();
 			if (UCharacterMovementComponent* Movement = PlayerCharacter->GetCharacterMovement())
 			{
 				Movement->StopMovementImmediately();

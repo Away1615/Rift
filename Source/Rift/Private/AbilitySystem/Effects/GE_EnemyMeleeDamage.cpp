@@ -11,6 +11,7 @@ UGE_EnemyMeleeDamage::UGE_EnemyMeleeDamage()
 	UTargetTagRequirementsGameplayEffectComponent* TargetTagRequirementsComponent =
 		CreateDefaultSubobject<UTargetTagRequirementsGameplayEffectComponent>(TEXT("TargetTagRequirements"));
 	TargetTagRequirementsComponent->ApplicationTagRequirements.IgnoreTags.AddTag(RiftGameplayTags::State_Invincible);
+	TargetTagRequirementsComponent->ApplicationTagRequirements.IgnoreTags.AddTag(RiftGameplayTags::State_Blocking);
 	GEComponents.Add(TargetTagRequirementsComponent);
 
 	FSetByCallerFloat DamageMagnitude;
@@ -22,14 +23,4 @@ UGE_EnemyMeleeDamage::UGE_EnemyMeleeDamage()
 	DamageModifier.ModifierMagnitude = FGameplayEffectModifierMagnitude(DamageMagnitude);
 
 	Modifiers.Add(DamageModifier);
-
-	FSetByCallerFloat PoiseDamageMagnitude;
-	PoiseDamageMagnitude.DataTag = RiftGameplayTags::SetByCaller_PoiseDamage;
-
-	FGameplayModifierInfo PoiseDamageModifier;
-	PoiseDamageModifier.Attribute = URiftPlayerAttributeSet::GetPoiseDamageAttribute();
-	PoiseDamageModifier.ModifierOp = EGameplayModOp::Additive;
-	PoiseDamageModifier.ModifierMagnitude = FGameplayEffectModifierMagnitude(PoiseDamageMagnitude);
-
-	Modifiers.Add(PoiseDamageModifier);
 }

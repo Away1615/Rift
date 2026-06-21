@@ -4,8 +4,6 @@
 
 #include "Character/EnemyCharacter.h"
 #include "Character/PlayerCharacter.h"
-#include "Data/Player/PlayerClassConfig.h"
-#include "Data/Player/Combat/PlayerCombatConfig.h"
 #include "Debug/RiftDebugCVars.h"
 #include "DrawDebugHelpers.h"
 #include "Engine/OverlapResult.h"
@@ -22,12 +20,8 @@ AActor* URiftTargetAssistComponent::FindSoftTarget() const
 	const APlayerCharacter* PlayerCharacter = Cast<APlayerCharacter>(GetOwner());
 	if (!PlayerCharacter) return nullptr;
 
-	const UPlayerClassConfig* PlayerClassConfig = PlayerCharacter->GetPlayerClassConfig();
-	const UPlayerCombatConfig* CombatConfig = PlayerClassConfig ? PlayerClassConfig->PlayerCombatConfig : nullptr;
-	if (!CombatConfig) return nullptr;
-
-	const float MaxRange = CombatConfig->TargetAssistMaxRange;
-	const float MaxAngleDegrees = CombatConfig->TargetAssistMaxAngleDegrees;
+	const float MaxRange = TargetAssistMaxRange;
+	const float MaxAngleDegrees = TargetAssistMaxAngleDegrees;
 	if (MaxRange <= 0.0f || MaxAngleDegrees <= 0.0f) return nullptr;
 
 	UWorld* World = GetWorld();
@@ -98,8 +92,8 @@ AActor* URiftTargetAssistComponent::FindSoftTarget() const
 		const float AngleScore = 1.0f - AngleDegrees / MaxAngleDegrees;
 		const float DistanceScore = 1.0f - Distance / MaxRange;
 		const float Score =
-			CombatConfig->TargetAssistAngleWeight * AngleScore +
-			CombatConfig->TargetAssistDistanceWeight * DistanceScore;
+			TargetAssistAngleWeight * AngleScore +
+			TargetAssistDistanceWeight * DistanceScore;
 
 		if (bDebug)
 		{

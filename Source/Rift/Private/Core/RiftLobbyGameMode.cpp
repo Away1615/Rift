@@ -10,6 +10,11 @@
 #include "Player/BasePlayerController.h"
 #include "Player/BasePlayerState.h"
 
+namespace
+{
+	constexpr int32 MaxLobbyDisplaySlots = 4;
+}
+
 ARiftLobbyGameMode::ARiftLobbyGameMode()
 {
 	PlayerControllerClass = ABasePlayerController::StaticClass();
@@ -104,12 +109,6 @@ void ARiftLobbyGameMode::StartGameFromLobby(ABasePlayerController* RequestingCon
 	if (LobbyGameState->IsStarting())
 	{
 		FailLobbyAction(RequestingController, TEXT("Game is already starting."));
-		return;
-	}
-
-	if (!DefaultPlayerClassConfig)
-	{
-		FailLobbyAction(RequestingController, TEXT("Player class is not configured."));
 		return;
 	}
 
@@ -273,7 +272,7 @@ int32 ARiftLobbyGameMode::FindAvailableLobbySlotIndex() const
 		return INDEX_NONE;
 	}
 
-	for (int32 CandidateSlotIndex = 0; CandidateSlotIndex < 4; ++CandidateSlotIndex)
+	for (int32 CandidateSlotIndex = 0; CandidateSlotIndex < MaxLobbyDisplaySlots; ++CandidateSlotIndex)
 	{
 		bool bIsOccupied = false;
 		for (APlayerState* PlayerState : CurrentGameState->PlayerArray)

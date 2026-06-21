@@ -4,7 +4,6 @@
 #include "Core/RiftGameplayGameMode.h"
 
 #include "Character/PlayerCharacter.h"
-#include "Data/Player/PlayerClassConfig.h"
 #include "Engine/World.h"
 #include "GameFramework/GameStateBase.h"
 #include "GameFramework/PlayerController.h"
@@ -62,16 +61,6 @@ void ARiftGameplayGameMode::ApplyCachedLobbySelection(APlayerController* PlayerC
 	}
 
 	RiftPlayerController->ApplyCachedLobbySelectionToPlayerState();
-
-	const ABasePlayerState* RiftPlayerState = RiftPlayerController->GetPlayerState<ABasePlayerState>();
-	UE_LOG(
-		LogTemp,
-		Warning,
-		TEXT("RiftLobbySelection GameplayApply Controller=%s PlayerState=%s SelectedClass=%s"),
-		*GetNameSafe(RiftPlayerController),
-		*GetNameSafe(RiftPlayerState),
-		RiftPlayerState ? *GetNameSafe(RiftPlayerState->GetSelectedPlayerClassConfig()) : TEXT("None")
-	);
 }
 
 void ARiftGameplayGameMode::StartPlayerRespawn(APlayerCharacter* DeadPlayer)

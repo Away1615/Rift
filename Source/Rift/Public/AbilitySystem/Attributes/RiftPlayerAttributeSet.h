@@ -25,29 +25,9 @@ public:
 	FGameplayAttributeData MaxHealth;
 	ATTRIBUTE_ACCESSORS(URiftPlayerAttributeSet, MaxHealth)
 
-	UPROPERTY(BlueprintReadOnly, ReplicatedUsing=OnRep_Stamina, Category="Attributes|Stamina")
-	FGameplayAttributeData Stamina;
-	ATTRIBUTE_ACCESSORS(URiftPlayerAttributeSet, Stamina)
-
-	UPROPERTY(BlueprintReadOnly, ReplicatedUsing=OnRep_MaxStamina, Category="Attributes|Stamina")
-	FGameplayAttributeData MaxStamina;
-	ATTRIBUTE_ACCESSORS(URiftPlayerAttributeSet, MaxStamina)
-
-	UPROPERTY(BlueprintReadOnly, ReplicatedUsing=OnRep_Poise, Category="Attributes|Poise")
-	FGameplayAttributeData Poise;
-	ATTRIBUTE_ACCESSORS(URiftPlayerAttributeSet, Poise)
-
-	UPROPERTY(BlueprintReadOnly, ReplicatedUsing=OnRep_MaxPoise, Category="Attributes|Poise")
-	FGameplayAttributeData MaxPoise;
-	ATTRIBUTE_ACCESSORS(URiftPlayerAttributeSet, MaxPoise)
-
 	UPROPERTY(BlueprintReadOnly, Category="Attributes|Meta")
 	FGameplayAttributeData Damage;
 	ATTRIBUTE_ACCESSORS(URiftPlayerAttributeSet, Damage)
-
-	UPROPERTY(BlueprintReadOnly, Category="Attributes|Meta")
-	FGameplayAttributeData PoiseDamage;
-	ATTRIBUTE_ACCESSORS(URiftPlayerAttributeSet, PoiseDamage)
 
 protected:
 	UFUNCTION()
@@ -56,15 +36,4 @@ protected:
 	UFUNCTION()
 	void OnRep_MaxHealth(const FGameplayAttributeData& OldMaxHealth);
 
-	UFUNCTION()
-	void OnRep_Stamina(const FGameplayAttributeData& OldStamina);
-
-	UFUNCTION()
-	void OnRep_MaxStamina(const FGameplayAttributeData& OldMaxStamina);
-
-	UFUNCTION()
-	void OnRep_Poise(const FGameplayAttributeData& OldPoise);
-
-	UFUNCTION()
-	void OnRep_MaxPoise(const FGameplayAttributeData& OldMaxPoise);
 };

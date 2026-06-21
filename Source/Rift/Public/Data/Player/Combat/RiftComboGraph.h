@@ -1,12 +1,14 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Combat/RiftCombatFeedbackTypes.h"
 #include "Engine/DataAsset.h"
 #include "GameplayTagContainer.h"
 #include "RiftComboGraph.generated.h"
 
 class UAnimMontage;
 class UCameraShakeBase;
+class URiftCombatCueConfig;
 
 USTRUCT(BlueprintType)
 struct FRiftComboTransition
@@ -35,10 +37,13 @@ struct FRiftComboNode
 	float PoiseDamage = 0.0f;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly)
-	float StaminaCost = 0.0f;
-
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly)
 	float UltimateChargeOnHit = 0.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Feedback")
+	TObjectPtr<URiftCombatCueConfig> CombatCueConfig;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Feedback")
+	FRiftMeleeHitStopConfig HitStopConfig;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly)
 	TSubclassOf<UCameraShakeBase> CameraShake;

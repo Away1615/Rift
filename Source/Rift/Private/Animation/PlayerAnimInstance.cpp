@@ -4,7 +4,6 @@
 #include "Animation/PlayerAnimInstance.h"
 
 #include "Character/PlayerCharacter.h"
-#include "Data/Player/Animation/PlayerAnimationConfig.h"
 
 void UPlayerAnimInstance::NativeUpdateAnimation(float DeltaSeconds)
 {
@@ -15,7 +14,6 @@ void UPlayerAnimInstance::NativeUpdateAnimation(float DeltaSeconds)
 	{
 		Speed = 0.0f;
 		PlayerCharacter = nullptr;
-		AnimationConfig = nullptr;
 		LastHitReactDirection = ERiftHitReactDirection::Front;
 		return;
 	}
@@ -24,11 +22,9 @@ void UPlayerAnimInstance::NativeUpdateAnimation(float DeltaSeconds)
 	PlayerCharacter = Cast<APlayerCharacter>(Pawn);
 	if (!PlayerCharacter)
 	{
-		AnimationConfig = nullptr;
 		LastHitReactDirection = ERiftHitReactDirection::Front;
 		return;
 	}
 
 	LastHitReactDirection = PlayerCharacter->GetLastHitReactDirection();
-	AnimationConfig = PlayerCharacter->GetPlayerAnimationConfig();
 }

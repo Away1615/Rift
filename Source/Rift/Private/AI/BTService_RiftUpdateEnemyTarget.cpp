@@ -49,7 +49,7 @@ void UBTService_RiftUpdateEnemyTarget::UpdateEnemyTarget(UBehaviorTreeComponent&
 		return;
 	}
 
-	if (EnemyCharacter->IsIntroForAI() || EnemyCharacter->IsDiscoveringForAI())
+	if (EnemyCharacter->IsIntroForAI())
 	{
 		AIController->StopMovement();
 		return;
@@ -86,12 +86,6 @@ void UBTService_RiftUpdateEnemyTarget::UpdateEnemyTarget(UBehaviorTreeComponent&
 		BlackboardComponent->SetValueAsFloat(DistanceToTargetKey.SelectedKeyName, 0.0f);
 		AIController->StopMovement();
 		return;
-	}
-
-	AActor* PreviousTargetActor = Cast<AActor>(BlackboardComponent->GetValueAsObject(TargetActorKey.SelectedKeyName));
-	if (!PreviousTargetActor)
-	{
-		EnemyCharacter->TryPlayDiscoverReaction(ClosestPlayer);
 	}
 
 	BlackboardComponent->SetValueAsObject(TargetActorKey.SelectedKeyName, ClosestPlayer);

@@ -3,7 +3,6 @@
 #include "Animation/RiftEnemyAnimInstance.h"
 
 #include "Character/EnemyCharacter.h"
-#include "Data/Enemy/Animation/EnemyAnimationConfig.h"
 #include "Data/Enemy/EnemyCharacterConfig.h"
 #include "GameFramework/Pawn.h"
 
@@ -17,13 +16,10 @@ void URiftEnemyAnimInstance::NativeUpdateAnimation(float DeltaSeconds)
 		Speed = 0.0f;
 		bIsMoving = false;
 		EnemyCharacter = nullptr;
-		AnimationConfig = nullptr;
+		EnemyConfig = nullptr;
 		bIsDead = false;
 		bIsStaggered = false;
 		LastHitReactDirection = ERiftHitReactDirection::Front;
-		StaggeredStartSequence = nullptr;
-		StaggeredLoopSequence = nullptr;
-		StaggeredEndSequence = nullptr;
 		return;
 	}
 
@@ -32,13 +28,10 @@ void URiftEnemyAnimInstance::NativeUpdateAnimation(float DeltaSeconds)
 	EnemyCharacter = Cast<AEnemyCharacter>(Pawn);
 	if (!EnemyCharacter)
 	{
-		AnimationConfig = nullptr;
+		EnemyConfig = nullptr;
 		bIsDead = false;
 		bIsStaggered = false;
 		LastHitReactDirection = ERiftHitReactDirection::Front;
-		StaggeredStartSequence = nullptr;
-		StaggeredLoopSequence = nullptr;
-		StaggeredEndSequence = nullptr;
 		return;
 	}
 
@@ -46,17 +39,5 @@ void URiftEnemyAnimInstance::NativeUpdateAnimation(float DeltaSeconds)
 	bIsStaggered = EnemyCharacter->IsStaggeredForAnimation();
 	LastHitReactDirection = EnemyCharacter->GetLastHitReactDirection();
 
-	const UEnemyCharacterConfig* EnemyCharacterConfig = EnemyCharacter->GetEnemyCharacterConfig();
-	AnimationConfig = EnemyCharacterConfig ? EnemyCharacterConfig->EnemyAnimationConfig : nullptr;
-	if (!AnimationConfig)
-	{
-		StaggeredStartSequence = nullptr;
-		StaggeredLoopSequence = nullptr;
-		StaggeredEndSequence = nullptr;
-		return;
-	}
-
-	StaggeredStartSequence = AnimationConfig->StaggeredStartSequence;
-	StaggeredLoopSequence = AnimationConfig->StaggeredLoopSequence;
-	StaggeredEndSequence = AnimationConfig->StaggeredEndSequence;
+	EnemyConfig = EnemyCharacter->GetEnemyCharacterConfig();
 }

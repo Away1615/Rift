@@ -16,6 +16,44 @@
 #include "Engine/DataTable.h"
 #include "Player/BasePlayerState.h"
 
+static bool IsAbilityWithTagActive(
+	URiftAbilitySystemComponent* AbilitySystemComponent,
+	const FGameplayTag& AbilityTag
+)
+{
+	if (!AbilitySystemComponent || !AbilityTag.IsValid()) return false;
+
+	FScopedAbilityListLock AbilityListLock(*AbilitySystemComponent);
+	for (const FGameplayAbilitySpec& AbilitySpec : AbilitySystemComponent->GetActivatableAbilities())
+	{
+		if (!AbilitySpec.IsActive() || !AbilitySpec.Ability)
+		{
+			continue;
+		}
+
+		if (AbilitySpec.Ability->GetAssetTags().HasTagExact(AbilityTag))
+		{
+			return true;
+		}
+	}
+
+	return false;
+}
+
+static bool IsPrimaryAttackAbilityActive(URiftAbilitySystemComponent* AbilitySystemComponent)
+{
+	return IsAbilityWithTagActive(AbilitySystemComponent, RiftGameplayTags::Ability_Attack_Combo) ||
+		IsAbilityWithTagActive(AbilitySystemComponent, RiftGameplayTags::Ability_Attack_TwinSwordCombo) ||
+		IsAbilityWithTagActive(AbilitySystemComponent, RiftGameplayTags::Ability_Attack_TwinSwordRapidSlash);
+}
+
+static bool IsGuardActive(URiftAbilitySystemComponent* AbilitySystemComponent)
+{
+	return AbilitySystemComponent &&
+		(AbilitySystemComponent->HasMatchingGameplayTag(RiftGameplayTags::Ability_Guard) ||
+			AbilitySystemComponent->HasMatchingGameplayTag(RiftGameplayTags::State_Blocking));
+}
+
 void ABasePlayerController::BeginPlay()
 {
 	Super::BeginPlay();
@@ -105,33 +143,57 @@ void ABasePlayerController::SetupInputComponent()
 		);
 	}
 
-	if (DefaultInputConfig->PrimaryHeavyAction)
+	if (DefaultInputConfig->DodgeAction)
 	{
 		EnhancedInputComponent->BindAction(
-			DefaultInputConfig->PrimaryHeavyAction,
-			ETriggerEvent::Triggered,
-			this,
-			&ABasePlayerController::HandlePrimaryHeavyInput
-		);
-	}
-
-	if (DefaultInputConfig->SecondaryHeavyAction)
-	{
-		EnhancedInputComponent->BindAction(
-			DefaultInputConfig->SecondaryHeavyAction,
-			ETriggerEvent::Triggered,
-			this,
-			&ABasePlayerController::HandleSecondaryHeavyInput
-		);
-	}
-
-	if (DefaultInputConfig->CoreAction)
-	{
-		EnhancedInputComponent->BindAction(
-			DefaultInputConfig->CoreAction,
+			DefaultInputConfig->DodgeAction,
 			ETriggerEvent::Started,
 			this,
-			&ABasePlayerController::HandleCoreInput
+			&ABasePlayerController::HandleDodgeInput
+		);
+	}
+
+	if (DefaultInputConfig->GuardAction)
+	{
+		EnhancedInputComponent->BindAction(
+			DefaultInputConfig->GuardAction,
+			ETriggerEvent::Started,
+			this,
+			&ABasePlayerController::HandleGuardStarted
+		);
+
+		EnhancedInputComponent->BindAction(
+			DefaultInputConfig->GuardAction,
+			ETriggerEvent::Completed,
+			this,
+			&ABasePlayerController::HandleGuardCompleted
+		);
+
+		EnhancedInputComponent->BindAction(
+			DefaultInputConfig->GuardAction,
+			ETriggerEvent::Canceled,
+			this,
+			&ABasePlayerController::HandleGuardCompleted
+		);
+	}
+
+	if (DefaultInputConfig->SkillQAction)
+	{
+		EnhancedInputComponent->BindAction(
+			DefaultInputConfig->SkillQAction,
+			ETriggerEvent::Started,
+			this,
+			&ABasePlayerController::HandleSkillQInput
+		);
+	}
+
+	if (DefaultInputConfig->SkillEAction)
+	{
+		EnhancedInputComponent->BindAction(
+			DefaultInputConfig->SkillEAction,
+			ETriggerEvent::Started,
+			this,
+			&ABasePlayerController::HandleSkillEInput
 		);
 	}
 }
@@ -140,11 +202,11 @@ void ABasePlayerController::RequestSelectPlayerClass(UPlayerClassConfig* ClassCo
 {
 	if (HasAuthority())
 	{
-		Server_SelectPlayerClass_Implementation(ClassConfig);
+		Server_RequestSelectPlayerClass_Implementation(ClassConfig);
 		return;
 	}
 
-	Server_SelectPlayerClass(ClassConfig);
+	Server_RequestSelectPlayerClass(ClassConfig);
 }
 
 void ABasePlayerController::RequestStartLobbyGame()
@@ -175,7 +237,7 @@ void ABasePlayerController::RequestFinishCharacterCreationWithAppearance(
 	Server_RequestFinishCharacterCreationWithAppearance(FinalAppearanceSelection);
 }
 
-void ABasePlayerController::Server_SelectPlayerClass_Implementation(UPlayerClassConfig* ClassConfig)
+void ABasePlayerController::Server_RequestSelectPlayerClass_Implementation(UPlayerClassConfig* ClassConfig)
 {
 	if (!ClassConfig)
 	{
@@ -222,22 +284,6 @@ void ABasePlayerController::Server_RequestFinishCharacterCreationWithAppearance_
 		return;
 	}
 
-	UWorld* World = GetWorld();
-	ARiftLobbyGameMode* LobbyGameMode = World ? World->GetAuthGameMode<ARiftLobbyGameMode>() : nullptr;
-	UPlayerClassConfig* DefaultPlayerClassConfig = LobbyGameMode
-		? LobbyGameMode->GetDefaultPlayerClassConfig()
-		: nullptr;
-	if (!DefaultPlayerClassConfig)
-	{
-		Client_LobbyActionFailed(TEXT("Player class is not configured."));
-		return;
-	}
-
-	if (!RiftPlayerState->GetSelectedPlayerClassConfig())
-	{
-		RiftPlayerState->SetSelectedPlayerClassConfig(DefaultPlayerClassConfig);
-	}
-
 	if (!IsAppearanceSelectionValid(FinalAppearanceSelection))
 	{
 		Client_LobbyActionFailed(TEXT("Invalid appearance selection."));
@@ -247,6 +293,8 @@ void ABasePlayerController::Server_RequestFinishCharacterCreationWithAppearance_
 	RiftPlayerState->SetConfirmedAppearanceSelection(FinalAppearanceSelection);
 	RiftPlayerState->SetLobbyCharacterConfirmed(true);
 
+	UWorld* World = GetWorld();
+	ARiftLobbyGameMode* LobbyGameMode = World ? World->GetAuthGameMode<ARiftLobbyGameMode>() : nullptr;
 	if (LobbyGameMode)
 	{
 		LobbyGameMode->RefreshAllPlayersReady();
@@ -419,6 +467,30 @@ void ABasePlayerController::HandlePrimaryAttackInput(const FInputActionValue& In
 		Cast<URiftAbilitySystemComponent>(PlayerCharacter->GetAbilitySystemComponent());
 	if (!AbilitySystemComponent) return;
 
+	if (PlayerCharacter->IsDodgingForActionCancel())
+	{
+		return;
+	}
+
+	if (IsGuardActive(AbilitySystemComponent))
+	{
+		PlayerCharacter->CancelPlayerActionAbilities(true, false);
+	}
+	else if (AbilitySystemComponent->HasMatchingGameplayTag(RiftGameplayTags::State_Attacking))
+	{
+		if (!PlayerCharacter->IsActionCancelable())
+		{
+			if (!IsPrimaryAttackAbilityActive(AbilitySystemComponent))
+			{
+				return;
+			}
+		}
+		else if (!IsPrimaryAttackAbilityActive(AbilitySystemComponent))
+		{
+			PlayerCharacter->CancelPlayerActionAbilities(false, false);
+		}
+	}
+
 	AbilitySystemComponent->AbilityInputTagPressed(RiftGameplayTags::InputTag_Attack_Primary);
 }
 
@@ -435,10 +507,21 @@ void ABasePlayerController::HandleSecondaryAttackInput(const FInputActionValue& 
 		Cast<URiftAbilitySystemComponent>(PlayerCharacter->GetAbilitySystemComponent());
 	if (!AbilitySystemComponent) return;
 
-	AbilitySystemComponent->AbilityInputTagPressed(RiftGameplayTags::InputTag_Attack_Secondary);
+	if (PlayerCharacter->IsDodgingForActionCancel())
+	{
+		return;
+	}
+
+	if (AbilitySystemComponent->HasMatchingGameplayTag(RiftGameplayTags::State_Attack_RapidSlash))
+	{
+		PlayerCharacter->RequestRapidSlashFinisher();
+		return;
+	}
+
+	return;
 }
 
-void ABasePlayerController::HandlePrimaryHeavyInput(const FInputActionValue& InputActionValue)
+void ABasePlayerController::HandleDodgeInput(const FInputActionValue& InputActionValue)
 {
 	static_cast<void>(InputActionValue);
 
@@ -451,10 +534,16 @@ void ABasePlayerController::HandlePrimaryHeavyInput(const FInputActionValue& Inp
 		Cast<URiftAbilitySystemComponent>(PlayerCharacter->GetAbilitySystemComponent());
 	if (!AbilitySystemComponent) return;
 
-	AbilitySystemComponent->AbilityInputTagPressed(RiftGameplayTags::InputTag_Attack_PrimaryHeavy);
+	if (PlayerCharacter->IsDodgingForActionCancel())
+	{
+		return;
+	}
+
+	PlayerCharacter->CancelPlayerActionAbilities(true, false);
+	AbilitySystemComponent->AbilityInputTagPressed(RiftGameplayTags::InputTag_Dodge);
 }
 
-void ABasePlayerController::HandleSecondaryHeavyInput(const FInputActionValue& InputActionValue)
+void ABasePlayerController::HandleGuardStarted(const FInputActionValue& InputActionValue)
 {
 	static_cast<void>(InputActionValue);
 
@@ -467,10 +556,25 @@ void ABasePlayerController::HandleSecondaryHeavyInput(const FInputActionValue& I
 		Cast<URiftAbilitySystemComponent>(PlayerCharacter->GetAbilitySystemComponent());
 	if (!AbilitySystemComponent) return;
 
-	AbilitySystemComponent->AbilityInputTagPressed(RiftGameplayTags::InputTag_Attack_SecondaryHeavy);
+	if (PlayerCharacter->IsDodgingForActionCancel())
+	{
+		return;
+	}
+
+	if (AbilitySystemComponent->HasMatchingGameplayTag(RiftGameplayTags::State_Attacking))
+	{
+		if (!PlayerCharacter->IsActionCancelable())
+		{
+			return;
+		}
+
+		PlayerCharacter->CancelPlayerActionAbilities(false, false);
+	}
+
+	AbilitySystemComponent->AbilityInputTagPressed(RiftGameplayTags::InputTag_Guard);
 }
 
-void ABasePlayerController::HandleCoreInput(const FInputActionValue& InputActionValue)
+void ABasePlayerController::HandleGuardCompleted(const FInputActionValue& InputActionValue)
 {
 	static_cast<void>(InputActionValue);
 
@@ -483,7 +587,77 @@ void ABasePlayerController::HandleCoreInput(const FInputActionValue& InputAction
 		Cast<URiftAbilitySystemComponent>(PlayerCharacter->GetAbilitySystemComponent());
 	if (!AbilitySystemComponent) return;
 
-	AbilitySystemComponent->AbilityInputTagPressed(RiftGameplayTags::InputTag_Core);
+	AbilitySystemComponent->AbilityInputTagReleased(RiftGameplayTags::InputTag_Guard);
+}
+
+void ABasePlayerController::HandleSkillQInput(const FInputActionValue& InputActionValue)
+{
+	static_cast<void>(InputActionValue);
+
+	if (!IsLocalController()) return;
+
+	APlayerCharacter* PlayerCharacter = GetPlayerCharacter();
+	if (!PlayerCharacter) return;
+
+	URiftAbilitySystemComponent* AbilitySystemComponent =
+		Cast<URiftAbilitySystemComponent>(PlayerCharacter->GetAbilitySystemComponent());
+	if (!AbilitySystemComponent) return;
+
+	if (PlayerCharacter->IsDodgingForActionCancel())
+	{
+		return;
+	}
+
+	if (IsGuardActive(AbilitySystemComponent))
+	{
+		PlayerCharacter->CancelPlayerActionAbilities(true, false);
+	}
+	else if (AbilitySystemComponent->HasMatchingGameplayTag(RiftGameplayTags::State_Attacking))
+	{
+		if (!PlayerCharacter->IsActionCancelable())
+		{
+			return;
+		}
+
+		PlayerCharacter->CancelPlayerActionAbilities(false, false);
+	}
+
+	AbilitySystemComponent->AbilityInputTagPressed(RiftGameplayTags::InputTag_Skill_Q);
+}
+
+void ABasePlayerController::HandleSkillEInput(const FInputActionValue& InputActionValue)
+{
+	static_cast<void>(InputActionValue);
+
+	if (!IsLocalController()) return;
+
+	APlayerCharacter* PlayerCharacter = GetPlayerCharacter();
+	if (!PlayerCharacter) return;
+
+	URiftAbilitySystemComponent* AbilitySystemComponent =
+		Cast<URiftAbilitySystemComponent>(PlayerCharacter->GetAbilitySystemComponent());
+	if (!AbilitySystemComponent) return;
+
+	if (PlayerCharacter->IsDodgingForActionCancel())
+	{
+		return;
+	}
+
+	if (IsGuardActive(AbilitySystemComponent))
+	{
+		PlayerCharacter->CancelPlayerActionAbilities(true, false);
+	}
+	else if (AbilitySystemComponent->HasMatchingGameplayTag(RiftGameplayTags::State_Attacking))
+	{
+		if (!PlayerCharacter->IsActionCancelable())
+		{
+			return;
+		}
+
+		PlayerCharacter->CancelPlayerActionAbilities(false, false);
+	}
+
+	AbilitySystemComponent->AbilityInputTagPressed(RiftGameplayTags::InputTag_Skill_E);
 }
 
 void ABasePlayerController::HandleMoveCompleted()

@@ -39,7 +39,7 @@ public:
 	void RequestFinishCharacterCreationWithAppearance(const FRiftPlayerAppearanceSelection& FinalAppearanceSelection);
 
 	UFUNCTION(Server, Reliable)
-	void Server_SelectPlayerClass(UPlayerClassConfig* ClassConfig);
+	void Server_RequestSelectPlayerClass(UPlayerClassConfig* ClassConfig);
 
 	UFUNCTION(Server, Reliable)
 	void Server_StartLobbyGame();
@@ -106,8 +106,10 @@ private:
 	void HandleLookInput(const FInputActionValue& InputActionValue);
 	void HandlePrimaryAttackInput(const FInputActionValue& InputActionValue);
 	void HandleSecondaryAttackInput(const FInputActionValue& InputActionValue);
-	void HandlePrimaryHeavyInput(const FInputActionValue& InputActionValue);
-	void HandleSecondaryHeavyInput(const FInputActionValue& InputActionValue);
-	void HandleCoreInput(const FInputActionValue& InputActionValue);
+	void HandleDodgeInput(const FInputActionValue& InputActionValue);
+	void HandleGuardStarted(const FInputActionValue& InputActionValue);
+	void HandleGuardCompleted(const FInputActionValue& InputActionValue);
+	void HandleSkillQInput(const FInputActionValue& InputActionValue);
+	void HandleSkillEInput(const FInputActionValue& InputActionValue);
 	void HandleMoveCompleted();
 };

@@ -33,6 +33,16 @@ void URiftWeaponTraceComponent::SetIncomingHitParams(
 	IncomingUltimateCharge = FMath::Max(0.0f, UltimateChargeOnHit);
 }
 
+void URiftWeaponTraceComponent::SetIncomingCombatCueConfig(URiftCombatCueConfig* CombatCueConfig)
+{
+	IncomingCombatCueConfig = CombatCueConfig;
+}
+
+void URiftWeaponTraceComponent::SetIncomingHitStopConfig(const FRiftMeleeHitStopConfig& HitStopConfig)
+{
+	IncomingHitStopConfig = HitStopConfig;
+}
+
 void URiftWeaponTraceComponent::SetIncomingCameraShake(
 	TSubclassOf<UCameraShakeBase> Shake,
 	const FVector2D Dir
@@ -59,7 +69,7 @@ void URiftWeaponTraceComponent::StartHitWindow(const ERiftWeaponSlot Slot)
 		return;
 	}
 
-	HitActorsBySlot.FindOrAdd(Slot).Empty();
+	HitActorsByTraceId.FindOrAdd(GetWeaponTraceId(Slot)).Empty();
 	RemoveTraceCacheForSlot(Slot);
 
 	UStaticMeshComponent* WeaponMesh = PlayerCharacter->GetWeaponMesh(Slot);
@@ -89,7 +99,7 @@ void URiftWeaponTraceComponent::EndHitWindow(const ERiftWeaponSlot Slot)
 	if (*HitWindowRefCount == 0)
 	{
 		HitWindowRefCounts.Remove(Slot);
-		HitActorsBySlot.Remove(Slot);
+		HitActorsByTraceId.Remove(GetWeaponTraceId(Slot));
 		RemoveTraceCacheForSlot(Slot);
 	}
 
@@ -134,9 +144,10 @@ bool URiftWeaponTraceComponent::GetWeaponTraceLocations(
 void URiftWeaponTraceComponent::TraceWeapon(FWeaponTraceCache& TraceCache)
 {
 	AActor* OwnerActor = GetOwner();
+	APlayerCharacter* PlayerCharacter = Cast<APlayerCharacter>(OwnerActor);
 	UWorld* World = GetWorld();
 	UStaticMeshComponent* Mesh = TraceCache.WeaponMesh.Get();
-	if (!OwnerActor || !World || !Mesh) return;
+	if (!OwnerActor || !World || !Mesh || !PlayerCharacter) return;
 
 	FVector CurrentStart = FVector::ZeroVector;
 	FVector CurrentEnd = FVector::ZeroVector;
@@ -151,11 +162,6 @@ void URiftWeaponTraceComponent::TraceWeapon(FWeaponTraceCache& TraceCache)
 	}
 
 	constexpr int32 SampleCount = 3;
-	const FCollisionShape TraceShape = FCollisionShape::MakeSphere(TraceRadius);
-	FCollisionQueryParams QueryParams(SCENE_QUERY_STAT(RiftWeaponTrace), false, OwnerActor);
-	QueryParams.AddIgnoredActor(OwnerActor);
-
-	const bool bDebug = RiftDebugCVars::IsCombatDebugEnabled();
 
 	for (int32 SampleIndex = 0; SampleIndex < SampleCount; ++SampleIndex)
 	{
@@ -163,59 +169,89 @@ void URiftWeaponTraceComponent::TraceWeapon(FWeaponTraceCache& TraceCache)
 		const FVector PreviousPoint = FMath::Lerp(TraceCache.PreviousStart, TraceCache.PreviousEnd, Alpha);
 		const FVector CurrentPoint = FMath::Lerp(CurrentStart, CurrentEnd, Alpha);
 
-		TArray<FHitResult> HitResults;
-		World->SweepMultiByChannel(
-			HitResults,
-			PreviousPoint,
-			CurrentPoint,
-			FQuat::Identity,
-			ECC_Pawn,
-			TraceShape,
-			QueryParams
-		);
-
-		bool bHitEnemy = false;
-		for (const FHitResult& Hit : HitResults)
-		{
-			if (Cast<AEnemyCharacter>(Hit.GetActor()))
-			{
-				bHitEnemy = true;
-				break;
-			}
-		}
-
-		if (bDebug)
-		{
-			const FColor DebugColor = bHitEnemy ? FColor::Yellow : FColor::Green;
-			DrawDebugLine(World, PreviousPoint, CurrentPoint, DebugColor, false, 0.1f, 0, 0.75f);
-			DrawDebugSphere(World, CurrentPoint, TraceRadius, 12, DebugColor, false, 0.1f, 0, 0.75f);
-		}
-
-		for (const FHitResult& Hit : HitResults)
-		{
-			ProcessPlayerHit(TraceCache.WeaponSlot, TraceCache.TraceRadius, Hit);
-		}
+		FRiftMeleeTraceSource WeaponSource;
+		WeaponSource.TraceId = GetWeaponTraceId(TraceCache.WeaponSlot);
+		WeaponSource.WeaponSlot = TraceCache.WeaponSlot;
+		WeaponSource.Start = PreviousPoint;
+		WeaponSource.End = CurrentPoint;
+		WeaponSource.Radius = TraceRadius;
+		WeaponSource.CombatCueConfig = IncomingCombatCueConfig;
+		WeaponSource.HitStopConfig = IncomingHitStopConfig;
+		WeaponSource.bPlayHitStop = true;
+		WeaponSource.bPlayCameraShake = true;
+		ProcessMeleeTraceSource(WeaponSource);
 	}
 
 	TraceCache.PreviousStart = CurrentStart;
 	TraceCache.PreviousEnd = CurrentEnd;
 }
 
-void URiftWeaponTraceComponent::ProcessPlayerHit(const ERiftWeaponSlot Slot, const float TraceRadius, const FHitResult& Hit)
+void URiftWeaponTraceComponent::ProcessMeleeTraceSource(const FRiftMeleeTraceSource& Source)
+{
+	AActor* OwnerActor = GetOwner();
+	UWorld* World = GetWorld();
+	if (!OwnerActor || !World || Source.TraceId == NAME_None || Source.Radius <= 0.0f)
+	{
+		return;
+	}
+
+	TArray<FHitResult> HitResults;
+	FCollisionQueryParams QueryParams(SCENE_QUERY_STAT(RiftMeleeTraceSource), false, OwnerActor);
+	QueryParams.AddIgnoredActor(OwnerActor);
+
+	World->SweepMultiByChannel(
+		HitResults,
+		Source.Start,
+		Source.End,
+		FQuat::Identity,
+		ECC_Pawn,
+		FCollisionShape::MakeSphere(Source.Radius),
+		QueryParams
+	);
+
+	for (const FHitResult& Hit : HitResults)
+	{
+		ProcessMeleeTraceHit(Source, Hit);
+	}
+
+	if (RiftDebugCVars::IsCombatDebugEnabled())
+	{
+		const FColor DebugColor = Source.bPlayCameraShake ? FColor::Yellow : FColor::Cyan;
+		DrawDebugLine(World, Source.Start, Source.End, DebugColor, false, 0.1f, 0, 0.75f);
+		DrawDebugSphere(World, Source.End, Source.Radius, 12, DebugColor, false, 0.1f, 0, 0.75f);
+	}
+}
+
+void URiftWeaponTraceComponent::ProcessMeleeTraceHit(
+	const FRiftMeleeTraceSource& Source,
+	const FHitResult& Hit
+)
 {
 	APlayerCharacter* PlayerCharacter = Cast<APlayerCharacter>(GetOwner());
 	AEnemyCharacter* EnemyCharacter = Cast<AEnemyCharacter>(Hit.GetActor());
 	if (!PlayerCharacter || !EnemyCharacter) return;
 
+	const float Damage = IncomingDamage * Source.DamageMultiplier;
+	const float PoiseDamage = IncomingPoiseDamage * Source.PoiseDamageMultiplier;
+	const float UltimateCharge = IncomingUltimateCharge * Source.UltimateChargeMultiplier;
+	if (Damage <= 0.0f && PoiseDamage <= 0.0f && UltimateCharge <= 0.0f)
+	{
+		return;
+	}
+
 	const TObjectKey<AActor> HitActorKey(EnemyCharacter);
-	TSet<TObjectKey<AActor>>& HitActorsThisWindow = HitActorsBySlot.FindOrAdd(Slot);
+	TSet<TObjectKey<AActor>>& HitActorsThisWindow = HitActorsByTraceId.FindOrAdd(Source.TraceId);
 	if (HitActorsThisWindow.Contains(HitActorKey)) return;
 
 	UAbilitySystemComponent* SourceAbilitySystemComponent = PlayerCharacter->GetAbilitySystemComponent();
 	UAbilitySystemComponent* TargetAbilitySystemComponent = EnemyCharacter->GetAbilitySystemComponent();
 	if (!SourceAbilitySystemComponent || !TargetAbilitySystemComponent) return;
 
-	const bool bWasBlocked = EnemyCharacter->IsBlocking();
+	if (TargetAbilitySystemComponent->HasMatchingGameplayTag(RiftGameplayTags::State_Enemy_Intro))
+	{
+		HitActorsThisWindow.Add(HitActorKey);
+		return;
+	}
 
 	FGameplayEffectContextHandle EffectContext = SourceAbilitySystemComponent->MakeEffectContext();
 	EffectContext.AddInstigator(PlayerCharacter, PlayerCharacter);
@@ -228,17 +264,16 @@ void URiftWeaponTraceComponent::ProcessPlayerHit(const ERiftWeaponSlot Slot, con
 	);
 	if (!DamageSpecHandle.IsValid()) return;
 
-	// Mark as hit only after all required objects/specs are valid.
 	HitActorsThisWindow.Add(HitActorKey);
 
-	DamageSpecHandle.Data->SetSetByCallerMagnitude(RiftGameplayTags::SetByCaller_Damage, IncomingDamage);
-	DamageSpecHandle.Data->SetSetByCallerMagnitude(RiftGameplayTags::SetByCaller_PoiseDamage, IncomingPoiseDamage);
+	DamageSpecHandle.Data->SetSetByCallerMagnitude(RiftGameplayTags::SetByCaller_Damage, Damage);
+	DamageSpecHandle.Data->SetSetByCallerMagnitude(RiftGameplayTags::SetByCaller_PoiseDamage, PoiseDamage);
 	SourceAbilitySystemComponent->ApplyGameplayEffectSpecToTarget(
 		*DamageSpecHandle.Data.Get(),
 		TargetAbilitySystemComponent
 	);
 
-	if (IncomingUltimateCharge > 0.0f)
+	if (UltimateCharge > 0.0f)
 	{
 		FGameplayEffectSpecHandle GainSpecHandle = SourceAbilitySystemComponent->MakeOutgoingSpec(
 			UGE_GainResource::StaticClass(),
@@ -249,7 +284,7 @@ void URiftWeaponTraceComponent::ProcessPlayerHit(const ERiftWeaponSlot Slot, con
 		{
 			GainSpecHandle.Data->SetSetByCallerMagnitude(
 				RiftGameplayTags::SetByCaller_UltimateCharge,
-				IncomingUltimateCharge
+				UltimateCharge
 			);
 			SourceAbilitySystemComponent->ApplyGameplayEffectSpecToTarget(
 				*GainSpecHandle.Data.Get(),
@@ -258,26 +293,39 @@ void URiftWeaponTraceComponent::ProcessPlayerHit(const ERiftWeaponSlot Slot, con
 		}
 	}
 
-	FGameplayCueParameters CueParameters;
-	CueParameters.Location = Hit.ImpactPoint.IsNearlyZero() ? Hit.Location : Hit.ImpactPoint;
-	CueParameters.Normal = Hit.ImpactNormal.GetSafeNormal();
-	CueParameters.Instigator = PlayerCharacter;
-	CueParameters.EffectCauser = PlayerCharacter;
-	const FGameplayTag CueTag = bWasBlocked
-		? RiftGameplayTags::GameplayCue_Combat_BlockedHit
-		: RiftGameplayTags::GameplayCue_Combat_MeleeHit;
-	TargetAbilitySystemComponent->ExecuteGameplayCue(CueTag, CueParameters);
-
-	if (URiftCombatFeedbackComponent* FeedbackComponent = PlayerCharacter->GetCombatFeedbackComponent())
+	const FVector ImpactLocation = Hit.ImpactPoint.IsNearlyZero() ? Hit.Location : Hit.ImpactPoint;
+	const FVector ImpactNormal = Hit.ImpactNormal.GetSafeNormal();
+	if (Source.CombatCueConfig)
 	{
-		FeedbackComponent->Multicast_PlayMeleeHitFeedback(EnemyCharacter);
+		EnemyCharacter->Multicast_PlayCombatImpact(
+			Source.CombatCueConfig,
+			ImpactLocation,
+			ImpactNormal,
+			EnemyCharacter->IsBlocking()
+		);
+	}
+
+	if ((Source.bPlayHitStop && Source.HitStopConfig.bEnableHitStop) || Source.bPlayCameraShake)
+	{
+		if (URiftCombatFeedbackComponent* FeedbackComponent = PlayerCharacter->GetCombatFeedbackComponent())
+		{
+			FeedbackComponent->Multicast_PlayMeleeHitFeedback(
+				EnemyCharacter,
+				Source.bPlayHitStop,
+				Source.HitStopConfig,
+				Source.bPlayCameraShake,
+				IncomingCameraShake,
+				IncomingCameraShakeDir
+			);
+		}
 	}
 
 	if (RiftDebugCVars::IsCombatDebugEnabled())
 	{
 		if (UWorld* World = GetWorld())
 		{
-			DrawDebugSphere(World, CueParameters.Location, TraceRadius * 1.25f, 12, FColor::Yellow, false, 0.2f, 0, 2.0f);
+			const FColor DebugColor = Source.bPlayCameraShake ? FColor::Yellow : FColor::Cyan;
+			DrawDebugSphere(World, ImpactLocation, Source.Radius * 1.25f, 12, DebugColor, false, 0.2f, 0, 2.0f);
 		}
 	}
 }
@@ -290,6 +338,19 @@ void URiftWeaponTraceComponent::RemoveTraceCacheForSlot(const ERiftWeaponSlot Sl
 		{
 			WeaponTraceCaches.RemoveAtSwap(Index);
 		}
+	}
+}
+
+FName URiftWeaponTraceComponent::GetWeaponTraceId(const ERiftWeaponSlot Slot)
+{
+	switch (Slot)
+	{
+	case ERiftWeaponSlot::HandLeft:
+		return TEXT("Weapon_Left");
+	case ERiftWeaponSlot::HandRight:
+		return TEXT("Weapon_Right");
+	default:
+		return NAME_None;
 	}
 }
 

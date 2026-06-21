@@ -22,4 +22,17 @@ public:
 
 	AActor* FindSoftTarget() const;
 	bool GetDesiredFacing(FRotator& OutFacing) const;
+
+private:
+	UPROPERTY(EditDefaultsOnly, Category="TargetAssist")
+	float TargetAssistMaxRange = 800.0f;
+
+	UPROPERTY(EditDefaultsOnly, Category="TargetAssist")
+	float TargetAssistMaxAngleDegrees = 75.0f;
+
+	UPROPERTY(EditDefaultsOnly, Category="TargetAssist")
+	float TargetAssistAngleWeight = 0.7f;
+
+	UPROPERTY(EditDefaultsOnly, Category="TargetAssist")
+	float TargetAssistDistanceWeight = 0.3f;
 };

@@ -5,14 +5,17 @@
 #include "CoreMinimal.h"
 #include <cfloat>
 #include "AbilitySystemInterface.h"
+#include "AbilitySystem/RiftAttributeReactionReceiver.h"
 #include "Character/BaseCharacter.h"
 #include "Combat/RiftHitReactionTypes.h"
 #include "TimerManager.h"
 #include "EnemyCharacter.generated.h"
 
 class UEnemyCharacterConfig;
-class UEnemyCombatConfig;
+class UEnemyMeleeAttackAbilityConfig;
+class UEnemyShieldBlockAbilityConfig;
 class UAbilitySystemComponent;
+class UAnimMontage;
 class URiftAbilitySystemComponent;
 class URiftEnemyAttributeSet;
 class APlayerCharacter;
@@ -24,7 +27,7 @@ class UWidgetComponent;
  *
  */
 UCLASS()
-class RIFT_API AEnemyCharacter : public ABaseCharacter, public IAbilitySystemInterface
+class RIFT_API AEnemyCharacter : public ABaseCharacter, public IAbilitySystemInterface, public IRiftAttributeReactionReceiver
 {
 	GENERATED_BODY()
 
@@ -36,7 +39,8 @@ public:
 	virtual UAbilitySystemComponent* GetAbilitySystemComponent() const override;
 
 	UEnemyCharacterConfig* GetEnemyCharacterConfig() const { return EnemyCharacterConfig; }
-	const UEnemyCombatConfig* GetEnemyCombatConfig() const;
+	const UEnemyMeleeAttackAbilityConfig* GetEnemyMeleeAttackAbilityConfig() const;
+	const UEnemyShieldBlockAbilityConfig* GetEnemyShieldBlockAbilityConfig() const;
 
 	UFUNCTION(BlueprintPure, Category="Animation")
 	bool IsStaggeredForAnimation() const;
@@ -52,17 +56,20 @@ public:
 
 	void HandlePoiseHit(bool bPoiseBroken, const FVector& InstigatorLocation);
 	void HandleDeath(AActor* Killer);
+	virtual void HandleAttributeDeath(AActor* DeathInstigator) override;
+	virtual void HandleAttributePoiseHit(bool bPoiseBroken, AActor* DamageInstigator) override;
+	virtual void HandleAttributeDamageNumber(float DamageAmount, bool bBlocked, const FVector& WorldLocation) override;
+	virtual float GetAttributeBlockingPoiseDamageMultiplier() const override;
+	void SetCurrentBlockingPoiseDamageMultiplier(float NewMultiplier);
 	void SetBlockingState(bool bInBlocking);
 	bool IsDeadForAI() const { return bIsDead; }
 	bool IsStaggeredForAI() const;
 	bool IsAttackingForAI() const;
 	bool IsIntroForAI() const;
-	bool IsDiscoveringForAI() const;
 	bool CanStartMeleeAttack(AActor* TargetActor) const;
 	bool TryStartMeleeAttack(AActor* TargetActor);
 	bool CanStartShieldBlock(AActor* TargetActor) const;
 	bool TryStartShieldBlock(AActor* TargetActor);
-	void TryPlayDiscoverReaction(AActor* TargetActor);
 
 	void BeginAttackHitWindow();
 	void TickAttackHitWindow();
@@ -78,7 +85,10 @@ public:
 	void Multicast_PlaySpawnIntro();
 
 	UFUNCTION(NetMulticast, Reliable)
-	void Multicast_PlayDiscover();
+	void Multicast_PlayStaggered();
+
+	UFUNCTION(BlueprintImplementableEvent, Category="Combat|DamageNumber")
+	void OnDamageNumber(float DamageAmount, bool bBlocked, FVector WorldLocation);
 
 protected:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Config")
@@ -100,7 +110,7 @@ protected:
 	TSubclassOf<UUserWidget> HealthBarWidgetClass;
 
 private:
-	void ApplyAnimationConfig() const;
+	void ApplyPresentationConfig() const;
 	void ApplyCommonAttributesFromConfig();
 	void ApplyWeaponsFromConfig();
 	void GrantAbilities();
@@ -109,28 +119,27 @@ private:
 	void StartSpawnIntroOrAI();
 	void FinishSpawnIntro();
 	void PlaySpawnIntroMontage();
-	bool CanPlayDiscoverReaction(AActor* TargetActor) const;
-	void FinishDiscoverReaction();
-	void PlayDiscoverMontage();
+	void OnSpawnIntroMontageEnded(UAnimMontage* Montage, bool bInterrupted);
 	void SetStaggeredState(bool bInStaggered);
 	void SetIntroState(bool bInIntro);
-	void SetDiscoveringState(bool bInDiscovering);
 	void EnterStaggered(float Duration);
 	void ExitStaggered();
+	void OnStaggeredMontageEnded(UAnimMontage* Montage, bool bInterrupted);
 	void GrantKillReward(AActor* Killer);
 	void FinishDeath();
 	void RestorePoise();
 
 	FTimerHandle StaggeredTimerHandle;
 	FTimerHandle SpawnIntroTimerHandle;
-	FTimerHandle DiscoverTimerHandle;
 	FTimerHandle DeathDespawnTimerHandle;
 	FTimerHandle PoiseRegenTimerHandle;
 	float NextAttackTime = 0.0f;
 	float LastShieldBlockTime = -FLT_MAX;
+	float CurrentBlockingPoiseDamageMultiplier = 1.0f;
 	bool bHasStartedEnemyBehavior = false;
-	bool bHasPlayedDiscoverReaction = false;
 	bool bIsDead = false;
 	ERiftHitReactDirection LastHitReactDirection = ERiftHitReactDirection::Front;
+	TWeakObjectPtr<UAnimMontage> ActiveSpawnIntroMontage;
+	TWeakObjectPtr<UAnimMontage> ActiveStaggeredMontage;
 	TSet<TObjectKey<AActor>> HitPlayersThisAttack;
 };

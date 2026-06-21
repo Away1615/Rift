@@ -6,7 +6,6 @@
 
 class AEnemyCharacter;
 class APlayerCharacter;
-class UEnemyCombatConfig;
 
 UCLASS()
 class RIFT_API ARiftEnemyAIController : public AAIController

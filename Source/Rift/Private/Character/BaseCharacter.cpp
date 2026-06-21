@@ -6,6 +6,7 @@
 #include "Components/CapsuleComponent.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Components/StaticMeshComponent.h"
+#include "Data/Combat/RiftCombatCueConfig.h"
 
 namespace
 {
@@ -49,6 +50,28 @@ ABaseCharacter::ABaseCharacter()
 void ABaseCharacter::OnDeathVisual_Implementation(const ERiftHitReactDirection Direction)
 {
 	static_cast<void>(Direction);
+}
+
+void ABaseCharacter::Multicast_PlayCombatImpact_Implementation(
+	URiftCombatCueConfig* CombatCueConfig,
+	const FVector_NetQuantize ImpactLocation,
+	const FVector_NetQuantizeNormal ImpactNormal,
+	const bool bBlocked
+)
+{
+	if (!CombatCueConfig)
+	{
+		return;
+	}
+
+	if (bBlocked)
+	{
+		CombatCueConfig->PlayBlocked(GetWorld(), ImpactLocation, ImpactNormal);
+	}
+	else
+	{
+		CombatCueConfig->PlayHit(GetWorld(), ImpactLocation, ImpactNormal);
+	}
 }
 
 void ABaseCharacter::ApplyWeapons(const TMap<ERiftWeaponSlot, TObjectPtr<UStaticMesh>>& Weapons)

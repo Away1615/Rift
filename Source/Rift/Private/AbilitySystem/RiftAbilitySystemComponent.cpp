@@ -11,12 +11,6 @@ void URiftAbilitySystemComponent::AbilityInputTagPressed(const FGameplayTag& Inp
 {
 	if (!InputTag.IsValid()) return;
 
-	LastPressedInputTag = InputTag;
-	if (!IsOwnerActorAuthoritative())
-	{
-		ServerSetLastPressedInputTag(InputTag);
-	}
-
 	bool bFoundActiveMatchingAbility = false;
 
 	{
@@ -47,11 +41,27 @@ void URiftAbilitySystemComponent::AbilityInputTagPressed(const FGameplayTag& Inp
 		ActivationTags.AddTag(InputTag);
 		TryActivateAbilitiesByTag(ActivationTags);
 	}
-
-	LastPressedInputTag = FGameplayTag();
 }
 
-void URiftAbilitySystemComponent::ServerSetLastPressedInputTag_Implementation(FGameplayTag InputTag)
+void URiftAbilitySystemComponent::AbilityInputTagReleased(const FGameplayTag& InputTag)
 {
-	LastPressedInputTag = InputTag;
+	if (!InputTag.IsValid()) return;
+
+	FScopedAbilityListLock AbilityListLock(*this);
+	for (FGameplayAbilitySpec& AbilitySpec : GetActivatableAbilities())
+	{
+		if (!AbilitySpec.IsActive() ||
+			!AbilitySpec.Ability ||
+			!AbilitySpec.Ability->GetAssetTags().HasTagExact(InputTag))
+		{
+			continue;
+		}
+
+		AbilitySpecInputReleased(AbilitySpec);
+
+		if (!IsOwnerActorAuthoritative() && AbilitySpec.Ability->bReplicateInputDirectly)
+		{
+			ServerSetInputReleased(AbilitySpec.Handle);
+		}
+	}
 }

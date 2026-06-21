@@ -3,8 +3,7 @@
 #include "Abilities/Tasks/AbilityTask_PlayMontageAndWait.h"
 #include "AbilitySystem/RiftGameplayTags.h"
 #include "Character/EnemyCharacter.h"
-#include "Data/Enemy/Combat/EnemyCombatConfig.h"
-#include "Data/Enemy/EnemyCharacterConfig.h"
+#include "Data/Ability/EnemyMeleeAttackAbilityConfig.h"
 
 UGA_EnemyMeleeAttack::UGA_EnemyMeleeAttack()
 {
@@ -18,6 +17,7 @@ UGA_EnemyMeleeAttack::UGA_EnemyMeleeAttack()
 	ActivationOwnedTags.AddTag(RiftGameplayTags::State_Attacking);
 	ActivationBlockedTags.AddTag(RiftGameplayTags::State_Dead);
 	ActivationBlockedTags.AddTag(RiftGameplayTags::State_Staggered);
+	ActivationBlockedTags.AddTag(RiftGameplayTags::State_Blocking);
 }
 
 void UGA_EnemyMeleeAttack::ActivateAbility(
@@ -42,10 +42,17 @@ void UGA_EnemyMeleeAttack::ActivateAbility(
 		return;
 	}
 
-	const UEnemyCharacterConfig* EnemyCharacterConfig = EnemyCharacter->GetEnemyCharacterConfig();
-	const UEnemyCombatConfig* EnemyCombatConfig = EnemyCharacterConfig ? EnemyCharacterConfig->EnemyCombatConfig : nullptr;
-	if (!EnemyCombatConfig || !EnemyCombatConfig->AttackMontage)
+	const UEnemyMeleeAttackAbilityConfig* MeleeConfig =
+		Cast<UEnemyMeleeAttackAbilityConfig>(GetCurrentSourceObject());
+	if (!MeleeConfig || !MeleeConfig->AttackMontage)
 	{
+		UE_LOG(
+			LogTemp,
+			Warning,
+			TEXT("GA_EnemyMeleeAttack rejected: SourceObject must be EnemyMeleeAttackAbilityConfig with AttackMontage. Ability=%s SourceObject=%s"),
+			*GetNameSafe(this),
+			*GetNameSafe(GetCurrentSourceObject())
+		);
 		EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
 		return;
 	}
@@ -53,7 +60,7 @@ void UGA_EnemyMeleeAttack::ActivateAbility(
 	UAbilityTask_PlayMontageAndWait* MontageTask = UAbilityTask_PlayMontageAndWait::CreatePlayMontageAndWaitProxy(
 		this,
 		NAME_None,
-		EnemyCombatConfig->AttackMontage,
+		MeleeConfig->AttackMontage,
 		1.0f,
 		NAME_None,
 		true

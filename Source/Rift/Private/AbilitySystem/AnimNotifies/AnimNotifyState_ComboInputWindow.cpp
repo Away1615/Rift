@@ -2,7 +2,7 @@
 
 #include "AbilitySystem/AnimNotifies/AnimNotifyState_ComboInputWindow.h"
 
-#include "AbilitySystem/Abilities/GA_ComboAttack.h"
+#include "AbilitySystem/Abilities/GA_TwinSwordComboAttack.h"
 #include "Components/SkeletalMeshComponent.h"
 
 void UAnimNotifyState_ComboInputWindow::NotifyBegin(
@@ -16,9 +16,10 @@ void UAnimNotifyState_ComboInputWindow::NotifyBegin(
 
 	if (!MeshComp) return;
 
-	if (UGA_ComboAttack* ComboAttack = UGA_ComboAttack::FindActiveComboInstance(MeshComp->GetOwner()))
+	if (UGA_TwinSwordComboAttack* TwinSwordComboAttack =
+		UGA_TwinSwordComboAttack::FindActiveTwinSwordComboInstance(MeshComp->GetOwner()))
 	{
-		ComboAttack->OpenComboInputWindow();
+		TwinSwordComboAttack->OpenComboInputWindow();
 	}
 }
 
@@ -32,8 +33,9 @@ void UAnimNotifyState_ComboInputWindow::NotifyEnd(
 
 	if (!MeshComp) return;
 
-	if (UGA_ComboAttack* ComboAttack = UGA_ComboAttack::FindActiveComboInstance(MeshComp->GetOwner()))
+	if (UGA_TwinSwordComboAttack* TwinSwordComboAttack =
+		UGA_TwinSwordComboAttack::FindActiveTwinSwordComboInstance(MeshComp->GetOwner()))
 	{
-		ComboAttack->CloseComboInputWindow();
+		TwinSwordComboAttack->CloseComboInputWindow();
 	}
 }

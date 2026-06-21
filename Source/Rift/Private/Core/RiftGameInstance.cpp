@@ -6,8 +6,11 @@
 #include "GameFramework/PlayerController.h"
 #include "Kismet/GameplayStatics.h"
 #include "OnlineSubsystem.h"
+#include "UObject/UObjectGlobals.h"
 
 const FName URiftGameInstance::RoomCodeSessionKey(TEXT("ROOM_CODE"));
+
+DEFINE_LOG_CATEGORY_STATIC(LogRiftGameInstance, Log, All);
 
 URiftGameInstance::URiftGameInstance()
 {
@@ -15,9 +18,12 @@ URiftGameInstance::URiftGameInstance()
 
 void URiftGameInstance::CreateLanRoom(const FString& RoomCode)
 {
-	if (ActiveCreateSessionSearch.IsValid() || FindSessionsForCreateCompleteDelegateHandle.IsValid())
+	if (ActiveCreateSessionSearch.IsValid() ||
+		FindSessionsForCreateCompleteDelegateHandle.IsValid() ||
+		PostLoadMapWithWorldDelegateHandle.IsValid() ||
+		CreateSessionCompleteDelegateHandle.IsValid())
 	{
-		OnCreateRoomFailed.Broadcast(TEXT("Already checking room code."));
+		OnCreateRoomFailed.Broadcast(TEXT("Room creation is already in progress."));
 		return;
 	}
 
@@ -44,7 +50,7 @@ void URiftGameInstance::CreateLanRoom(const FString& RoomCode)
 		return;
 	}
 
-	if (SessionInterface->GetNamedSession(NAME_GameSession))
+	if (!CurrentRoomCode.IsEmpty() || SessionInterface->GetNamedSession(NAME_GameSession))
 	{
 		ClearCreateRoomCheck();
 		OnCreateRoomFailed.Broadcast(TEXT("Already in a room."));
@@ -245,6 +251,40 @@ void URiftGameInstance::HandleFindSessionsForCreateComplete(bool bWasSuccessful)
 	CurrentRoomCode = PendingCreateRoomCode;
 	PendingCreateRoomCode.Empty();
 
+	ClearLobbyMapLoadDelegate();
+	PostLoadMapWithWorldDelegateHandle = FCoreUObjectDelegates::PostLoadMapWithWorld.AddUObject(
+		this,
+		&URiftGameInstance::HandleLobbyMapLoaded
+	);
+
+	const FString LobbyMapPath = GetLobbyMapPath();
+	UGameplayStatics::OpenLevel(this, FName(*LobbyMapPath), true, TEXT("listen"));
+}
+
+void URiftGameInstance::StartCreateSessionForCurrentRoom()
+{
+	IOnlineSessionPtr SessionInterface = GetSessionInterface();
+	if (!SessionInterface.IsValid())
+	{
+		ClearCurrentRoom();
+		OnCreateRoomFailed.Broadcast(TEXT("Online session interface is unavailable."));
+		return;
+	}
+
+	if (CurrentRoomCode.IsEmpty())
+	{
+		ClearCurrentRoom();
+		OnCreateRoomFailed.Broadcast(TEXT("Room code is missing."));
+		return;
+	}
+
+	if (SessionInterface->GetNamedSession(NAME_GameSession))
+	{
+		ClearCurrentRoom();
+		OnCreateRoomFailed.Broadcast(TEXT("Already in a room."));
+		return;
+	}
+
 	ActiveSessionSettings = MakeShared<FOnlineSessionSettings>();
 	ActiveSessionSettings->bIsLANMatch = true;
 	ActiveSessionSettings->bShouldAdvertise = true;
@@ -264,10 +304,24 @@ void URiftGameInstance::HandleFindSessionsForCreateComplete(bool bWasSuccessful)
 	{
 		SessionInterface->ClearOnCreateSessionCompleteDelegate_Handle(CreateSessionCompleteDelegateHandle);
 		CreateSessionCompleteDelegateHandle.Reset();
-		ClearCreateRoomCheck();
 		ClearCurrentRoom();
 		OnCreateRoomFailed.Broadcast(TEXT("Failed to start session creation."));
 	}
+}
+
+void URiftGameInstance::HandleLobbyMapLoaded(UWorld* LoadedWorld)
+{
+	ClearLobbyMapLoadDelegate();
+
+	if (!LoadedWorld)
+	{
+		ClearCurrentRoom();
+		OnCreateRoomFailed.Broadcast(TEXT("Failed to load lobby map."));
+		return;
+	}
+
+	UE_LOG(LogRiftGameInstance, Log, TEXT("Lobby map loaded. Creating LAN session for room %s."), *CurrentRoomCode);
+	StartCreateSessionForCurrentRoom();
 }
 
 void URiftGameInstance::HandleCreateSessionComplete(FName SessionName, bool bWasSuccessful)
@@ -292,8 +346,6 @@ void URiftGameInstance::HandleCreateSessionComplete(FName SessionName, bool bWas
 	}
 
 	OnCreateRoomSucceeded.Broadcast(CurrentRoomCode);
-	const FString LobbyMapPath = GetLobbyMapPath();
-	UGameplayStatics::OpenLevel(this, FName(*LobbyMapPath), true, TEXT("listen"));
 }
 
 void URiftGameInstance::HandleFindSessionsComplete(bool bWasSuccessful)
@@ -387,6 +439,14 @@ void URiftGameInstance::HandleJoinSessionComplete(
 		return;
 	}
 
+	if (ConnectString.Contains(TEXT(":0/")) || ConnectString.EndsWith(TEXT(":0")))
+	{
+		UE_LOG(LogRiftGameInstance, Warning, TEXT("Resolved invalid room connect string: %s"), *ConnectString);
+		ClearJoinRoomSearch();
+		BroadcastJoinFailure(TEXT("Resolved host address is invalid."));
+		return;
+	}
+
 	APlayerController* PlayerController = UGameplayStatics::GetPlayerController(this, 0);
 	if (!PlayerController)
 	{
@@ -425,6 +485,15 @@ void URiftGameInstance::ClearCurrentRoom()
 	ClearJoinRoomSearch();
 }
 
+void URiftGameInstance::ClearLobbyMapLoadDelegate()
+{
+	if (PostLoadMapWithWorldDelegateHandle.IsValid())
+	{
+		FCoreUObjectDelegates::PostLoadMapWithWorld.Remove(PostLoadMapWithWorldDelegateHandle);
+		PostLoadMapWithWorldDelegateHandle.Reset();
+	}
+}
+
 void URiftGameInstance::ClearCreateRoomCheck()
 {
 	IOnlineSessionPtr SessionInterface = GetSessionInterface();
@@ -435,6 +504,7 @@ void URiftGameInstance::ClearCreateRoomCheck()
 
 	PendingCreateRoomCode.Empty();
 	ActiveCreateSessionSearch.Reset();
+	ClearLobbyMapLoadDelegate();
 	FindSessionsForCreateCompleteDelegateHandle.Reset();
 }
 

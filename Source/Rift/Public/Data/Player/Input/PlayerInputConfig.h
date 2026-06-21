@@ -37,11 +37,14 @@ public:
 	TObjectPtr<UInputAction> SecondaryAttackAction;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Input")
-	TObjectPtr<UInputAction> PrimaryHeavyAction;
+	TObjectPtr<UInputAction> DodgeAction;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Input")
-	TObjectPtr<UInputAction> SecondaryHeavyAction;
+	TObjectPtr<UInputAction> GuardAction;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Input")
-	TObjectPtr<UInputAction> CoreAction;
+	TObjectPtr<UInputAction> SkillQAction;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Input")
+	TObjectPtr<UInputAction> SkillEAction;
 };

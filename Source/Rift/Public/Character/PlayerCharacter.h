@@ -4,25 +4,28 @@
 
 #include "CoreMinimal.h"
 #include "AbilitySystemInterface.h"
+#include "AbilitySystem/RiftAttributeReactionReceiver.h"
 #include "Camera/CameraComponent.h"
 #include "Character/BaseCharacter.h"
-#include "Combat/RiftDamageReactionTypes.h"
 #include "Combat/RiftHitReactionTypes.h"
+#include "Combat/RiftPlayerHitReactionTypes.h"
 #include "GameFramework/SpringArmComponent.h"
 #include "GameplayAbilitySpec.h"
 #include "GameplayEffectTypes.h"
 #include "TimerManager.h"
 #include "PlayerCharacter.generated.h"
 
-class UPlayerAnimationConfig;
-class UPlayerClassConfig;
 class UAbilitySystemComponent;
 class UAnimMontage;
 class USkeletalMeshComponent;
+class UPlayerClassConfig;
 class URiftTargetAssistComponent;
 class URiftWeaponTraceComponent;
 class URiftCombatFeedbackComponent;
 class UPlayerAppearanceComponent;
+class UNiagaraComponent;
+class UNiagaraSystem;
+class UGA_TwinSwordRapidSlash;
 
 UENUM(BlueprintType)
 enum class ERiftCharacterFacingMode : uint8
@@ -35,7 +38,7 @@ enum class ERiftCharacterFacingMode : uint8
  *
  */
 UCLASS()
-class RIFT_API APlayerCharacter : public ABaseCharacter, public IAbilitySystemInterface
+class RIFT_API APlayerCharacter : public ABaseCharacter, public IAbilitySystemInterface, public IRiftAttributeReactionReceiver
 {
 	GENERATED_BODY()
 
@@ -69,22 +72,28 @@ public:
 
 	FVector GetCameraRelativeMoveDirection() const;
 
-	void ActivatePerfectDodgeWindow(const FVector& Origin, float Duration);
+	void ActivatePerfectDodgeWindow(const FVector& Origin, float Duration, float UltimateChargeReward);
 	bool IsPerfectDodgeWindowActive() const { return bPerfectDodgeWindowActive; }
 	FVector GetPerfectDodgeOrigin() const { return PerfectDodgeOrigin; }
 	void HandlePerfectDodge(AActor* InstigatorEnemy);
+
 	void HandleDeath();
 	void HandleDeath(AActor* DeathInstigator);
+	virtual void HandleAttributeDeath(AActor* DeathInstigator) override;
 	bool IsDead() const { return bIsDead; }
-	void HandleHitFeedback(ERiftPlayerHitFeedbackPolicy FeedbackPolicy, AActor* DamageInstigator, float DamageValue);
-	void HandlePoiseBroken(AActor* DamageInstigator);
+	void HandlePlayerHitReaction(ERiftPlayerHitReaction Reaction, AActor* DamageInstigator, float DamageValue);
+	void HandleLightHit(AActor* DamageInstigator);
 	void HandleHeavyHit(AActor* DamageInstigator);
+	void FinishLightHit();
 
 	UFUNCTION(BlueprintCallable, Category="State")
 	void FinishHeavyHit();
 
 	UFUNCTION(Server, Reliable)
 	void Server_FinishHeavyHit();
+
+	UFUNCTION(BlueprintPure, Category="State")
+	bool IsInLightHitState() const;
 
 	UFUNCTION(BlueprintPure, Category="State")
 	bool IsInHeavyHitState() const;
@@ -119,6 +128,12 @@ public:
 	void Client_SetDeadControlState(bool bDead);
 
 	UFUNCTION(Client, Reliable)
+	void Client_ShowDamageIndicator(float DamageValue);
+
+	UFUNCTION(Client, Reliable)
+	void Client_SetLightHitControlState(bool bInLightHit);
+
+	UFUNCTION(Client, Reliable)
 	void Client_SetHeavyHitControlState(bool bInHeavyHit);
 
 	UFUNCTION(NetMulticast, Reliable)
@@ -126,14 +141,11 @@ public:
 
 	void ReviveAtTransform(const FTransform& ReviveTransform);
 
-	UFUNCTION(BlueprintImplementableEvent, Category="Death", meta=(DeprecatedFunction, DeprecationMessage="Use OnDeathVisual instead."))
-	void OnPlayerDeath();
-
-	UFUNCTION(BlueprintImplementableEvent, Category="Death", meta=(DeprecatedFunction, DeprecationMessage="Use OnDeathVisual instead."))
-	void OnPlayerDeathVisual(ERiftHitReactDirection Direction);
-
 	UFUNCTION(BlueprintImplementableEvent, Category="Damage")
 	void OnPlayerHitDamaged(ERiftHitReactDirection Direction, float DamageValue, AActor* DamageInstigator);
+
+	UFUNCTION(BlueprintImplementableEvent, Category="Combat|Feedback")
+	void OnDamageIndicator(float DamageValue);
 
 	UFUNCTION(BlueprintImplementableEvent, Category="Respawn")
 	void OnPlayerRevived();
@@ -165,8 +177,40 @@ public:
 	UFUNCTION(BlueprintCallable, Category="Lobby|Preview")
 	void ApplyClassConfigForPreview(UPlayerClassConfig* PreviewClassConfig);
 
-	UFUNCTION(BlueprintPure, Category="Animation")
-	UPlayerAnimationConfig* GetPlayerAnimationConfig() const;
+	void StartRapidSlashAuraVisual(
+		UNiagaraSystem* AuraNiagara,
+		FName AttachSocketName,
+		const FVector& LocationOffset,
+		const FRotator& RotationOffset,
+		const FVector& Scale
+	);
+	void StopRapidSlashAuraVisual();
+
+	UFUNCTION(NetMulticast, Unreliable)
+	void Multicast_StartRapidSlashAuraVisual(
+		UNiagaraSystem* AuraNiagara,
+		FName AttachSocketName,
+		FVector LocationOffset,
+		FRotator RotationOffset,
+		FVector Scale
+	);
+
+	UFUNCTION(NetMulticast, Unreliable)
+	void Multicast_StopRapidSlashAuraVisual();
+
+	void RequestRapidSlashFinisher();
+
+	UFUNCTION(Server, Reliable)
+	void Server_RequestRapidSlashFinisher();
+
+	void SetActionCancelableState(bool bCancelable);
+	void ClearActionCancelableState();
+	bool IsActionCancelable() const;
+	bool IsDodgingForActionCancel() const;
+	void CancelPlayerActionAbilities(bool bIncludeGuard, bool bIncludeDodge);
+
+	void SetActiveTwinSwordRapidSlashAbility(UGA_TwinSwordRapidSlash* Ability);
+	void ClearActiveTwinSwordRapidSlashAbility(UGA_TwinSwordRapidSlash* Ability);
 
 	UFUNCTION(BlueprintPure, Category="Combat")
 	URiftTargetAssistComponent* GetTargetAssistComponent() const { return TargetAssistComponent; }
@@ -241,16 +285,22 @@ private:
 	void ApplyClassConfigOnAllRoles();
 	void ApplyClassConfigOnAuthority();
 	void ApplyCommonAttributesFromConfig();
-	void ApplyAnimationConfig() const;
 	void ApplyWeaponsFromConfig();
-	void ClearGrantedAbilities();
+	void ClearGrantedAbilityHandles();
 	void GrantAbilitiesFromClassConfig();
+	void SetLightHitState(bool bInLightHit);
 	void SetHeavyHitState(bool bInHeavyHit);
 
-	FActiveGameplayEffectHandle StaminaRegenEffectHandle;
+	TWeakObjectPtr<UAnimMontage> ActiveLightHitMontage;
 	TWeakObjectPtr<UAnimMontage> ActiveHeavyHitMontage;
 
+	UPROPERTY(Transient)
+	TObjectPtr<UNiagaraComponent> ActiveRapidSlashAuraComponent;
+
+	TWeakObjectPtr<UGA_TwinSwordRapidSlash> ActiveTwinSwordRapidSlashAbility;
+
 	FVector PerfectDodgeOrigin = FVector::ZeroVector;
+	float PerfectDodgeUltimateChargeReward = 0.0f;
 	bool bPerfectDodgeWindowActive = false;
 	bool bIsDead = false;
 	ERiftHitReactDirection LastHitReactDirection = ERiftHitReactDirection::Front;
@@ -258,6 +308,9 @@ private:
 
 	UFUNCTION()
 	void OnRep_PlayerClassConfig();
+
+	UFUNCTION()
+	void OnLightHitMontageEnded(UAnimMontage* Montage, bool bInterrupted);
 
 	UFUNCTION()
 	void OnHeavyHitMontageEnded(UAnimMontage* Montage, bool bInterrupted);

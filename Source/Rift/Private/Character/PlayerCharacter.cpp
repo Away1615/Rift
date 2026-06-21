@@ -4,10 +4,10 @@
 #include "Character/PlayerCharacter.h"
 
 #include "AbilitySystemComponent.h"
+#include "AbilitySystem/Abilities/GA_TwinSwordRapidSlash.h"
 #include "AbilitySystem/Attributes/RiftPlayerAttributeSet.h"
 #include "AbilitySystem/Attributes/RiftResourceAttributeSet.h"
 #include "AbilitySystem/Effects/GE_GainResource.h"
-#include "AbilitySystem/Effects/GE_StaminaRegen.h"
 #include "AbilitySystem/RiftGameplayTags.h"
 #include "Abilities/GameplayAbility.h"
 #include "Animation/AnimInstance.h"
@@ -17,16 +17,28 @@
 #include "Combat/RiftWeaponTraceComponent.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Core/RiftGameplayGameMode.h"
+#include "Data/Ability/RiftAbilityConfig.h"
 #include "Data/Player/PlayerClassConfig.h"
-#include "Data/Player/Animation/PlayerAnimationConfig.h"
-#include "Data/Player/Combat/PlayerCombatConfig.h"
 #include "Debug/Logger.h"
 #include "Engine/World.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Net/UnrealNetwork.h"
+#include "NiagaraComponent.h"
+#include "NiagaraFunctionLibrary.h"
 #include "Player/BasePlayerController.h"
 #include "Player/BasePlayerState.h"
 #include "TimerManager.h"
+
+static constexpr float RiftPlayerDefaultRunSpeed = 600.0f;
+static constexpr float RiftPlayerDefaultMaxAcceleration = 900.0f;
+static constexpr float RiftPlayerDefaultBrakingDecelerationWalking = 700.0f;
+static constexpr float RiftPlayerDefaultBrakingFriction = 3.0f;
+static constexpr float RiftPlayerDefaultBrakingFrictionFactor = 1.0f;
+static constexpr float RiftPlayerDefaultGroundFriction = 8.0f;
+static constexpr float RiftPlayerDefaultMinTurnRate = 200.0f;
+static constexpr float RiftPlayerDefaultMaxTurnRate = 1000.0f;
+static constexpr float RiftPlayerDefaultMinTurnRateInterpSpeed = 3.0f;
+static constexpr float RiftPlayerDefaultMaxTurnRateInterpSpeed = 25.0f;
 
 APlayerCharacter::APlayerCharacter()
 {
@@ -80,11 +92,6 @@ void APlayerCharacter::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& Out
     DOREPLIFETIME(APlayerCharacter, PlayerClassConfig);
 }
 
-UPlayerAnimationConfig* APlayerCharacter::GetPlayerAnimationConfig() const
-{
-    return PlayerClassConfig ? PlayerClassConfig->PlayerAnimationConfig : nullptr;
-}
-
 void APlayerCharacter::SelectPlayerClass_Implementation(UPlayerClassConfig* NewPlayerClassConfig)
 {
     if (!NewPlayerClassConfig || PlayerClassConfig == NewPlayerClassConfig) return;
@@ -104,6 +111,168 @@ void APlayerCharacter::ApplyClassConfigForPreview(UPlayerClassConfig* PreviewCla
     if (AppearanceComponent)
     {
         AppearanceComponent->RefreshLeaderPose();
+    }
+}
+
+void APlayerCharacter::StartRapidSlashAuraVisual(
+    UNiagaraSystem* AuraNiagara,
+    const FName AttachSocketName,
+    const FVector& LocationOffset,
+    const FRotator& RotationOffset,
+    const FVector& Scale
+)
+{
+    StopRapidSlashAuraVisual();
+
+    if (!AuraNiagara) return;
+
+    USkeletalMeshComponent* CharacterMesh = GetMesh();
+    if (!CharacterMesh) return;
+
+    ActiveRapidSlashAuraComponent = UNiagaraFunctionLibrary::SpawnSystemAttached(
+        AuraNiagara,
+        CharacterMesh,
+        AttachSocketName,
+        LocationOffset,
+        RotationOffset,
+        Scale,
+        EAttachLocation::KeepRelativeOffset,
+        false,
+        ENCPoolMethod::None,
+        true
+    );
+}
+
+void APlayerCharacter::StopRapidSlashAuraVisual()
+{
+    if (!ActiveRapidSlashAuraComponent) return;
+
+    ActiveRapidSlashAuraComponent->Deactivate();
+    ActiveRapidSlashAuraComponent->DestroyComponent();
+    ActiveRapidSlashAuraComponent = nullptr;
+}
+
+void APlayerCharacter::Multicast_StartRapidSlashAuraVisual_Implementation(
+    UNiagaraSystem* AuraNiagara,
+    const FName AttachSocketName,
+    const FVector LocationOffset,
+    const FRotator RotationOffset,
+    const FVector Scale
+)
+{
+    StartRapidSlashAuraVisual(AuraNiagara, AttachSocketName, LocationOffset, RotationOffset, Scale);
+}
+
+void APlayerCharacter::Multicast_StopRapidSlashAuraVisual_Implementation()
+{
+    StopRapidSlashAuraVisual();
+}
+
+void APlayerCharacter::RequestRapidSlashFinisher()
+{
+    UGA_TwinSwordRapidSlash* RapidSlashAbility = ActiveTwinSwordRapidSlashAbility.Get();
+    if (!RapidSlashAbility)
+    {
+        RapidSlashAbility = UGA_TwinSwordRapidSlash::FindActiveRapidSlashInstance(this);
+    }
+
+    if (RapidSlashAbility)
+    {
+        RapidSlashAbility->RequestFinisherFromInput();
+    }
+
+    if (!HasAuthority())
+    {
+        Server_RequestRapidSlashFinisher();
+    }
+}
+
+void APlayerCharacter::Server_RequestRapidSlashFinisher_Implementation()
+{
+    UGA_TwinSwordRapidSlash* RapidSlashAbility = ActiveTwinSwordRapidSlashAbility.Get();
+    if (!RapidSlashAbility)
+    {
+        RapidSlashAbility = UGA_TwinSwordRapidSlash::FindActiveRapidSlashInstance(this);
+    }
+
+    if (RapidSlashAbility)
+    {
+        RapidSlashAbility->RequestFinisherFromInput();
+    }
+}
+
+void APlayerCharacter::SetActionCancelableState(const bool bCancelable)
+{
+    UAbilitySystemComponent* AbilitySystemComponent = GetAbilitySystemComponent();
+    if (!AbilitySystemComponent) return;
+
+    const int32 NewCount = bCancelable ? 1 : 0;
+    AbilitySystemComponent->SetLooseGameplayTagCount(RiftGameplayTags::State_Action_Cancelable, NewCount);
+    if (AbilitySystemComponent->IsOwnerActorAuthoritative())
+    {
+        AbilitySystemComponent->SetReplicatedLooseGameplayTagCount(
+            RiftGameplayTags::State_Action_Cancelable,
+            NewCount
+        );
+    }
+}
+
+void APlayerCharacter::ClearActionCancelableState()
+{
+    SetActionCancelableState(false);
+}
+
+bool APlayerCharacter::IsActionCancelable() const
+{
+    const UAbilitySystemComponent* AbilitySystemComponent = GetAbilitySystemComponent();
+    return AbilitySystemComponent &&
+        AbilitySystemComponent->HasMatchingGameplayTag(RiftGameplayTags::State_Action_Cancelable);
+}
+
+bool APlayerCharacter::IsDodgingForActionCancel() const
+{
+    const UAbilitySystemComponent* AbilitySystemComponent = GetAbilitySystemComponent();
+    return AbilitySystemComponent &&
+        AbilitySystemComponent->HasMatchingGameplayTag(RiftGameplayTags::State_Dodging);
+}
+
+void APlayerCharacter::CancelPlayerActionAbilities(const bool bIncludeGuard, const bool bIncludeDodge)
+{
+    UAbilitySystemComponent* AbilitySystemComponent = GetAbilitySystemComponent();
+    if (!AbilitySystemComponent) return;
+
+    FGameplayTagContainer AbilityTags;
+    AbilityTags.AddTag(RiftGameplayTags::Ability_Attack_Combo);
+    AbilityTags.AddTag(RiftGameplayTags::Ability_Attack_TwinSwordCombo);
+    AbilityTags.AddTag(RiftGameplayTags::Ability_Attack_TwinSwordRapidSlash);
+    AbilityTags.AddTag(RiftGameplayTags::Ability_Skill_TwinSword_SwordWave);
+    AbilityTags.AddTag(RiftGameplayTags::Ability_Skill_TwinSword_Q);
+
+    if (bIncludeGuard)
+    {
+        AbilityTags.AddTag(RiftGameplayTags::Ability_Guard);
+    }
+
+    if (bIncludeDodge)
+    {
+        AbilityTags.AddTag(RiftGameplayTags::Ability_Dodge);
+    }
+
+    AbilitySystemComponent->CancelAbilities(&AbilityTags);
+}
+
+void APlayerCharacter::SetActiveTwinSwordRapidSlashAbility(UGA_TwinSwordRapidSlash* Ability)
+{
+    if (!Ability) return;
+
+    ActiveTwinSwordRapidSlashAbility = Ability;
+}
+
+void APlayerCharacter::ClearActiveTwinSwordRapidSlashAbility(UGA_TwinSwordRapidSlash* Ability)
+{
+    if (ActiveTwinSwordRapidSlashAbility.Get() == Ability)
+    {
+        ActiveTwinSwordRapidSlashAbility.Reset();
     }
 }
 
@@ -128,15 +297,6 @@ void APlayerCharacter::PossessedBy(AController* NewController)
         UPlayerClassConfig* SelectedPlayerClassConfig = RiftPlayerState
             ? RiftPlayerState->GetSelectedPlayerClassConfig()
             : nullptr;
-        UE_LOG(
-            LogTemp,
-            Warning,
-            TEXT("RiftLobbySelection PossessedBy Character=%s Controller=%s PlayerStateClass=%s SelectedClass=%s"),
-            *GetNameSafe(this),
-            *GetNameSafe(NewController),
-            RiftPlayerState ? *GetNameSafe(RiftPlayerState->GetClass()) : TEXT("None"),
-            *GetNameSafe(SelectedPlayerClassConfig)
-        );
 
         if (!SelectedPlayerClassConfig)
         {
@@ -147,14 +307,6 @@ void APlayerCharacter::PossessedBy(AController* NewController)
                 SelectedPlayerClassConfig = RiftPlayerState
                     ? RiftPlayerState->GetSelectedPlayerClassConfig()
                     : nullptr;
-                UE_LOG(
-                    LogTemp,
-                    Warning,
-                    TEXT("RiftLobbySelection PossessedByFallback Character=%s PlayerState=%s SelectedClass=%s"),
-                    *GetNameSafe(this),
-                    *GetNameSafe(RiftPlayerState),
-                    *GetNameSafe(SelectedPlayerClassConfig)
-                );
             }
         }
 
@@ -216,7 +368,9 @@ UAbilitySystemComponent* APlayerCharacter::GetAbilitySystemComponent() const
 
 void APlayerCharacter::HandleMove(const FVector2D& InputValue)
 {
-    if (IsDead() || IsInHeavyHitState())
+    if (IsDead() ||
+        IsInLightHitState() ||
+        IsInHeavyHitState())
     {
         ClearMovementInputCache();
         return;
@@ -296,9 +450,14 @@ FVector APlayerCharacter::GetCameraRelativeMoveDirection() const
     return (ForwardDirection * MovementInputVector.Y + RightDirection * MovementInputVector.X).GetSafeNormal();
 }
 
-void APlayerCharacter::ActivatePerfectDodgeWindow(const FVector& Origin, const float Duration)
+void APlayerCharacter::ActivatePerfectDodgeWindow(
+    const FVector& Origin,
+    const float Duration,
+    const float UltimateChargeReward
+)
 {
     PerfectDodgeOrigin = Origin;
+    PerfectDodgeUltimateChargeReward = FMath::Max(0.0f, UltimateChargeReward);
     bPerfectDodgeWindowActive = true;
 
     UWorld* World = GetWorld();
@@ -325,10 +484,8 @@ void APlayerCharacter::HandlePerfectDodge(AActor* InstigatorEnemy)
     bPerfectDodgeWindowActive = false;
     GetWorldTimerManager().ClearTimer(PerfectDodgeWindowTimerHandle);
 
-    const UPlayerClassConfig* ClassConfig = GetPlayerClassConfig();
-    const UPlayerCombatConfig* CombatConfig = ClassConfig ? ClassConfig->PlayerCombatConfig : nullptr;
     UAbilitySystemComponent* AbilitySystemComponent = GetAbilitySystemComponent();
-    if (CombatConfig && AbilitySystemComponent)
+    if (PerfectDodgeUltimateChargeReward > 0.0f && AbilitySystemComponent)
     {
         FGameplayEffectContextHandle EffectContext = AbilitySystemComponent->MakeEffectContext();
         FGameplayEffectSpecHandle GainSpec = AbilitySystemComponent->MakeOutgoingSpec(
@@ -340,11 +497,12 @@ void APlayerCharacter::HandlePerfectDodge(AActor* InstigatorEnemy)
         {
             GainSpec.Data->SetSetByCallerMagnitude(
                 RiftGameplayTags::SetByCaller_UltimateCharge,
-                CombatConfig->PerfectDodgeUltimateChargeReward
+                PerfectDodgeUltimateChargeReward
             );
             AbilitySystemComponent->ApplyGameplayEffectSpecToSelf(*GainSpec.Data.Get());
         }
     }
+    PerfectDodgeUltimateChargeReward = 0.0f;
 
 }
 
@@ -364,15 +522,22 @@ void APlayerCharacter::HandleDeath(AActor* DeathInstigator)
 
     GetWorldTimerManager().ClearTimer(PerfectDodgeWindowTimerHandle);
     bPerfectDodgeWindowActive = false;
+    PerfectDodgeUltimateChargeReward = 0.0f;
     CustomTimeDilation = 1.0f;
     ClearMovementInputCache();
     StopAssistedFacing();
+    ClearActionCancelableState();
+    ActiveLightHitMontage.Reset();
     ActiveHeavyHitMontage.Reset();
+    Multicast_StopRapidSlashAuraVisual();
 
     if (UAbilitySystemComponent* AbilitySystemComponent = GetAbilitySystemComponent())
     {
         AbilitySystemComponent->CancelAllAbilities();
+        SetLightHitState(false);
         SetHeavyHitState(false);
+        AbilitySystemComponent->SetLooseGameplayTagCount(RiftGameplayTags::State_Blocking, 0);
+        AbilitySystemComponent->SetReplicatedLooseGameplayTagCount(RiftGameplayTags::State_Blocking, 0);
         AbilitySystemComponent->AddLooseGameplayTag(RiftGameplayTags::State_Dead);
         AbilitySystemComponent->SetUserAbilityActivationInhibited(true);
     }
@@ -394,6 +559,11 @@ void APlayerCharacter::HandleDeath(AActor* DeathInstigator)
             GameplayGameMode->NotifyPlayerDied(this);
         }
     }
+}
+
+void APlayerCharacter::HandleAttributeDeath(AActor* DeathInstigator)
+{
+    HandleDeath(DeathInstigator);
 }
 
 void APlayerCharacter::Client_DisableInputOnDeath_Implementation()
@@ -420,6 +590,21 @@ void APlayerCharacter::Client_SetDeadControlState_Implementation(const bool bDea
     }
 }
 
+void APlayerCharacter::Client_ShowDamageIndicator_Implementation(const float DamageValue)
+{
+    OnDamageIndicator(DamageValue);
+}
+
+void APlayerCharacter::Client_SetLightHitControlState_Implementation(const bool bInLightHit)
+{
+    ClearMovementInputCache();
+
+    if (UAbilitySystemComponent* AbilitySystemComponent = GetAbilitySystemComponent())
+    {
+        AbilitySystemComponent->SetUserAbilityActivationInhibited(bInLightHit);
+    }
+}
+
 void APlayerCharacter::Client_SetHeavyHitControlState_Implementation(const bool bInHeavyHit)
 {
     ClearMovementInputCache();
@@ -434,17 +619,17 @@ void APlayerCharacter::Multicast_PlayDeath_Implementation(const ERiftHitReactDir
 {
     bIsDead = true;
     LastHitReactDirection = Direction;
+    ClearActionCancelableState();
 
-    const UPlayerAnimationConfig* AnimationConfig = GetPlayerAnimationConfig();
-    UAnimMontage* DeathMontage = AnimationConfig ? AnimationConfig->DeathMontage : nullptr;
-    if (DeathMontage)
+    UAnimMontage* MontageToPlay = PlayerClassConfig ? PlayerClassConfig->DeathMontage : nullptr;
+    if (MontageToPlay)
     {
         if (USkeletalMeshComponent* CharacterMesh = GetMesh())
         {
             if (UAnimInstance* AnimInstance = CharacterMesh->GetAnimInstance())
             {
-                AnimInstance->Montage_Play(DeathMontage);
-                AnimInstance->Montage_JumpToSection(GetHitReactSectionName(Direction), DeathMontage);
+                AnimInstance->Montage_Play(MontageToPlay);
+                AnimInstance->Montage_JumpToSection(GetHitReactSectionName(Direction), MontageToPlay);
             }
         }
     }
@@ -464,6 +649,8 @@ void APlayerCharacter::ReviveAtTransform(const FTransform& ReviveTransform)
     GetWorldTimerManager().ClearTimer(PerfectDodgeWindowTimerHandle);
     bPerfectDodgeWindowActive = false;
     PerfectDodgeOrigin = FVector::ZeroVector;
+    PerfectDodgeUltimateChargeReward = 0.0f;
+    ActiveLightHitMontage.Reset();
     ActiveHeavyHitMontage.Reset();
     CustomTimeDilation = 1.0f;
     ClearMovementInputCache();
@@ -484,34 +671,24 @@ void APlayerCharacter::ReviveAtTransform(const FTransform& ReviveTransform)
     {
         AbilitySystemComponent->SetLooseGameplayTagCount(RiftGameplayTags::State_Dead, 0);
         AbilitySystemComponent->SetReplicatedLooseGameplayTagCount(RiftGameplayTags::State_Dead, 0);
+        SetLightHitState(false);
         SetHeavyHitState(false);
+        AbilitySystemComponent->SetLooseGameplayTagCount(RiftGameplayTags::State_Blocking, 0);
+        AbilitySystemComponent->SetReplicatedLooseGameplayTagCount(RiftGameplayTags::State_Blocking, 0);
 
-        const float MaxHealth = AbilitySystemComponent->GetNumericAttribute(
+        const float CurrentMaxHealth = AbilitySystemComponent->GetNumericAttribute(
             URiftPlayerAttributeSet::GetMaxHealthAttribute()
-        );
-        const float MaxPoise = AbilitySystemComponent->GetNumericAttribute(
-            URiftPlayerAttributeSet::GetMaxPoiseAttribute()
-        );
-        const float MaxStamina = AbilitySystemComponent->GetNumericAttribute(
-            URiftPlayerAttributeSet::GetMaxStaminaAttribute()
         );
 
         AbilitySystemComponent->SetNumericAttributeBase(
             URiftPlayerAttributeSet::GetHealthAttribute(),
-            MaxHealth
-        );
-        AbilitySystemComponent->SetNumericAttributeBase(
-            URiftPlayerAttributeSet::GetPoiseAttribute(),
-            MaxPoise
-        );
-        AbilitySystemComponent->SetNumericAttributeBase(
-            URiftPlayerAttributeSet::GetStaminaAttribute(),
-            MaxStamina
+            CurrentMaxHealth
         );
         AbilitySystemComponent->SetUserAbilityActivationInhibited(false);
     }
     else
     {
+        SetLightHitState(false);
         SetHeavyHitState(false);
     }
 
@@ -525,8 +702,8 @@ void APlayerCharacter::Multicast_PlayReviveVisual_Implementation()
     OnPlayerRevived();
 }
 
-void APlayerCharacter::HandleHitFeedback(
-    const ERiftPlayerHitFeedbackPolicy FeedbackPolicy,
+void APlayerCharacter::HandlePlayerHitReaction(
+    const ERiftPlayerHitReaction Reaction,
     AActor* DamageInstigator,
     const float DamageValue
 )
@@ -534,44 +711,66 @@ void APlayerCharacter::HandleHitFeedback(
     if (!HasAuthority() || IsDead()) return;
 
     UAbilitySystemComponent* AbilitySystemComponent = GetAbilitySystemComponent();
-    if (AbilitySystemComponent &&
-        (AbilitySystemComponent->HasMatchingGameplayTag(RiftGameplayTags::State_SuperArmor_Red) ||
-            AbilitySystemComponent->HasMatchingGameplayTag(RiftGameplayTags::State_Hit_Heavy)))
+    if (!AbilitySystemComponent) return;
+    if (AbilitySystemComponent->HasMatchingGameplayTag(RiftGameplayTags::State_SuperArmor_Red) ||
+        AbilitySystemComponent->HasMatchingGameplayTag(RiftGameplayTags::State_Blocking))
     {
         return;
     }
 
-    const ERiftHitReactDirection Direction = DamageInstigator
-        ? CalculateHitReactDirection(this, DamageInstigator->GetActorLocation())
-        : ERiftHitReactDirection::Front;
+    if (Reaction == ERiftPlayerHitReaction::None) return;
 
-    switch (FeedbackPolicy)
+    Client_ShowDamageIndicator(DamageValue);
+
+    switch (Reaction)
     {
-    case ERiftPlayerHitFeedbackPolicy::None:
-        break;
-    case ERiftPlayerHitFeedbackPolicy::FeedbackOnly:
-        Multicast_PlayHitFeedback(Direction, DamageValue, DamageInstigator);
-        break;
-    case ERiftPlayerHitFeedbackPolicy::LightHit:
-        Multicast_PlayLightHit(Direction, DamageValue, DamageInstigator);
-        break;
+    case ERiftPlayerHitReaction::LightHit:
+        HandleLightHit(DamageInstigator);
+        return;
+    case ERiftPlayerHitReaction::HeavyHit:
+        HandleHeavyHit(DamageInstigator);
+        return;
+    case ERiftPlayerHitReaction::IndicatorOnly:
     default:
-        break;
+        return;
     }
 }
 
-void APlayerCharacter::HandlePoiseBroken(AActor* DamageInstigator)
+void APlayerCharacter::HandleLightHit(AActor* DamageInstigator)
 {
     if (!HasAuthority() || IsDead()) return;
 
     UAbilitySystemComponent* AbilitySystemComponent = GetAbilitySystemComponent();
-    if (AbilitySystemComponent &&
-        AbilitySystemComponent->HasMatchingGameplayTag(RiftGameplayTags::State_SuperArmor_Red))
+    if (!AbilitySystemComponent) return;
+    if (AbilitySystemComponent->HasMatchingGameplayTag(RiftGameplayTags::State_SuperArmor_Red) ||
+        AbilitySystemComponent->HasMatchingGameplayTag(RiftGameplayTags::State_Blocking) ||
+        AbilitySystemComponent->HasMatchingGameplayTag(RiftGameplayTags::State_Hit_Heavy) ||
+        AbilitySystemComponent->HasMatchingGameplayTag(RiftGameplayTags::State_Hit_Light))
     {
         return;
     }
 
-    HandleHeavyHit(DamageInstigator);
+    LastHitReactDirection = DamageInstigator
+        ? CalculateHitReactDirection(this, DamageInstigator->GetActorLocation())
+        : ERiftHitReactDirection::Front;
+
+    UAnimMontage* MontageToPlay = PlayerClassConfig ? PlayerClassConfig->LightHitMontage : nullptr;
+
+    AbilitySystemComponent->CancelAllAbilities();
+    AbilitySystemComponent->SetUserAbilityActivationInhibited(true);
+    ActiveLightHitMontage = MontageToPlay;
+    SetLightHitState(true);
+    ClearActionCancelableState();
+
+    ClearMovementInputCache();
+    StopAssistedFacing();
+    if (UCharacterMovementComponent* MovementComponent = GetCharacterMovement())
+    {
+        MovementComponent->StopMovementImmediately();
+    }
+
+    Client_SetLightHitControlState(true);
+    Multicast_PlayLightHit(LastHitReactDirection, 0.0f, DamageInstigator);
 }
 
 void APlayerCharacter::HandleHeavyHit(AActor* DamageInstigator)
@@ -582,14 +781,20 @@ void APlayerCharacter::HandleHeavyHit(AActor* DamageInstigator)
     if (!AbilitySystemComponent) return;
 
     if (AbilitySystemComponent->HasMatchingGameplayTag(RiftGameplayTags::State_Hit_Heavy) ||
-        AbilitySystemComponent->HasMatchingGameplayTag(RiftGameplayTags::State_SuperArmor_Red))
+        AbilitySystemComponent->HasMatchingGameplayTag(RiftGameplayTags::State_SuperArmor_Red) ||
+        AbilitySystemComponent->HasMatchingGameplayTag(RiftGameplayTags::State_Blocking))
     {
         return;
     }
 
-    const UPlayerAnimationConfig* AnimationConfig = GetPlayerAnimationConfig();
-    UAnimMontage* HeavyHitMontage = AnimationConfig ? AnimationConfig->HeavyHitMontage : nullptr;
-    if (!HeavyHitMontage) return;
+    if (AbilitySystemComponent->HasMatchingGameplayTag(RiftGameplayTags::State_Hit_Light))
+    {
+        SetLightHitState(false);
+        ActiveLightHitMontage.Reset();
+    }
+
+    UAnimMontage* MontageToPlay = PlayerClassConfig ? PlayerClassConfig->HeavyHitMontage : nullptr;
+    if (!MontageToPlay) return;
 
     LastHitReactDirection = DamageInstigator
         ? CalculateHitReactDirection(this, DamageInstigator->GetActorLocation())
@@ -597,8 +802,9 @@ void APlayerCharacter::HandleHeavyHit(AActor* DamageInstigator)
 
     AbilitySystemComponent->CancelAllAbilities();
     AbilitySystemComponent->SetUserAbilityActivationInhibited(true);
-    ActiveHeavyHitMontage = HeavyHitMontage;
+    ActiveHeavyHitMontage = MontageToPlay;
     SetHeavyHitState(true);
+    ClearActionCancelableState();
 
     ClearMovementInputCache();
     StopAssistedFacing();
@@ -609,6 +815,29 @@ void APlayerCharacter::HandleHeavyHit(AActor* DamageInstigator)
 
     Client_SetHeavyHitControlState(true);
     Multicast_PlayHeavyHit(LastHitReactDirection);
+}
+
+void APlayerCharacter::FinishLightHit()
+{
+    if (!HasAuthority()) return;
+    if (IsDead()) return;
+
+    UAbilitySystemComponent* AbilitySystemComponent = GetAbilitySystemComponent();
+    if (!AbilitySystemComponent) return;
+    if (!AbilitySystemComponent->HasMatchingGameplayTag(RiftGameplayTags::State_Hit_Light)) return;
+
+    SetLightHitState(false);
+    ActiveLightHitMontage.Reset();
+    AbilitySystemComponent->SetUserAbilityActivationInhibited(false);
+    Client_SetLightHitControlState(false);
+
+    if (UCharacterMovementComponent* MovementComponent = GetCharacterMovement())
+    {
+        if (MovementComponent->MovementMode == MOVE_None)
+        {
+            MovementComponent->SetMovementMode(MOVE_Walking);
+        }
+    }
 }
 
 void APlayerCharacter::FinishHeavyHit()
@@ -647,6 +876,21 @@ void APlayerCharacter::Server_FinishHeavyHit_Implementation()
     FinishHeavyHit();
 }
 
+void APlayerCharacter::OnLightHitMontageEnded(UAnimMontage* Montage, bool bInterrupted)
+{
+    static_cast<void>(bInterrupted);
+
+    if (!HasAuthority()) return;
+    if (IsDead()) return;
+    if (!Montage || ActiveLightHitMontage.Get() != Montage) return;
+
+    UAbilitySystemComponent* AbilitySystemComponent = GetAbilitySystemComponent();
+    if (!AbilitySystemComponent) return;
+    if (!AbilitySystemComponent->HasMatchingGameplayTag(RiftGameplayTags::State_Hit_Light)) return;
+
+    FinishLightHit();
+}
+
 void APlayerCharacter::OnHeavyHitMontageEnded(UAnimMontage* Montage, bool bInterrupted)
 {
     static_cast<void>(bInterrupted);
@@ -669,6 +913,13 @@ bool APlayerCharacter::IsInHeavyHitState() const
         AbilitySystemComponent->HasMatchingGameplayTag(RiftGameplayTags::State_Hit_Heavy);
 }
 
+bool APlayerCharacter::IsInLightHitState() const
+{
+    const UAbilitySystemComponent* AbilitySystemComponent = GetAbilitySystemComponent();
+    return AbilitySystemComponent &&
+        AbilitySystemComponent->HasMatchingGameplayTag(RiftGameplayTags::State_Hit_Light);
+}
+
 void APlayerCharacter::Multicast_PlayHitFeedback_Implementation(
     const ERiftHitReactDirection Direction,
     const float DamageValue,
@@ -685,30 +936,70 @@ void APlayerCharacter::Multicast_PlayLightHit_Implementation(
     AActor* DamageInstigator
 )
 {
-    LastHitReactDirection = Direction;
-    OnPlayerHitDamaged(Direction, DamageValue, DamageInstigator);
+    static_cast<void>(DamageValue);
+    static_cast<void>(DamageInstigator);
 
-    const UPlayerAnimationConfig* AnimationConfig = GetPlayerAnimationConfig();
-    UAnimMontage* LightHitMontage = AnimationConfig ? AnimationConfig->LightHitMontage : nullptr;
-    if (!LightHitMontage) return;
+    LastHitReactDirection = Direction;
+    ClearActionCancelableState();
+
+    UAnimMontage* MontageToPlay = PlayerClassConfig ? PlayerClassConfig->LightHitMontage : nullptr;
+    if (!MontageToPlay)
+    {
+        if (HasAuthority())
+        {
+            FinishLightHit();
+        }
+        return;
+    }
 
     USkeletalMeshComponent* CharacterMesh = GetMesh();
-    if (!CharacterMesh) return;
+    if (!CharacterMesh)
+    {
+        if (HasAuthority())
+        {
+            FinishLightHit();
+        }
+        return;
+    }
 
     UAnimInstance* AnimInstance = CharacterMesh->GetAnimInstance();
-    if (!AnimInstance) return;
+    if (!AnimInstance)
+    {
+        if (HasAuthority())
+        {
+            FinishLightHit();
+        }
+        return;
+    }
 
-    AnimInstance->Montage_Play(LightHitMontage);
-    AnimInstance->Montage_JumpToSection(GetHitReactSectionName(Direction), LightHitMontage);
+    const float MontageLength = AnimInstance->Montage_Play(MontageToPlay);
+    if (MontageLength <= 0.0f)
+    {
+        if (HasAuthority())
+        {
+            FinishLightHit();
+        }
+        return;
+    }
+
+    AnimInstance->Montage_JumpToSection(GetHitReactSectionName(Direction), MontageToPlay);
+
+    if (HasAuthority())
+    {
+        ActiveLightHitMontage = MontageToPlay;
+        FOnMontageEnded EndDelegate;
+        EndDelegate.BindUObject(this, &APlayerCharacter::OnLightHitMontageEnded);
+        AnimInstance->Montage_SetEndDelegate(EndDelegate, MontageToPlay);
+    }
 }
 
 void APlayerCharacter::Multicast_PlayHeavyHit_Implementation(const ERiftHitReactDirection Direction)
 {
     LastHitReactDirection = Direction;
+    ClearActionCancelableState();
 
-    const UPlayerAnimationConfig* AnimationConfig = GetPlayerAnimationConfig();
-    UAnimMontage* HeavyHitMontage = AnimationConfig ? AnimationConfig->HeavyHitMontage : nullptr;
-    if (!HeavyHitMontage)
+    UAnimMontage* MontageToPlay = PlayerClassConfig ? PlayerClassConfig->HeavyHitMontage : nullptr;
+    if (!MontageToPlay)
     {
         if (HasAuthority())
         {
@@ -737,7 +1028,7 @@ void APlayerCharacter::Multicast_PlayHeavyHit_Implementation(const ERiftHitReact
         return;
     }
 
-    const float MontageLength = AnimInstance->Montage_Play(HeavyHitMontage);
+    const float MontageLength = AnimInstance->Montage_Play(MontageToPlay);
     if (MontageLength <= 0.0f)
     {
         if (HasAuthority())
@@ -747,14 +1038,14 @@ void APlayerCharacter::Multicast_PlayHeavyHit_Implementation(const ERiftHitReact
         return;
     }
 
-    AnimInstance->Montage_JumpToSection(GetHitReactSectionName(Direction), HeavyHitMontage);
+    AnimInstance->Montage_JumpToSection(GetHitReactSectionName(Direction), MontageToPlay);
 
     if (HasAuthority())
     {
-        ActiveHeavyHitMontage = HeavyHitMontage;
+        ActiveHeavyHitMontage = MontageToPlay;
         FOnMontageEnded EndDelegate;
         EndDelegate.BindUObject(this, &APlayerCharacter::OnHeavyHitMontageEnded);
-        AnimInstance->Montage_SetEndDelegate(EndDelegate, HeavyHitMontage);
+        AnimInstance->Montage_SetEndDelegate(EndDelegate, MontageToPlay);
     }
 }
 
@@ -806,7 +1097,14 @@ void APlayerCharacter::OnRep_PlayerClassConfig()
 
 void APlayerCharacter::ApplyClassConfigOnAllRoles()
 {
-    ApplyAnimationConfig();
+    if (PlayerClassConfig && PlayerClassConfig->AnimClass)
+    {
+        if (USkeletalMeshComponent* CharacterMesh = GetMesh())
+        {
+            CharacterMesh->SetAnimInstanceClass(PlayerClassConfig->AnimClass);
+        }
+    }
+
     ApplyMovementSettings();
     ApplyWeaponsFromConfig();
 }
@@ -819,29 +1117,9 @@ void APlayerCharacter::ApplyClassConfigOnAuthority()
     GrantAbilitiesFromClassConfig();
 }
 
-void APlayerCharacter::ApplyAnimationConfig() const
-{
-    const UPlayerAnimationConfig* AnimationConfig = GetPlayerAnimationConfig();
-    if (!AnimationConfig) return;
-
-    USkeletalMeshComponent* CharacterMesh = GetMesh();
-    if (!CharacterMesh) return;
-
-    if (AnimationConfig->SkeletalMesh)
-    {
-        CharacterMesh->SetSkeletalMesh(AnimationConfig->SkeletalMesh);
-    }
-
-    if (AnimationConfig->AnimInstanceClass)
-    {
-        CharacterMesh->SetAnimInstanceClass(AnimationConfig->AnimInstanceClass);
-    }
-}
-
 void APlayerCharacter::ApplyCommonAttributesFromConfig()
 {
     if (!HasAuthority()) return;
-
     if (!PlayerClassConfig) return;
 
     UAbilitySystemComponent* AbilitySystemComponent = GetAbilitySystemComponent();
@@ -856,22 +1134,6 @@ void APlayerCharacter::ApplyCommonAttributesFromConfig()
         PlayerClassConfig->Health
     );
     AbilitySystemComponent->SetNumericAttributeBase(
-        URiftPlayerAttributeSet::GetMaxStaminaAttribute(),
-        PlayerClassConfig->MaxStamina
-    );
-    AbilitySystemComponent->SetNumericAttributeBase(
-        URiftPlayerAttributeSet::GetStaminaAttribute(),
-        PlayerClassConfig->Stamina
-    );
-    AbilitySystemComponent->SetNumericAttributeBase(
-        URiftPlayerAttributeSet::GetMaxPoiseAttribute(),
-        PlayerClassConfig->MaxPoise
-    );
-    AbilitySystemComponent->SetNumericAttributeBase(
-        URiftPlayerAttributeSet::GetPoiseAttribute(),
-        PlayerClassConfig->Poise
-    );
-    AbilitySystemComponent->SetNumericAttributeBase(
         URiftResourceAttributeSet::GetMaxUltimateChargeAttribute(),
         PlayerClassConfig->MaxUltimateCharge
     );
@@ -880,28 +1142,6 @@ void APlayerCharacter::ApplyCommonAttributesFromConfig()
         PlayerClassConfig->UltimateCharge
     );
 
-    if (StaminaRegenEffectHandle.IsValid())
-    {
-        AbilitySystemComponent->RemoveActiveGameplayEffect(StaminaRegenEffectHandle);
-        StaminaRegenEffectHandle = FActiveGameplayEffectHandle();
-    }
-
-    const float RegenPerTick = PlayerClassConfig->StaminaRegenRate * 0.1f;
-    FGameplayEffectContextHandle EffectContext = AbilitySystemComponent->MakeEffectContext();
-    EffectContext.AddSourceObject(this);
-
-    FGameplayEffectSpecHandle StaminaRegenSpec = AbilitySystemComponent->MakeOutgoingSpec(
-        UGE_StaminaRegen::StaticClass(),
-        1.0f,
-        EffectContext
-    );
-    if (!StaminaRegenSpec.IsValid()) return;
-
-    StaminaRegenSpec.Data->SetSetByCallerMagnitude(
-        RiftGameplayTags::SetByCaller_StaminaRegen,
-        RegenPerTick
-    );
-    StaminaRegenEffectHandle = AbilitySystemComponent->ApplyGameplayEffectSpecToSelf(*StaminaRegenSpec.Data.Get());
 }
 
 void APlayerCharacter::ApplyWeaponsFromConfig()
@@ -910,7 +1150,7 @@ void APlayerCharacter::ApplyWeaponsFromConfig()
     ApplyWeapons(PlayerClassConfig->Weapons);
 }
 
-void APlayerCharacter::ClearGrantedAbilities()
+void APlayerCharacter::ClearGrantedAbilityHandles()
 {
     if (!HasAuthority()) return;
 
@@ -935,6 +1175,17 @@ void APlayerCharacter::ClearGrantedAbilities()
 void APlayerCharacter::DeactivatePerfectDodgeWindow()
 {
     bPerfectDodgeWindowActive = false;
+    PerfectDodgeUltimateChargeReward = 0.0f;
+}
+
+void APlayerCharacter::SetLightHitState(const bool bInLightHit)
+{
+    UAbilitySystemComponent* AbilitySystemComponent = GetAbilitySystemComponent();
+    if (!AbilitySystemComponent) return;
+
+    const int32 NewCount = bInLightHit ? 1 : 0;
+    AbilitySystemComponent->SetLooseGameplayTagCount(RiftGameplayTags::State_Hit_Light, NewCount);
+    AbilitySystemComponent->SetReplicatedLooseGameplayTagCount(RiftGameplayTags::State_Hit_Light, NewCount);
 }
 
 void APlayerCharacter::SetHeavyHitState(const bool bInHeavyHit)
@@ -951,20 +1202,13 @@ void APlayerCharacter::GrantAbilitiesFromClassConfig()
 {
     if (!HasAuthority()) return;
 
-    ClearGrantedAbilities();
-
-    FLogger::Log(
-        this,
-        FString::Printf(TEXT("GrantAbilitiesFromClassConfig: PlayerClassConfig=%s"), *GetNameSafe(PlayerClassConfig)),
-        ELogSystem::Ability,
-        ELogOutputType::LogOnly
-    );
+    ClearGrantedAbilityHandles();
 
     if (!PlayerClassConfig) return;
 
     FLogger::Log(
         this,
-        FString::Printf(TEXT("GrantAbilitiesFromClassConfig: GrantedAbilities.Num=%d"), PlayerClassConfig->GrantedAbilities.Num()),
+        FString::Printf(TEXT("GrantAbilitiesFromClassConfig: AbilityConfigs.Num=%d"), PlayerClassConfig->AbilityConfigs.Num()),
         ELogSystem::Ability,
         ELogOutputType::LogOnly
     );
@@ -972,31 +1216,30 @@ void APlayerCharacter::GrantAbilitiesFromClassConfig()
     UAbilitySystemComponent* AbilitySystemComponent = GetAbilitySystemComponent();
     if (!AbilitySystemComponent) return;
 
-    for (const TSubclassOf<UGameplayAbility>& AbilityClass : PlayerClassConfig->GrantedAbilities)
+    TSet<UClass*> GrantedAbilityClasses;
+
+    for (URiftAbilityConfig* AbilityConfig : PlayerClassConfig->AbilityConfigs)
     {
-        FLogger::Log(
-            this,
-            FString::Printf(TEXT("GrantAbilitiesFromClassConfig: AbilityClass=%s"), *GetNameSafe(AbilityClass.Get())),
-            ELogSystem::Ability,
-            ELogOutputType::LogOnly
-        );
+        if (!AbilityConfig || !AbilityConfig->AbilityClass) continue;
 
-        if (!AbilityClass) continue;
-
-        const FGameplayAbilitySpec AbilitySpec(AbilityClass, 1, INDEX_NONE, this);
-        const FGameplayAbilitySpecHandle AbilityHandle = AbilitySystemComponent->GiveAbility(AbilitySpec);
-        GrantedAbilityHandles.Add(AbilityHandle);
+        UClass* AbilityClass = AbilityConfig->AbilityClass.Get();
+        if (!AbilityClass || GrantedAbilityClasses.Contains(AbilityClass)) continue;
 
         FLogger::Log(
             this,
             FString::Printf(
-                TEXT("GrantAbilitiesFromClassConfig: GiveAbility HandleValid=%s ActivatableAbilities.Num=%d"),
-                AbilityHandle.IsValid() ? TEXT("true") : TEXT("false"),
-                AbilitySystemComponent->GetActivatableAbilities().Num()
+                TEXT("GrantAbilitiesFromClassConfig: AbilityConfig=%s AbilityClass=%s"),
+                *GetNameSafe(AbilityConfig),
+                *GetNameSafe(AbilityClass)
             ),
             ELogSystem::Ability,
             ELogOutputType::LogOnly
         );
+
+        const FGameplayAbilitySpec AbilitySpec(AbilityConfig->AbilityClass, 1, INDEX_NONE, AbilityConfig);
+        const FGameplayAbilitySpecHandle AbilityHandle = AbilitySystemComponent->GiveAbility(AbilitySpec);
+        GrantedAbilityHandles.Add(AbilityHandle);
+        GrantedAbilityClasses.Add(AbilityClass);
     }
 }
 
@@ -1009,11 +1252,27 @@ void APlayerCharacter::InitMovementSettings()
     bUseControllerRotationRoll = false;
 
     ApplyFacingModeToMovement();
+    MovementComponent->MaxWalkSpeed = RiftPlayerDefaultRunSpeed;
+    MovementComponent->MaxAcceleration = RiftPlayerDefaultMaxAcceleration;
+    MovementComponent->BrakingDecelerationWalking = RiftPlayerDefaultBrakingDecelerationWalking;
+    MovementComponent->bUseSeparateBrakingFriction = true;
+    MovementComponent->BrakingFriction = RiftPlayerDefaultBrakingFriction;
+    MovementComponent->BrakingFrictionFactor = RiftPlayerDefaultBrakingFrictionFactor;
+    MovementComponent->GroundFriction = RiftPlayerDefaultGroundFriction;
+
+    CurrentTurnRate = (RiftPlayerDefaultMinTurnRate + RiftPlayerDefaultMaxTurnRate) / 2.0f;
+    MovementComponent->RotationRate = FRotator(0.0f, CurrentTurnRate, 0.0f);
 }
 
 void APlayerCharacter::ApplyCameraRelativeMovementInput()
 {
-    if (IsDead() || IsInHeavyHitState()) return;
+    if (IsDead() ||
+        IsInLightHitState() ||
+        IsInHeavyHitState())
+    {
+        ClearMovementInputCache();
+        return;
+    }
     if (!Controller || MovementInputVector.IsNearlyZero()) return;
 
     const FVector2D InputVector = MovementInputVector.GetClampedToMaxSize(1.0f);
@@ -1058,18 +1317,7 @@ void APlayerCharacter::ApplyMovementSettings() const
     UCharacterMovementComponent* MovementComponent = GetCharacterMovement();
     if (!MovementComponent) return;
 
-    if (!PlayerClassConfig) return;
-    MovementComponent->MaxWalkSpeed = PlayerClassConfig->RunSpeed;
-
-    const float InitialTurnRate = (PlayerClassConfig->MinTurnRate + PlayerClassConfig->MaxTurnRate) / 2.0f;
-    MovementComponent->RotationRate = FRotator(0.0f, InitialTurnRate, 0.0f);
-
-    MovementComponent->MaxAcceleration = PlayerClassConfig->MaxAcceleration;
-    MovementComponent->BrakingDecelerationWalking = PlayerClassConfig->BrakingDecelerationWalking;
-    MovementComponent->bUseSeparateBrakingFriction = true;
-    MovementComponent->BrakingFriction = PlayerClassConfig->BrakingFriction;
-    MovementComponent->BrakingFrictionFactor = PlayerClassConfig->BrakingFrictionFactor;
-    MovementComponent->GroundFriction = PlayerClassConfig->GroundFriction;
+    MovementComponent->MaxWalkSpeed = PlayerClassConfig ? PlayerClassConfig->RunSpeed : RiftPlayerDefaultRunSpeed;
 }
 
 void APlayerCharacter::UpdateMovementRotationRate(const float DeltaTime)
@@ -1089,20 +1337,15 @@ void APlayerCharacter::UpdateMovementRotationRate(const float DeltaTime)
         FMath::FindDeltaAngleDegrees(CurrentYaw, DesiredYaw)
     );
 
-    const float ConfigMinTurnRate = PlayerClassConfig ? PlayerClassConfig->MinTurnRate : 300.0f;
-    const float ConfigMaxTurnRate = PlayerClassConfig ? PlayerClassConfig->MaxTurnRate : 1440.0f;
-    const float ConfigMinTurnRateInterpSpeed = PlayerClassConfig ? PlayerClassConfig->MinTurnRateInterpSpeed : 3.0f;
-    const float ConfigMaxTurnRateInterpSpeed = PlayerClassConfig ? PlayerClassConfig->MaxTurnRateInterpSpeed : 18.0f;
-
     const float TargetTurnRate = FMath::GetMappedRangeValueClamped(
         FVector2D(0.0f, 90.0f),
-        FVector2D(ConfigMinTurnRate, ConfigMaxTurnRate),
+        FVector2D(RiftPlayerDefaultMinTurnRate, RiftPlayerDefaultMaxTurnRate),
         AngleDelta
     );
 
     const float DynamicInterpSpeed = FMath::GetMappedRangeValueClamped(
         FVector2D(0.0f, 90.0f),
-        FVector2D(ConfigMinTurnRateInterpSpeed, ConfigMaxTurnRateInterpSpeed),
+        FVector2D(RiftPlayerDefaultMinTurnRateInterpSpeed, RiftPlayerDefaultMaxTurnRateInterpSpeed),
         AngleDelta
     );
 

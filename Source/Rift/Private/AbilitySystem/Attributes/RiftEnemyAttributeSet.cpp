@@ -2,10 +2,31 @@
 
 #include "AbilitySystem/Attributes/RiftEnemyAttributeSet.h"
 
-#include "Character/EnemyCharacter.h"
-#include "Data/Enemy/Combat/EnemyCombatConfig.h"
+#include "AbilitySystemComponent.h"
+#include "AbilitySystem/RiftAttributeReactionReceiver.h"
+#include "AbilitySystem/RiftGameplayTags.h"
 #include "GameplayEffectExtension.h"
 #include "Net/UnrealNetwork.h"
+
+static IRiftAttributeReactionReceiver* GetAttributeReactionReceiver(
+	const FGameplayEffectModCallbackData& Data
+)
+{
+	if (AActor* AvatarActor = Data.Target.GetAvatarActor())
+	{
+		if (IRiftAttributeReactionReceiver* Receiver = Cast<IRiftAttributeReactionReceiver>(AvatarActor))
+		{
+			return Receiver;
+		}
+	}
+
+	if (AActor* OwnerActor = Data.Target.GetOwnerActor())
+	{
+		return Cast<IRiftAttributeReactionReceiver>(OwnerActor);
+	}
+
+	return nullptr;
+}
 
 URiftEnemyAttributeSet::URiftEnemyAttributeSet()
 {
@@ -39,20 +60,39 @@ void URiftEnemyAttributeSet::PostGameplayEffectExecute(const FGameplayEffectModC
 
 		if (DamageValue > 0.0f)
 		{
-			AEnemyCharacter* Enemy = Cast<AEnemyCharacter>(GetOwningActor());
-			if (Enemy && Enemy->IsBlocking())
+			if (Data.Target.HasMatchingGameplayTag(RiftGameplayTags::State_Enemy_Intro))
 			{
 				return;
 			}
 
-			SetHealth(FMath::Clamp(GetHealth() - DamageValue, 0.0f, GetMaxHealth()));
-			if (GetHealth() <= 0.0f)
+			IRiftAttributeReactionReceiver* Receiver = GetAttributeReactionReceiver(Data);
+			const AActor* TargetActor = Data.Target.GetAvatarActor();
+			const FVector DamageNumberLocation = TargetActor
+				? TargetActor->GetActorLocation() + FVector(0.0f, 0.0f, 120.0f)
+				: FVector::ZeroVector;
+
+			if (Data.Target.HasMatchingGameplayTag(RiftGameplayTags::State_Blocking))
 			{
-				AActor* Killer = Data.EffectSpec.GetContext().GetInstigator();
-				if (Enemy)
+				if (Receiver)
 				{
-					Enemy->HandleDeath(Killer);
+					Receiver->HandleAttributeDamageNumber(0.0f, true, DamageNumberLocation);
 				}
+				return;
+			}
+
+			const float OldHealth = GetHealth();
+			const float NewHealth = FMath::Clamp(OldHealth - DamageValue, 0.0f, GetMaxHealth());
+			const float ActualDamage = FMath::Max(0.0f, OldHealth - NewHealth);
+			SetHealth(NewHealth);
+
+			if (ActualDamage > 0.0f && Receiver)
+			{
+				Receiver->HandleAttributeDamageNumber(ActualDamage, false, DamageNumberLocation);
+			}
+
+			if (GetHealth() <= 0.0f && Receiver)
+			{
+				Receiver->HandleAttributeDeath(Data.EffectSpec.GetContext().GetInstigator());
 			}
 		}
 	}
@@ -62,13 +102,17 @@ void URiftEnemyAttributeSet::PostGameplayEffectExecute(const FGameplayEffectModC
 		float PoiseDamageValue = GetPoiseDamage();
 		SetPoiseDamage(0.0f);
 
-		AEnemyCharacter* Enemy = Cast<AEnemyCharacter>(GetOwningActor());
-		if (Enemy && Enemy->IsBlocking())
+		if (Data.Target.HasMatchingGameplayTag(RiftGameplayTags::State_Enemy_Intro))
 		{
-			const UEnemyCombatConfig* CombatConfig = Enemy->GetEnemyCombatConfig();
-			const float BlockingPoiseDamageMultiplier = CombatConfig
-				? FMath::Clamp(CombatConfig->BlockingPoiseDamageMultiplier, 0.0f, 1.0f)
-				: 0.5f;
+			return;
+		}
+
+		IRiftAttributeReactionReceiver* Receiver = GetAttributeReactionReceiver(Data);
+		if (Data.Target.HasMatchingGameplayTag(RiftGameplayTags::State_Blocking))
+		{
+			const float BlockingPoiseDamageMultiplier = Receiver
+				? FMath::Clamp(Receiver->GetAttributeBlockingPoiseDamageMultiplier(), 0.0f, 1.0f)
+				: 1.0f;
 			PoiseDamageValue *= BlockingPoiseDamageMultiplier;
 		}
 
@@ -84,15 +128,9 @@ void URiftEnemyAttributeSet::PostGameplayEffectExecute(const FGameplayEffectModC
 
 		SetPoise(FMath::Clamp(NewPoise, 0.0f, GetMaxPoise()));
 
-		FVector InstigatorLocation = FVector::ZeroVector;
-		if (const AActor* Instigator = Data.EffectSpec.GetContext().GetInstigator())
+		if (Receiver)
 		{
-			InstigatorLocation = Instigator->GetActorLocation();
-		}
-
-		if (Enemy)
-		{
-			Enemy->HandlePoiseHit(bPoiseBroken, InstigatorLocation);
+			Receiver->HandleAttributePoiseHit(bPoiseBroken, Data.EffectSpec.GetContext().GetInstigator());
 		}
 	}
 }
