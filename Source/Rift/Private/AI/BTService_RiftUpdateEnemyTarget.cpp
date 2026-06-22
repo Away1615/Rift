@@ -41,7 +41,10 @@ void UBTService_RiftUpdateEnemyTarget::UpdateEnemyTarget(UBehaviorTreeComponent&
 	UBlackboardComponent* BlackboardComponent = OwnerComp.GetBlackboardComponent();
 	if (!AIController || !EnemyCharacter || !World || !BlackboardComponent) return;
 
-	if (EnemyCharacter->IsDeadForAI() || EnemyCharacter->IsStaggeredForAI() || EnemyCharacter->IsAttackingForAI())
+	if (EnemyCharacter->IsDeadForAI() ||
+		EnemyCharacter->IsStaggeredForAI() ||
+		EnemyCharacter->IsAttackingForAI() ||
+		EnemyCharacter->IsRetreatingForAI())
 	{
 		BlackboardComponent->ClearValue(TargetActorKey.SelectedKeyName);
 		BlackboardComponent->SetValueAsFloat(DistanceToTargetKey.SelectedKeyName, 0.0f);

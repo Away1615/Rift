@@ -3,8 +3,10 @@
 
 #include "Core/RiftGameplayGameMode.h"
 
+#include "Character/EnemyCharacter.h"
 #include "Character/PlayerCharacter.h"
 #include "Engine/World.h"
+#include "EngineUtils.h"
 #include "GameFramework/GameStateBase.h"
 #include "GameFramework/PlayerController.h"
 #include "Player/BasePlayerController.h"
@@ -18,6 +20,18 @@ void ARiftGameplayGameMode::NotifyPlayerDied(APlayerCharacter* DeadPlayer)
 	}
 
 	StartPlayerRespawn(DeadPlayer);
+}
+
+void ARiftGameplayGameMode::NotifyBossDefeated(AEnemyCharacter* DefeatedBoss)
+{
+	if (!HasAuthority() || bBossDefeated || !DefeatedBoss)
+	{
+		return;
+	}
+
+	bBossDefeated = true;
+	DefeatRemainingEnemies(DefeatedBoss);
+	BroadcastVictoryToPlayers();
 }
 
 void ARiftGameplayGameMode::PostLogin(APlayerController* NewPlayer)
@@ -150,12 +164,43 @@ void ARiftGameplayGameMode::FinishPlayerRespawn(ABasePlayerState* PlayerState)
 		return;
 	}
 
-	FTransform ReviveTransform = PlayerCharacter->GetActorTransform();
-	if (AActor* PlayerStart = FindPlayerStart(PlayerController))
+	PlayerCharacter->ReviveAtTransform(PlayerCharacter->GetActorTransform());
+	PlayerState->SetRespawnState(false, 0.0f, 0.0f);
+}
+
+void ARiftGameplayGameMode::BroadcastVictoryToPlayers()
+{
+	UWorld* World = GetWorld();
+	if (!World)
 	{
-		ReviveTransform = PlayerStart->GetActorTransform();
+		return;
 	}
 
-	PlayerCharacter->ReviveAtTransform(ReviveTransform);
-	PlayerState->SetRespawnState(false, 0.0f, 0.0f);
+	for (FConstPlayerControllerIterator Iterator = World->GetPlayerControllerIterator(); Iterator; ++Iterator)
+	{
+		if (ABasePlayerController* RiftPlayerController = Cast<ABasePlayerController>(Iterator->Get()))
+		{
+			RiftPlayerController->Client_ShowVictory();
+		}
+	}
+}
+
+void ARiftGameplayGameMode::DefeatRemainingEnemies(AEnemyCharacter* DefeatedBoss)
+{
+	UWorld* World = GetWorld();
+	if (!World)
+	{
+		return;
+	}
+
+	for (TActorIterator<AEnemyCharacter> Iterator(World); Iterator; ++Iterator)
+	{
+		AEnemyCharacter* EnemyCharacter = *Iterator;
+		if (!EnemyCharacter || EnemyCharacter == DefeatedBoss || EnemyCharacter->IsDeadForAI())
+		{
+			continue;
+		}
+
+		EnemyCharacter->HandleDeath(nullptr);
+	}
 }

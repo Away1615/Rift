@@ -56,6 +56,12 @@ public:
 	UFUNCTION(Client, Reliable)
 	void Client_LobbyActionFailed(const FString& ErrorMessage);
 
+	UFUNCTION(Client, Reliable)
+	void Client_ShowVictory();
+
+	UFUNCTION(BlueprintCallable, Category="Rift|Gameplay")
+	void ReturnToMainMenuFromVictory();
+
 	UPROPERTY(BlueprintAssignable, Category="Rift|Lobby")
 	FRiftLobbyStartTransitionSignature OnLobbyStartTransitionRequested;
 
@@ -67,6 +73,9 @@ public:
 
 	UFUNCTION(BlueprintImplementableEvent, Category="Rift|Lobby")
 	void OnLobbyActionFailed(const FString& ErrorMessage);
+
+	UFUNCTION(BlueprintImplementableEvent, Category="Rift|Gameplay")
+	void OnVictory();
 
 	UFUNCTION(BlueprintCallable, Category="Rift|Appearance")
 	void GetAppearanceOptionsForSlot(ERiftPlayerAppearanceSlot Slot, TArray<FName>& OutPartIds) const;
@@ -85,12 +94,16 @@ public:
 
 protected:
 	virtual void BeginPlay() override;
+	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 	virtual void SetupInputComponent() override;
 
 	APlayerCharacter* GetPlayerCharacter() const;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Input")
 	TObjectPtr<UPlayerInputConfig> DefaultInputConfig;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Rift|Victory")
+	FName MainMenuMapName = TEXT("/Game/0_/Map/MainMenuMap");
 
 private:
 	UPROPERTY()

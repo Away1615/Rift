@@ -31,6 +31,9 @@ struct FRiftEnemyMeleeAttackVariant
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Melee")
 	float Weight = 1.0f;
 
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Melee", meta=(ClampMin="1"))
+	int32 MinCombatPhase = 1;
+
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Melee")
 	float HitboxRadius = 120.0f;
 

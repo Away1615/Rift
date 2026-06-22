@@ -16,6 +16,7 @@ namespace RiftGameplayTags
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(State_Attack_RapidSlashReady);
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(State_Intro);
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(State_Enemy_Intro);
+	UE_DECLARE_GAMEPLAY_TAG_EXTERN(State_Enemy_HitRetreat);
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(State_Enemy_SuperArmor);
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(State_SuperArmor_Red);
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(State_Hit_Light);

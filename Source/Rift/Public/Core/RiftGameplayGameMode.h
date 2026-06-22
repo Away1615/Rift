@@ -8,6 +8,7 @@
 #include "RiftGameplayGameMode.generated.h"
 
 class ABasePlayerState;
+class AEnemyCharacter;
 class APlayerController;
 class APlayerCharacter;
 
@@ -19,6 +20,9 @@ class RIFT_API ARiftGameplayGameMode : public ABaseGameMode
 public:
 	UFUNCTION(BlueprintCallable, Category="Rift|Respawn")
 	void NotifyPlayerDied(APlayerCharacter* DeadPlayer);
+
+	UFUNCTION(BlueprintCallable, Category="Rift|Victory")
+	void NotifyBossDefeated(AEnemyCharacter* DefeatedBoss);
 
 	virtual void PostLogin(APlayerController* NewPlayer) override;
 	virtual void HandleStartingNewPlayer_Implementation(APlayerController* NewPlayer) override;
@@ -32,6 +36,9 @@ private:
 	void ApplyCachedLobbySelection(APlayerController* PlayerController) const;
 	void StartPlayerRespawn(APlayerCharacter* DeadPlayer);
 	void FinishPlayerRespawn(ABasePlayerState* PlayerState);
+	void DefeatRemainingEnemies(AEnemyCharacter* DefeatedBoss);
+	void BroadcastVictoryToPlayers();
 
 	TMap<ABasePlayerState*, FTimerHandle> RespawnTimers;
+	bool bBossDefeated = false;
 };

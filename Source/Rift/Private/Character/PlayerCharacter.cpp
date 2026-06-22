@@ -538,7 +538,8 @@ void APlayerCharacter::HandleDeath(AActor* DeathInstigator)
         SetHeavyHitState(false);
         AbilitySystemComponent->SetLooseGameplayTagCount(RiftGameplayTags::State_Blocking, 0);
         AbilitySystemComponent->SetReplicatedLooseGameplayTagCount(RiftGameplayTags::State_Blocking, 0);
-        AbilitySystemComponent->AddLooseGameplayTag(RiftGameplayTags::State_Dead);
+        AbilitySystemComponent->SetLooseGameplayTagCount(RiftGameplayTags::State_Dead, 1);
+        AbilitySystemComponent->SetReplicatedLooseGameplayTagCount(RiftGameplayTags::State_Dead, 1);
         AbilitySystemComponent->SetUserAbilityActivationInhibited(true);
     }
 
@@ -699,6 +700,14 @@ void APlayerCharacter::ReviveAtTransform(const FTransform& ReviveTransform)
 void APlayerCharacter::Multicast_PlayReviveVisual_Implementation()
 {
     bIsDead = false;
+
+    if (UAbilitySystemComponent* AbilitySystemComponent = GetAbilitySystemComponent())
+    {
+        AbilitySystemComponent->SetLooseGameplayTagCount(RiftGameplayTags::State_Dead, 0);
+        AbilitySystemComponent->SetReplicatedLooseGameplayTagCount(RiftGameplayTags::State_Dead, 0);
+        AbilitySystemComponent->SetUserAbilityActivationInhibited(false);
+    }
+
     OnPlayerRevived();
 }
 

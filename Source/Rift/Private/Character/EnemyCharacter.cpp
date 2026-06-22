@@ -205,6 +205,32 @@ bool AEnemyCharacter::IsIntroForAI() const
 		AbilitySystemComponent->HasMatchingGameplayTag(RiftGameplayTags::State_Enemy_Intro);
 }
 
+bool AEnemyCharacter::IsRetreatingForAI() const
+{
+	return AbilitySystemComponent &&
+		AbilitySystemComponent->HasMatchingGameplayTag(RiftGameplayTags::State_Enemy_HitRetreat);
+}
+
+bool AEnemyCharacter::IsBusyForAI() const
+{
+	return IsAttackingForAI() ||
+		IsBlocking() ||
+		IsStaggeredForAI() ||
+		IsIntroForAI() ||
+		IsRetreatingForAI() ||
+		IsCombatPhaseTransitioningForAI();
+}
+
+int32 AEnemyCharacter::GetCurrentCombatPhase() const
+{
+	return 1;
+}
+
+bool AEnemyCharacter::IsCombatPhaseTransitioningForAI() const
+{
+	return false;
+}
+
 bool AEnemyCharacter::CanStartMeleeAttack(AActor* TargetActor) const
 {
 	const UEnemyMeleeAttackAbilityConfig* MeleeConfig = GetEnemyMeleeAttackAbilityConfig();
@@ -223,7 +249,7 @@ bool AEnemyCharacter::CanStartMeleeAttack(AActor* TargetActor) const
 	const APlayerCharacter* PlayerTarget = Cast<APlayerCharacter>(TargetActor);
 	if (PlayerTarget && PlayerTarget->IsDead()) return false;
 
-	if (IsStaggeredForAI() || IsBlocking() || IsAttackingForAI()) return false;
+	if (IsBusyForAI()) return false;
 	if (World->GetTimeSeconds() < NextAttackTime) return false;
 
 	FRiftEnemyMeleeAttackVariant TempVariant;
@@ -296,9 +322,11 @@ bool AEnemyCharacter::TrySelectMeleeAttackVariant(AActor* TargetActor, FRiftEnem
 
 	TArray<const FRiftEnemyMeleeAttackVariant*> EligibleVariants;
 	float TotalWeight = 0.0f;
+	const int32 CurrentCombatPhase = GetCurrentCombatPhase();
 	for (const FRiftEnemyMeleeAttackVariant& Variant : MeleeConfig->AttackVariants)
 	{
 		if (!Variant.AttackMontage || Variant.Weight <= 0.0f) continue;
+		if (Variant.MinCombatPhase > CurrentCombatPhase) continue;
 		if (DistanceSq < FMath::Square(Variant.MinRange) || DistanceSq > FMath::Square(Variant.MaxRange)) continue;
 
 		EligibleVariants.Add(&Variant);
@@ -329,10 +357,7 @@ bool AEnemyCharacter::CanStartShieldBlock(AActor* TargetActor) const
 	if (!HasAuthority() ||
 		!TargetActor ||
 		bIsDead ||
-		IsStaggeredForAI() ||
-		IsIntroForAI() ||
-		IsAttackingForAI() ||
-		IsBlocking() ||
+		IsBusyForAI() ||
 		!ShieldBlockConfig ||
 		!ShieldBlockConfig->ShieldBlockMontage ||
 		!AbilitySystemComponent ||
@@ -1046,11 +1071,12 @@ void AEnemyCharacter::SetHitRetreatState(const bool bInRetreating)
 
 	bIsHitRetreating = bInRetreating;
 
-	// Reuses State_Attacking as a "busy" flag so the BT cannot re-trigger melee
-	// attack or shield block while the retreat montage is still playing.
+	// Dedicated tag (not State_Attacking) so this never collides with the
+	// ref-counted tag GA_EnemyMeleeAttack/GA_EnemyShieldBlock add/remove via
+	// ActivationOwnedTags. IsBusyForAI() aggregates both for gating.
 	const int32 NewCount = bInRetreating ? 1 : 0;
-	AbilitySystemComponent->SetLooseGameplayTagCount(RiftGameplayTags::State_Attacking, NewCount);
-	AbilitySystemComponent->SetReplicatedLooseGameplayTagCount(RiftGameplayTags::State_Attacking, NewCount);
+	AbilitySystemComponent->SetLooseGameplayTagCount(RiftGameplayTags::State_Enemy_HitRetreat, NewCount);
+	AbilitySystemComponent->SetReplicatedLooseGameplayTagCount(RiftGameplayTags::State_Enemy_HitRetreat, NewCount);
 }
 
 void AEnemyCharacter::EnterStaggered(const float Duration)

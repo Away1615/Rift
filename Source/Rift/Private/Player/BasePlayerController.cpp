@@ -11,6 +11,7 @@
 #include "EnhancedInputSubsystems.h"
 #include "Character/PlayerCharacter.h"
 #include "Core/RiftLobbyGameMode.h"
+#include "Core/RiftGameInstance.h"
 #include "Data/Player/Input/PlayerInputConfig.h"
 #include "Data/Player/PlayerClassConfig.h"
 #include "Engine/DataTable.h"
@@ -73,6 +74,11 @@ void ABasePlayerController::BeginPlay()
 	if (!Subsystem) return;
 
 	Subsystem->AddMappingContext(DefaultInputConfig->MappingContext, DefaultInputConfig->MappingPriority);
+}
+
+void ABasePlayerController::EndPlay(const EEndPlayReason::Type EndPlayReason)
+{
+	Super::EndPlay(EndPlayReason);
 }
 
 void ABasePlayerController::SetupInputComponent()
@@ -311,6 +317,30 @@ void ABasePlayerController::Client_LobbyActionFailed_Implementation(const FStrin
 {
 	OnLobbyActionFailedRequested.Broadcast(ErrorMessage);
 	OnLobbyActionFailed(ErrorMessage);
+}
+
+void ABasePlayerController::Client_ShowVictory_Implementation()
+{
+	bShowMouseCursor = true;
+
+	FInputModeUIOnly InputMode;
+	InputMode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
+	SetInputMode(InputMode);
+
+	OnVictory();
+}
+
+void ABasePlayerController::ReturnToMainMenuFromVictory()
+{
+	if (URiftGameInstance* RiftGameInstance = GetGameInstance<URiftGameInstance>())
+	{
+		RiftGameInstance->LeaveRoom();
+	}
+
+	if (!MainMenuMapName.IsNone())
+	{
+		ClientTravel(MainMenuMapName.ToString(), TRAVEL_Absolute);
+	}
 }
 
 void ABasePlayerController::GetAppearanceOptionsForSlot(

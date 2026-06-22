@@ -70,6 +70,11 @@ public:
 	bool IsStaggeredForAI() const;
 	bool IsAttackingForAI() const;
 	bool IsIntroForAI() const;
+	bool IsRetreatingForAI() const;
+	bool IsBusyForAI() const;
+	UFUNCTION(BlueprintPure, Category="Combat|Phase")
+	virtual int32 GetCurrentCombatPhase() const;
+	virtual bool IsCombatPhaseTransitioningForAI() const;
 	bool CanStartMeleeAttack(AActor* TargetActor) const;
 	bool TryStartMeleeAttack(AActor* TargetActor);
 	bool CanStartShieldBlock(AActor* TargetActor) const;
