@@ -39,8 +39,12 @@ public:
 	virtual UAbilitySystemComponent* GetAbilitySystemComponent() const override;
 
 	UEnemyCharacterConfig* GetEnemyCharacterConfig() const { return EnemyCharacterConfig; }
+	void SetEnemyCharacterConfig(UEnemyCharacterConfig* NewEnemyCharacterConfig);
 	const UEnemyMeleeAttackAbilityConfig* GetEnemyMeleeAttackAbilityConfig() const;
 	const UEnemyShieldBlockAbilityConfig* GetEnemyShieldBlockAbilityConfig() const;
+
+	UFUNCTION(BlueprintCallable, Category="AI")
+	void StartEnemyIntroOrAI();
 
 	UFUNCTION(BlueprintPure, Category="Animation")
 	bool IsStaggeredForAnimation() const;
@@ -122,6 +126,9 @@ protected:
 
 	UPROPERTY(EditDefaultsOnly, Category="UI")
 	TSubclassOf<UUserWidget> HealthBarWidgetClass;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="AI")
+	bool bAutoStartSpawnIntroOrAI = true;
 
 private:
 	void ApplyPresentationConfig() const;

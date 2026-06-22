@@ -330,6 +330,16 @@ void ABasePlayerController::Client_ShowVictory_Implementation()
 	OnVictory();
 }
 
+void ABasePlayerController::Client_EnterGameplayInputMode_Implementation()
+{
+	bShowMouseCursor = false;
+	SetIgnoreMoveInput(false);
+	SetIgnoreLookInput(false);
+
+	FInputModeGameOnly InputMode;
+	SetInputMode(InputMode);
+}
+
 void ABasePlayerController::ReturnToMainMenuFromVictory()
 {
 	if (URiftGameInstance* RiftGameInstance = GetGameInstance<URiftGameInstance>())

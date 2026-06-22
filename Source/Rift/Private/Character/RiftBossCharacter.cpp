@@ -12,6 +12,7 @@
 
 ARiftBossCharacter::ARiftBossCharacter()
 {
+	bAutoStartSpawnIntroOrAI = false;
 }
 
 void ARiftBossCharacter::BeginPlay()

@@ -91,7 +91,10 @@ void AEnemyCharacter::BeginPlay()
 	{
 		ApplyCommonAttributesFromConfig();
 		GrantAbilities();
-		StartSpawnIntroOrAI();
+		if (bAutoStartSpawnIntroOrAI)
+		{
+			StartSpawnIntroOrAI();
+		}
 	}
 
 	if (HealthBarWidgetComp)
@@ -127,6 +130,21 @@ void AEnemyCharacter::ApplyCommonAttributesFromConfig()
 UAbilitySystemComponent* AEnemyCharacter::GetAbilitySystemComponent() const
 {
 	return AbilitySystemComponent;
+}
+
+void AEnemyCharacter::SetEnemyCharacterConfig(UEnemyCharacterConfig* NewEnemyCharacterConfig)
+{
+	EnemyCharacterConfig = NewEnemyCharacterConfig;
+}
+
+void AEnemyCharacter::StartEnemyIntroOrAI()
+{
+	if (!HasAuthority())
+	{
+		return;
+	}
+
+	StartSpawnIntroOrAI();
 }
 
 const UEnemyMeleeAttackAbilityConfig* AEnemyCharacter::GetEnemyMeleeAttackAbilityConfig() const

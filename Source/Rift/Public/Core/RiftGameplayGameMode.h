@@ -34,6 +34,7 @@ protected:
 
 private:
 	void ApplyCachedLobbySelection(APlayerController* PlayerController) const;
+	void InitializeGameplayPlayerController(APlayerController* PlayerController) const;
 	void StartPlayerRespawn(APlayerCharacter* DeadPlayer);
 	void FinishPlayerRespawn(ABasePlayerState* PlayerState);
 	void DefeatRemainingEnemies(AEnemyCharacter* DefeatedBoss);

@@ -38,12 +38,14 @@ void ARiftGameplayGameMode::PostLogin(APlayerController* NewPlayer)
 {
 	Super::PostLogin(NewPlayer);
 	ApplyCachedLobbySelection(NewPlayer);
+	InitializeGameplayPlayerController(NewPlayer);
 }
 
 void ARiftGameplayGameMode::HandleStartingNewPlayer_Implementation(APlayerController* NewPlayer)
 {
 	ApplyCachedLobbySelection(NewPlayer);
 	Super::HandleStartingNewPlayer_Implementation(NewPlayer);
+	InitializeGameplayPlayerController(NewPlayer);
 }
 
 void ARiftGameplayGameMode::Logout(AController* Exiting)
@@ -75,6 +77,17 @@ void ARiftGameplayGameMode::ApplyCachedLobbySelection(APlayerController* PlayerC
 	}
 
 	RiftPlayerController->ApplyCachedLobbySelectionToPlayerState();
+}
+
+void ARiftGameplayGameMode::InitializeGameplayPlayerController(APlayerController* PlayerController) const
+{
+	ABasePlayerController* RiftPlayerController = Cast<ABasePlayerController>(PlayerController);
+	if (!RiftPlayerController)
+	{
+		return;
+	}
+
+	RiftPlayerController->Client_EnterGameplayInputMode();
 }
 
 void ARiftGameplayGameMode::StartPlayerRespawn(APlayerCharacter* DeadPlayer)

@@ -59,6 +59,9 @@ public:
 	UFUNCTION(Client, Reliable)
 	void Client_ShowVictory();
 
+	UFUNCTION(Client, Reliable)
+	void Client_EnterGameplayInputMode();
+
 	UFUNCTION(BlueprintCallable, Category="Rift|Gameplay")
 	void ReturnToMainMenuFromVictory();
 
