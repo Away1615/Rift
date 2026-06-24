@@ -9,9 +9,6 @@
 class UInputAction;
 class UInputMappingContext;
 
-/**
- *
- */
 UCLASS(BlueprintType)
 class RIFT_API UPlayerInputConfig : public UPrimaryDataAsset
 {

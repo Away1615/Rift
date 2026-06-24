@@ -17,9 +17,6 @@ class UPlayerClassConfig;
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FRiftLobbyStartTransitionSignature, float, Duration);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FRiftLobbyActionFailedSignature, const FString&, ErrorMessage);
 
-/**
- *
- */
 UCLASS()
 class RIFT_API ABasePlayerController : public APlayerController
 {

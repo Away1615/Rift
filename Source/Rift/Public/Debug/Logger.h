@@ -6,30 +6,14 @@
 
 DECLARE_LOG_CATEGORY_EXTERN(LogRift, Log, All);
 
-/**
- *
- */
 enum class ELogOutputType : uint8
 {
 	LogOnly,
 	Screen
 };
 
-/**
- * Coarse-grained gameplay system tag attached to FLogger calls.
- *
- * Lets you silence or re-enable a single noisy system's debug output at runtime
- * without touching code or recompiling - useful when you only care about, say,
- * Ability logs right now and don't want Weapon/Animation spam in the way.
- *
- * Toggle at runtime via console commands (registered in Logger.cpp):
- *   Rift.Log.Enable  <SystemName>
- *   Rift.Log.Disable <SystemName>
- *   Rift.Log.List
- *
- * NOTE: Keep this in sync with GLogSystemNames in Logger.cpp (same order,
- * one entry per value, "Count" excluded). Append new systems before "Count".
- */
+// Per-system debug tag for FLogger; toggle at runtime via Rift.Log.Enable/Disable/List (Logger.cpp).
+// Keep in sync with GLogSystemNames in Logger.cpp (same order, "Count" excluded).
 enum class ELogSystem : uint8
 {
 	General,
@@ -65,8 +49,6 @@ public:
 		const float ScreenDuration = 5.0f
 	);
 
-	// --- Runtime system toggles, intended to be driven by the console commands above ---
-
 	static void SetSystemEnabled(ELogSystem System, bool bEnabled);
 	static bool IsSystemEnabled(ELogSystem System);
 
@@ -78,8 +60,6 @@ private:
 
 	static FString GetNetLabel(const UObject* WorldContextObject);
 
-	// Bit (1 << System) tells whether that system's output is currently enabled.
-	// All systems start enabled, so existing behaviour is unchanged until you
-	// explicitly silence one while debugging.
+	// Bitmask, bit (1 << System); all systems enabled by default.
 	static uint32 EnabledSystemsMask;
 };

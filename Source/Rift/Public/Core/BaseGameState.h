@@ -6,9 +6,6 @@
 #include "GameFramework/GameStateBase.h"
 #include "BaseGameState.generated.h"
 
-/**
- * 
- */
 UCLASS()
 class RIFT_API ABaseGameState : public AGameStateBase
 {

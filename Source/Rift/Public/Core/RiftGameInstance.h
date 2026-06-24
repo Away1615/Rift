@@ -12,6 +12,7 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FRiftRoomCodeSignature, const FStrin
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FRiftRoomErrorSignature, const FString&, ErrorMessage);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FRiftRoomSimpleSignature);
 
+class URiftAudioConfig;
 class UWorld;
 
 UCLASS(Config=Game)
@@ -56,6 +57,9 @@ public:
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Rift|Maps")
 	TSoftObjectPtr<UWorld> GameplayMap;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Rift|Audio")
+	TObjectPtr<URiftAudioConfig> AudioConfig;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Config, Category="Rift|Room", meta=(ClampMin="1", UIMin="1"))
 	int32 MaxLobbyPlayers = 4;

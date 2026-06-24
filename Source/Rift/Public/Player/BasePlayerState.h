@@ -16,9 +16,6 @@ class UPlayerClassConfig;
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FRiftLobbyPlayerStateChangedSignature);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FRiftRespawnStateChangedSignature);
 
-/**
- *
- */
 UCLASS()
 class RIFT_API ABasePlayerState : public APlayerState, public IAbilitySystemInterface
 {

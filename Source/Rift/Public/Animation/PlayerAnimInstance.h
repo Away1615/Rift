@@ -9,9 +9,6 @@
 
 class APlayerCharacter;
 
-/**
- *
- */
 UCLASS()
 class RIFT_API UPlayerAnimInstance : public UAnimInstance
 {

@@ -65,7 +65,6 @@ void ABasePlayerController::BeginPlay()
 		PlayerCameraManager->ViewPitchMax = 25.0f;
 	}
 
-	// Use Input Config reference
 	if (!IsLocalController() || !DefaultInputConfig || !DefaultInputConfig->MappingContext) return;
 	ULocalPlayer* LocalPlayer = GetLocalPlayer();
 	if (!LocalPlayer) return;
@@ -89,15 +88,6 @@ void ABasePlayerController::SetupInputComponent()
 
 	if (!EnhancedInputComponent || !DefaultInputConfig) return;
 
-	/*
-	Player Input: Move
-	-> Input Mapping Context MoveInput to MoveAction
-	-> Enhanced Input notify MoveAction is Triggered
-	-> Enhanced Input call function Bind by BindAction
-	-> HandleMoveInput exec game logic
-	*/
-
-	// Bind Move
 	if (DefaultInputConfig->MoveAction)
 	{
 		EnhancedInputComponent->BindAction(
@@ -488,9 +478,7 @@ void ABasePlayerController::HandleLookInput(const FInputActionValue& InputAction
 {
 	const FVector2D LookValue = InputActionValue.Get<FVector2D>();
 
-	// Rotate around Z axis
 	AddYawInput(LookValue.X);
-	// Rotate around Y axis
 	AddPitchInput(LookValue.Y);
 }
 

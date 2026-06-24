@@ -6,12 +6,7 @@
 #include "Components/ActorComponent.h"
 #include "RiftTargetAssistComponent.generated.h"
 
-/**
- * Soft target helper for combat abilities.
- *
- * Contract: this component only outputs a SoftTarget or DesiredFacing.
- * It must not modify Controller Rotation, control the camera, or implement hard lock-on.
- */
+// Soft target helper: only outputs SoftTarget/DesiredFacing, never touches controller rotation, camera, or hard lock-on.
 UCLASS(ClassGroup=(Custom), meta=(BlueprintSpawnableComponent))
 class RIFT_API URiftTargetAssistComponent : public UActorComponent
 {

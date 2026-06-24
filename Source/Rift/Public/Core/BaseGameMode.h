@@ -6,9 +6,6 @@
 #include "GameFramework/GameModeBase.h"
 #include "BaseGameMode.generated.h"
 
-/**
- *
- */
 UCLASS()
 class RIFT_API ABaseGameMode : public AGameModeBase
 {

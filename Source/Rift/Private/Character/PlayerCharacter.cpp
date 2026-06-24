@@ -1060,7 +1060,6 @@ void APlayerCharacter::Multicast_PlayHeavyHit_Implementation(const ERiftHitReact
 
 void APlayerCharacter::InitPlayerProperties()
 {
-    // Network
     bReplicates = true;
     SetReplicateMovement(true);
 }
@@ -1288,7 +1287,6 @@ void APlayerCharacter::ApplyCameraRelativeMovementInput()
 
     const FRotator ControlRotation = Controller->GetControlRotation();
 
-    // Rotate around Z axis
     const FRotator YawRotation(0.0f, ControlRotation.Yaw, 0.0f);
 
     const FVector ForwardDirection = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::X);

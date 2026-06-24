@@ -56,7 +56,7 @@ namespace
 	}
 }
 
-// All systems start enabled - existing behaviour is unchanged until you opt to silence one.
+// All systems enabled by default.
 uint32 FLogger::EnabledSystemsMask = ~0u;
 
 void FLogger::Log(const UObject* WorldContextObject, const FString& Message, const ELogSystem System, const ELogOutputType Output, const float ScreenDuration)
@@ -185,8 +185,7 @@ FString FLogger::GetNetLabel(const UObject* WorldContextObject)
 	}
 }
 
-// --- Console commands: quickly flip a system's debug output on/off while playing/debugging ---
-// Usage in the in-game console (~):
+// Console commands, e.g.:
 //   Rift.Log.Enable Ability
 //   Rift.Log.Disable Weapon
 //   Rift.Log.List

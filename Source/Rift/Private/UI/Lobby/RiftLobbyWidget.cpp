@@ -260,10 +260,7 @@ bool URiftLobbyWidget::SwitchToLocalSlotCamera()
 		return true;
 	}
 
-	// LocalSlotIndex / the matching display actor may not have replicated yet
-	// (e.g. right after a second player joins). Keep retrying until it has,
-	// instead of leaving the view target unset (camera defaults to the origin
-	// since the lobby has no Pawn).
+	// Display actor may not have replicated yet (e.g. right after a second player joins); keep retrying.
 	UWorld* World = GetWorld();
 	if (World && !World->GetTimerManager().IsTimerActive(LocalSlotCameraRetryTimerHandle))
 	{

@@ -7,9 +7,7 @@
 #include "BaseHUD.generated.h"
 
 class UPlayerHUDWidget;
-/**
- *
- */
+
 UCLASS()
 class RIFT_API ABaseHUD : public AHUD
 {

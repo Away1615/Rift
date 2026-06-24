@@ -72,9 +72,7 @@ void AEnemyCharacter::BeginPlay()
 {
 	Super::BeginPlay();
 
-	// The ASC is created in the constructor, so it must always exist on a properly
-	// instantiated actor. A null here means a stale level instance placed before the
-	// component was added to the class. Fix the asset by re-placing it.
+	// Null means a stale level instance placed before the ASC was added to the class.
 	if (!AbilitySystemComponent)
 	{
 		FLogger::Error(
@@ -1089,9 +1087,7 @@ void AEnemyCharacter::SetHitRetreatState(const bool bInRetreating)
 
 	bIsHitRetreating = bInRetreating;
 
-	// Dedicated tag (not State_Attacking) so this never collides with the
-	// ref-counted tag GA_EnemyMeleeAttack/GA_EnemyShieldBlock add/remove via
-	// ActivationOwnedTags. IsBusyForAI() aggregates both for gating.
+	// Separate tag from State_Attacking to avoid colliding with its ActivationOwnedTags ref-count.
 	const int32 NewCount = bInRetreating ? 1 : 0;
 	AbilitySystemComponent->SetLooseGameplayTagCount(RiftGameplayTags::State_Enemy_HitRetreat, NewCount);
 	AbilitySystemComponent->SetReplicatedLooseGameplayTagCount(RiftGameplayTags::State_Enemy_HitRetreat, NewCount);

@@ -9,9 +9,6 @@
 class UAbilitySystemComponent;
 struct FOnAttributeChangeData;
 
-/**
- *
- */
 UCLASS()
 class RIFT_API UEnemyHealthBarWidget : public UUserWidget
 {

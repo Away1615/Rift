@@ -23,9 +23,6 @@ class UStaticMeshComponent;
 class UUserWidget;
 class UWidgetComponent;
 
-/**
- *
- */
 UCLASS()
 class RIFT_API AEnemyCharacter : public ABaseCharacter, public IAbilitySystemInterface, public IRiftAttributeReactionReceiver
 {

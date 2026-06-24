@@ -11,9 +11,6 @@ class UAbilitySystemComponent;
 class ABasePlayerState;
 struct FOnAttributeChangeData;
 
-/**
- * 
- */
 UCLASS()
 class RIFT_API UPlayerHUDWidget : public UUserWidget
 {

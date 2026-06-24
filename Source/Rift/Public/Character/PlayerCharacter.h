@@ -34,9 +34,6 @@ enum class ERiftCharacterFacingMode : uint8
 	CombatAssist UMETA(DisplayName="Combat Assist")
 };
 
-/**
- *
- */
 UCLASS()
 class RIFT_API APlayerCharacter : public ABaseCharacter, public IAbilitySystemInterface, public IRiftAttributeReactionReceiver
 {
@@ -46,24 +43,18 @@ public:
 	APlayerCharacter();
 
 	void HandleMove(const FVector2D& InputValue);
-	// Only call from combat state paths that execute on both server and owning client,
-	// such as a future LocalPredicted GameplayAbility ActivateAbility/EndAbility.
-	// Do not call from purely local input callbacks.
+	// Server+client combat paths only (e.g. LocalPredicted ability hooks), not local input callbacks.
 	UFUNCTION(BlueprintCallable, Category="Locomotion|Facing")
 	void SetFacingMode(ERiftCharacterFacingMode NewFacingMode);
 
 	UFUNCTION(BlueprintPure, Category="Locomotion|Facing")
 	ERiftCharacterFacingMode GetFacingMode() const;
 
-	// Only call from combat state paths that execute on both server and owning client,
-	// such as a future LocalPredicted GameplayAbility ActivateAbility/EndAbility.
-	// Do not call from purely local input callbacks.
+	// Server+client combat paths only (e.g. LocalPredicted ability hooks), not local input callbacks.
 	UFUNCTION(BlueprintCallable, Category="Locomotion|Facing")
 	void StartAssistedFacing(const FRotator& TargetRotation, float Duration, float RotationSpeed);
 
-	// Only call from combat state paths that execute on both server and owning client,
-	// such as a future LocalPredicted GameplayAbility ActivateAbility/EndAbility.
-	// Do not call from purely local input callbacks.
+	// Server+client combat paths only (e.g. LocalPredicted ability hooks), not local input callbacks.
 	UFUNCTION(BlueprintCallable, Category="Locomotion|Facing")
 	void StopAssistedFacing();
 
@@ -150,9 +141,7 @@ public:
 	UFUNCTION(BlueprintImplementableEvent, Category="Respawn")
 	void OnPlayerRevived();
 
-	// Whether Player press WASD
 	bool HasMovementInput() const;
-	// Whether Player is Moving
 	bool IsMovementAccelerating() const;
 
 	virtual void Tick(float DeltaTime) override;
@@ -162,10 +151,10 @@ public:
 	virtual void PawnClientRestart() override;
 	virtual UAbilitySystemComponent* GetAbilitySystemComponent() const override;
 
-	// On the server, called when this Pawn is controlled by the Controller
+	// Server-side
 	virtual void PossessedBy(AController* NewController) override;
 
-	// On the client, called when PlayerState is copied to this Pawn
+	// Client-side
 	virtual void OnRep_PlayerState() override;
 
 	UFUNCTION(BlueprintPure, Category="Class")
@@ -276,7 +265,6 @@ protected:
 	TArray<FGameplayAbilitySpecHandle> GrantedAbilityHandles;
 
 private:
-	// Set up network replication
 	void InitPlayerProperties();
 	void InitCameraComponents();
 
@@ -317,7 +305,6 @@ private:
 
 	void DeactivatePerfectDodgeWindow();
 
-	/* Movement and Camera Control */
 	void InitMovementSettings();
 	void ApplyCameraRelativeMovementInput();
 	void ApplyFacingModeToMovement();
