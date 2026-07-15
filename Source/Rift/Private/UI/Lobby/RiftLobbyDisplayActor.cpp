@@ -179,6 +179,7 @@ void ARiftLobbyDisplayActor::SetGhostVisible(const bool bVisible)
 	if (GhostMeshComponent)
 	{
 		GhostMeshComponent->SetVisibility(bVisible, true);
+		GhostMeshComponent->SetHiddenInGame(!bVisible, true);
 	}
 }
 
